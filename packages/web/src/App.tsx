@@ -2,7 +2,6 @@ import React from 'react';
 import { usePinyinDuck } from './hooks/usePinyinDuck';
 import { Toolbar } from './components/Toolbar';
 import { Editor } from './components/Editor';
-import { LearnerGuide } from './components/LearnerGuide';
 import './styles/app.css';
 
 export const App: React.FC = () => {
@@ -78,8 +77,6 @@ export const App: React.FC = () => {
             onKeyDown={handleKeyDown}
             onChangeTextarea={handleTextareaChange}
           />
-
-          <LearnerGuide />
         </div>
       </main>
 
