@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { CandidatePopup } from './CandidatePopup';
 import { Candidate } from '@pinyinduck/core';
 
@@ -43,10 +43,12 @@ export const Editor: React.FC<EditorProps> = ({
   onChangeTextarea,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isFocused, setIsFocused] = useState<boolean>(true);
 
-  // Auto-focus on load
+  // Auto-focus on mount
   useEffect(() => {
     textareaRef.current?.focus();
+    setIsFocused(true);
   }, []);
 
   // Restore cursor position after state changes (deleting, inserting, committing)
@@ -66,6 +68,7 @@ export const Editor: React.FC<EditorProps> = ({
 
   const handleContainerClick = () => {
     textareaRef.current?.focus();
+    setIsFocused(true);
   };
 
   // Slices of committed text around active composition
@@ -73,8 +76,21 @@ export const Editor: React.FC<EditorProps> = ({
   const committedAfter = committedText.slice(insertPos);
 
   return (
-    <div className="editor-container" onClick={handleContainerClick}>
+    <div
+      className={`editor-container ${isFocused ? 'focused' : ''}`}
+      onClick={handleContainerClick}
+    >
       <div className="editor-surface">
+        {/* Empty state: prominent blinking cursor indicating editor is ready */}
+        {committedText === '' && !isComposing && (
+          <div className="empty-placeholder-layer" aria-hidden="true">
+            {isFocused && <span className="active-blinking-cursor" />}
+            <span className="placeholder-text">
+              Start typing Pinyin here (e.g. "nihao", "shi4", "ta1", "zhongguo")...
+            </span>
+          </div>
+        )}
+
         {/* Visual composition layer: active when composing */}
         {isComposing && (
           <div className="text-display composition-active" aria-hidden="true">
@@ -97,11 +113,8 @@ export const Editor: React.FC<EditorProps> = ({
           onSelect={handleTextareaSelectOrClick}
           onClick={handleTextareaSelectOrClick}
           onKeyUp={handleTextareaSelectOrClick}
-          placeholder={
-            isComposing
-              ? ''
-              : 'Start typing Pinyin here (e.g. "nihao", "shi4", "ta1", "zhongguo")...'
-          }
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
@@ -129,13 +142,19 @@ export const Editor: React.FC<EditorProps> = ({
 
       <div className="editor-statusbar">
         <span className="status-item">
-          <strong>IME Mode:</strong> {isComposing ? 'Composing Pinyin...' : 'Ready'}
+          <span className={`status-dot ${isFocused ? 'active' : 'idle'}`} />
+          <strong>Editor:</strong>{' '}
+          {isFocused
+            ? isComposing
+              ? 'Composing Pinyin...'
+              : 'Active (Ready to type)'
+            : 'Idle (Click to focus)'}
         </span>
         <span className="status-item">
           <strong>Length:</strong> {committedText.length} characters
         </span>
         <span className="status-hint">
-          Supports <kbd>Ctrl+A</kbd>, <kbd>Backspace</kbd>, <kbd>Delete</kbd>, <kbd>Space</kbd>
+          Supports <kbd>Ctrl+A</kbd>, <kbd>Backspace</kbd>, <kbd>Space</kbd>, <kbd>1-9</kbd>
         </span>
       </div>
     </div>
