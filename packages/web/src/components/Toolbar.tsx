@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { ScriptType } from '@pinyinduck/core';
-import { Copy, Check, Trash2, Globe2, BookOpen, Sparkles } from 'lucide-react';
+import { Copy, Check, Trash2, Globe2 } from 'lucide-react';
 
 interface ToolbarProps {
   script: ScriptType;
   onToggleScript: () => void;
   committedText: string;
   onClearText: () => void;
-  onSelectPrompt: (pinyinSequence: string) => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -15,7 +14,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onToggleScript,
   committedText,
   onClearText,
-  onSelectPrompt,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -30,16 +28,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     }
   };
 
-  const samplePrompts = [
-    { label: '👋 Hello', pinyin: 'nihao' },
-    { label: '🙏 Thank you', pinyin: 'xiexie' },
-    { label: '🇨🇳 China', pinyin: 'zhongguo' },
-    { label: '🙋 He vs She', pinyin: 'ta' },
-    { label: '🎯 Tone 4: shì (是)', pinyin: 'shi4' },
-    { label: '🔟 Tone 2: shí (十)', pinyin: 'shi2' },
-    { label: '🏯 Tiananmen', pinyin: "tian'an'men" },
-  ];
-
   return (
     <header className="duck-toolbar">
       <div className="toolbar-brand">
@@ -47,24 +35,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <div className="brand-text">
           <h1>PinyinDuck</h1>
           <span className="brand-sub">TypeDuck for Mandarin Learners</span>
-        </div>
-      </div>
-
-      {/* Quick learner prompts */}
-      <div className="toolbar-prompts">
-        <span className="prompts-label">Try typing:</span>
-        <div className="prompt-badges">
-          {samplePrompts.map((p) => (
-            <button
-              key={p.pinyin}
-              type="button"
-              className="prompt-badge"
-              onClick={() => onSelectPrompt(p.pinyin)}
-              title={`Click to test typing "${p.pinyin}"`}
-            >
-              {p.label}
-            </button>
-          ))}
         </div>
       </div>
 

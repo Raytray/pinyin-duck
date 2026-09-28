@@ -28,23 +28,6 @@ export const App: React.FC = () => {
     clearAll,
   } = usePinyinDuck({ pageSize: 5 });
 
-  const handleSelectPrompt = (pinyin: string) => {
-    clearAll();
-    // Simulate typing each character into composition buffer
-    for (let i = 0; i < pinyin.length; i++) {
-      handleKeyDown(
-        {
-          key: pinyin[i],
-          preventDefault: () => {},
-          ctrlKey: false,
-          metaKey: false,
-          altKey: false,
-        } as any,
-        null
-      );
-    }
-  };
-
   return (
     <div className="app-shell">
       <div className="app-backdrop-duck" />
@@ -54,7 +37,6 @@ export const App: React.FC = () => {
         onToggleScript={toggleScript}
         committedText={committedText}
         onClearText={clearAll}
-        onSelectPrompt={handleSelectPrompt}
       />
 
       <main className="main-content">
