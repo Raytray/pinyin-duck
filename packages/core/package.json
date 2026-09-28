@@ -1,0 +1,19 @@
+{
+  "name": "@pinyinduck/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Core Pinyin parsing, CC-CEDICT lookup, and candidate ranking engine for PinyinDuck",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build:dict": "tsx scripts/build-dictionary.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}
