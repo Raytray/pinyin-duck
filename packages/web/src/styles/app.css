@@ -214,24 +214,59 @@ body {
 .editor-surface {
   position: relative;
   min-height: 220px;
-  padding: 24px;
   cursor: text;
 }
 
-.text-display {
+.editor-textarea {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  padding: 24px;
+  font-family: var(--font-hanzi);
+  font-size: 1.5rem;
+  line-height: 1.8;
+  color: var(--color-text-main);
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: vertical;
+  white-space: pre-wrap;
+  word-break: break-all;
+  z-index: 2;
+  position: relative;
+}
+
+.editor-textarea::placeholder {
+  font-family: var(--font-sans);
+  font-size: 1.05rem;
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.editor-textarea.composing {
+  color: transparent !important;
+  caret-color: transparent !important;
+}
+
+.editor-textarea.composing::selection {
+  background: transparent;
+}
+
+.text-display.composition-active {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 24px;
   font-family: var(--font-hanzi);
   font-size: 1.5rem;
   line-height: 1.8;
   color: var(--color-text-main);
   white-space: pre-wrap;
   word-break: break-all;
-}
-
-.placeholder-text {
-  font-family: var(--font-sans);
-  font-size: 1.05rem;
-  color: #94a3b8;
-  font-weight: 400;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .composition-marker {
@@ -240,11 +275,12 @@ body {
   background: #fffbeb;
   border-radius: 4px;
   padding: 0 4px;
+  margin: 0 1px;
 }
 
 .composition-underline {
   font-family: var(--font-sans);
-  font-size: 1.25rem;
+  font-size: 1.35rem;
   font-weight: 600;
   color: #b45309;
   text-decoration: underline wavy var(--color-primary);
@@ -264,21 +300,6 @@ body {
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
-}
-
-.keystroke-capture {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: text;
-  resize: none;
-  border: none;
-  outline: none;
-  pointer-events: auto;
-  z-index: 1;
 }
 
 .candidate-anchor {

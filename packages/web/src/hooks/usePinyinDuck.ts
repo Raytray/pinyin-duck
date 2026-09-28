@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import {
   PinyinSearchEngine,
   SEED_DICTIONARY,
@@ -29,8 +29,12 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   const [script, setScript] = useState<ScriptType>(initialScript);
   const [committedText, setCommittedText] = useState<string>('');
   const [compositionBuffer, setCompositionBuffer] = useState<string>('');
+  const [insertPos, setInsertPos] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(0);
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
+
+  // Target cursor position to restore on next render
+  const cursorToRestore = useRef<number | null>(null);
 
   // Search candidates whenever composition buffer or script changes
   const searchResult = useMemo(() => {
@@ -60,31 +64,46 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       const candidate = pageCandidates[indexOnPage];
       if (!candidate) return;
 
-      setCommittedText((prev) => prev + candidate.hanzi);
+      const before = committedText.slice(0, insertPos);
+      const after = committedText.slice(insertPos);
+      const newCommitted = before + candidate.hanzi + after;
+      const newCursor = insertPos + candidate.hanzi.length;
+
+      setCommittedText(newCommitted);
+      cursorToRestore.current = newCursor;
 
       // If candidate had remaining pinyin (partial match), keep remaining in buffer
       if (candidate.remainingPinyin) {
         setCompositionBuffer(candidate.remainingPinyin);
+        setInsertPos(newCursor);
         setCurrentPage(0);
         setSelectedIndex(0);
       } else {
         // Full consumption
         setCompositionBuffer('');
+        setInsertPos(newCursor);
         setCurrentPage(0);
         setSelectedIndex(0);
       }
     },
-    [pageCandidates]
+    [pageCandidates, committedText, insertPos]
   );
 
   // Commit raw untranslated pinyin text
   const commitRaw = useCallback(() => {
     if (!compositionBuffer) return;
-    setCommittedText((prev) => prev + compositionBuffer);
+    const before = committedText.slice(0, insertPos);
+    const after = committedText.slice(insertPos);
+    const newCommitted = before + compositionBuffer + after;
+    const newCursor = insertPos + compositionBuffer.length;
+
+    setCommittedText(newCommitted);
+    cursorToRestore.current = newCursor;
     setCompositionBuffer('');
+    setInsertPos(newCursor);
     setCurrentPage(0);
     setSelectedIndex(0);
-  }, [compositionBuffer]);
+  }, [compositionBuffer, committedText, insertPos]);
 
   // Cancel composition
   const cancelComposition = useCallback(() => {
@@ -126,10 +145,58 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     [pageCandidates.length, selectedIndex, currentPage, totalPages, pageSize]
   );
 
+  // Direct change handler on textarea (e.g. paste, native text deletion)
+  const handleTextareaChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      if (compositionBuffer.length === 0) {
+        setCommittedText(e.target.value);
+        setInsertPos(e.target.selectionStart || 0);
+      }
+    },
+    [compositionBuffer.length]
+  );
+
   // Keyboard handler for the editor
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+    (
+      e: React.KeyboardEvent<HTMLTextAreaElement>,
+      textarea: HTMLTextAreaElement | null
+    ) => {
       const isComposing = compositionBuffer.length > 0;
+      const start = textarea?.selectionStart ?? insertPos;
+      const end = textarea?.selectionEnd ?? insertPos;
+      const hasSelection = start !== end;
+
+      // Hotkey: Ctrl+A / Cmd+A (Select All)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        if (isComposing) {
+          // Cancel active composition and select all text
+          cancelComposition();
+        }
+        if (textarea) {
+          textarea.select();
+        }
+        return;
+      }
+
+      // Hotkey: Ctrl+C / Cmd+C (Copy) or Ctrl+X / Cmd+X (Cut)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x' && !isComposing) {
+        if (hasSelection && textarea) {
+          const selected = committedText.slice(start, end);
+          navigator.clipboard.writeText(selected).catch(() => {});
+          const newText = committedText.slice(0, start) + committedText.slice(end);
+          setCommittedText(newText);
+          cursorToRestore.current = start;
+          setInsertPos(start);
+          e.preventDefault();
+        }
+        return;
+      }
+
+      // Other Ctrl/Cmd/Alt shortcuts (e.g. Ctrl+Z, Ctrl+V, Ctrl+C): let native browser handle
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+      }
 
       // Handle Escape: cancel composition
       if (e.key === 'Escape') {
@@ -140,50 +207,103 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
         return;
       }
 
-      // Handle Backspace
+      // Handle Backspace:
       if (e.key === 'Backspace') {
         if (isComposing) {
           e.preventDefault();
-          setCompositionBuffer((prev) => prev.slice(0, -1));
+          const nextBuffer = compositionBuffer.slice(0, -1);
+          setCompositionBuffer(nextBuffer);
           setCurrentPage(0);
           setSelectedIndex(0);
+          return;
         }
-        // If not composing, default textarea backspace will delete from committedText naturally
+
+        // When NOT composing: delete accepted characters!
+        e.preventDefault();
+        if (hasSelection) {
+          // Delete selected accepted characters
+          const newText = committedText.slice(0, start) + committedText.slice(end);
+          setCommittedText(newText);
+          cursorToRestore.current = start;
+          setInsertPos(start);
+        } else if (start > 0) {
+          // Delete one character before cursor
+          // Use Array.from to correctly handle UTF-16 surrogate pairs / emojis
+          const beforeArr = Array.from(committedText.slice(0, start));
+          const removed = beforeArr.pop() || '';
+          const removeLen = removed.length;
+          const newStart = start - removeLen;
+          const newText = committedText.slice(0, newStart) + committedText.slice(start);
+          setCommittedText(newText);
+          cursorToRestore.current = newStart;
+          setInsertPos(newStart);
+        }
+        return;
+      }
+
+      // Handle Delete (Forward delete):
+      if (e.key === 'Delete' && !isComposing) {
+        e.preventDefault();
+        if (hasSelection) {
+          const newText = committedText.slice(0, start) + committedText.slice(end);
+          setCommittedText(newText);
+          cursorToRestore.current = start;
+          setInsertPos(start);
+        } else if (start < committedText.length) {
+          const afterArr = Array.from(committedText.slice(start));
+          const removed = afterArr.shift() || '';
+          const removeLen = removed.length;
+          const newText = committedText.slice(0, start) + committedText.slice(start + removeLen);
+          setCommittedText(newText);
+          cursorToRestore.current = start;
+          setInsertPos(start);
+        }
         return;
       }
 
       // Handle Enter
       if (e.key === 'Enter') {
+        e.preventDefault();
         if (isComposing) {
-          e.preventDefault();
           commitRaw();
-          return;
+        } else {
+          // Insert newline in accepted text
+          const before = committedText.slice(0, start);
+          const after = committedText.slice(end);
+          const newText = before + '\n' + after;
+          const newCursor = start + 1;
+          setCommittedText(newText);
+          cursorToRestore.current = newCursor;
+          setInsertPos(newCursor);
         }
-        // If not composing, let Enter create newline naturally
         return;
       }
 
       // Handle Space
       if (e.key === ' ') {
+        e.preventDefault();
         if (isComposing) {
-          e.preventDefault();
-          // If we have candidates, commit the selected one
           if (pageCandidates.length > 0) {
             selectCandidate(selectedIndex);
           } else {
             commitRaw();
           }
-          return;
+        } else {
+          // Insert space in accepted text
+          const before = committedText.slice(0, start);
+          const after = committedText.slice(end);
+          const newText = before + ' ' + after;
+          const newCursor = start + 1;
+          setCommittedText(newText);
+          cursorToRestore.current = newCursor;
+          setInsertPos(newCursor);
         }
-        // If not composing, regular space
         return;
       }
 
-      // Handle Number Keys 1-9 to select candidate
+      // Handle Number Keys 1-9
       if (/^[1-9]$/.test(e.key)) {
         if (isComposing) {
-          // If user typed tone number at the end of a syllable without candidates selected
-          // Check if key corresponds to candidate index
           const digit = parseInt(e.key, 10);
           if (digit <= pageCandidates.length) {
             e.preventDefault();
@@ -191,6 +311,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
             return;
           }
         }
+        // If not composing, regular number input (falls through to default)
       }
 
       // Handle Page Navigation with [ and ] or PageUp / PageDown
@@ -215,6 +336,17 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
           moveSelection('prev');
           return;
         }
+      } else {
+        // Not composing: Arrow keys move cursor naturally in textarea
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) {
+          // Let native cursor navigation handle it
+          setTimeout(() => {
+            if (textarea) {
+              setInsertPos(textarea.selectionStart);
+            }
+          }, 0);
+          return;
+        }
       }
 
       // Handle Chinese Punctuation
@@ -222,24 +354,45 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
         e.preventDefault();
         const mappedPunct = PUNCTUATION_MAP[e.key];
         if (isComposing) {
-          if (pageCandidates.length > 0) {
-            const chosen = pageCandidates[selectedIndex];
-            setCommittedText((prev) => prev + chosen.hanzi + mappedPunct);
-          } else {
-            setCommittedText((prev) => prev + compositionBuffer + mappedPunct);
-          }
+          const chosenHanzi =
+            pageCandidates.length > 0 ? pageCandidates[selectedIndex].hanzi : compositionBuffer;
+          const before = committedText.slice(0, insertPos);
+          const after = committedText.slice(insertPos);
+          const newCommitted = before + chosenHanzi + mappedPunct + after;
+          const newCursor = insertPos + chosenHanzi.length + mappedPunct.length;
+
+          setCommittedText(newCommitted);
+          cursorToRestore.current = newCursor;
           setCompositionBuffer('');
+          setInsertPos(newCursor);
           setCurrentPage(0);
           setSelectedIndex(0);
         } else {
-          setCommittedText((prev) => prev + mappedPunct);
+          const before = committedText.slice(0, start);
+          const after = committedText.slice(end);
+          const newCommitted = before + mappedPunct + after;
+          const newCursor = start + mappedPunct.length;
+
+          setCommittedText(newCommitted);
+          cursorToRestore.current = newCursor;
+          setInsertPos(newCursor);
         }
         return;
       }
 
-      // Handle alphabetic letters (a-z, A-Z) and apostrophe (')
-      if (/^[a-zA-Z']$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Handle alphabetic letters (a-z, A-Z) and apostrophe (') -> Pinyin Composition
+      if (/^[a-zA-Z']$/.test(e.key)) {
         e.preventDefault();
+        if (!isComposing) {
+          // If there was an active selection, delete it when starting composition
+          if (hasSelection) {
+            const newText = committedText.slice(0, start) + committedText.slice(end);
+            setCommittedText(newText);
+            setInsertPos(start);
+          } else {
+            setInsertPos(start);
+          }
+        }
         setCompositionBuffer((prev) => prev + e.key.toLowerCase());
         setCurrentPage(0);
         setSelectedIndex(0);
@@ -250,6 +403,8 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       compositionBuffer,
       pageCandidates,
       selectedIndex,
+      insertPos,
+      committedText,
       selectCandidate,
       commitRaw,
       cancelComposition,
@@ -266,8 +421,10 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   const clearAll = useCallback(() => {
     setCommittedText('');
     setCompositionBuffer('');
+    setInsertPos(0);
     setCurrentPage(0);
     setSelectedIndex(0);
+    cursorToRestore.current = 0;
   }, []);
 
   return {
@@ -276,6 +433,8 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     toggleScript,
     committedText,
     setCommittedText,
+    insertPos,
+    setInsertPos,
     compositionBuffer,
     isComposing: compositionBuffer.length > 0,
     pageCandidates,
@@ -291,6 +450,8 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     nextPage,
     prevPage,
     handleKeyDown,
+    handleTextareaChange,
+    cursorToRestore,
     clearAll,
   };
 }
