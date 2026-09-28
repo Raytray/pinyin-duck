@@ -1,0 +1,25 @@
+{
+  "name": "pinyin-typeduck",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeDuck-inspired Pinyin input method with real-time English definitions for Mandarin learners",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run -w @pinyinduck/web dev",
+    "build": "npm run --workspaces --if-present build",
+    "test": "npm run --workspaces --if-present test",
+    "typecheck": "npm run --workspaces --if-present typecheck"
+  },
+  "keywords": [
+    "pinyin",
+    "mandarin",
+    "chinese-input",
+    "typeduck",
+    "language-learning",
+    "ime"
+  ],
+  "author": "",
+  "license": "MIT"
+}
