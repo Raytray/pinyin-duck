@@ -116,22 +116,23 @@ As the user types into the composition field:
    - Initialize Git repository and `.gitignore`.
    - Configure root workspace `package.json` and TypeScript configs.
    - Commit plan to repository.
-   - **Git Commit**: `chore: initialize monorepo workspace and git repository`
+   - **Git Commit**: `chore: initialize monorepo workspace and git repository` (`131eab4`)
 
-2. **Step 2: Build `@pinyinduck/core`**
+2. **Step 2: Build `@pinyinduck/core`** (Done)
    - Implement CC-CEDICT parser script and generate a compact, fast client index with frequency ranking.
    - Implement Trie-based prefix search and syllable segmenter.
    - Add unit tests for pinyin parsing (toneless, tone numbers, apostrophes, multi-syllable segmentation).
-   - **Git Commit**: `feat(core): implement dictionary indexing, pinyin parser, and candidate search`
+   - **Git Commit**: `feat(core): implement dictionary indexing, pinyin parser, and candidate search` (`c8ccf65`)
 
-3. **Step 3: Build `@pinyinduck/web`**
+3. **Step 3: Build `@pinyinduck/web`** (Done)
    - Set up Vite + React + TypeScript web app.
    - Implement the IME composition state engine (`usePinyinDuck`).
    - Build the candidate card dropdown with clean styling and keyboard shortcuts.
    - Connect the offline core dictionary engine.
-   - **Git Commit**: `feat(web): implement IME composition playground and candidate cards UI`
+   - **Git Commit**: `feat(web): implement IME composition playground and candidate cards UI` (`afe6f97`)
 
-4. **Step 4: Verification, Polish & Multi-Platform Documentation**
+4. **Step 4: Verification, Polish & Multi-Platform Documentation** (Done)
    - Test typing common beginner phrases, homophone differentiation (`ta1`, `shi4`), and script toggling.
    - Document extension points and roadmap for Windows (Milestone 2) and Android (Milestone 3).
    - **Git Commit**: `docs: add multi-platform roadmap and test verification report`
+
