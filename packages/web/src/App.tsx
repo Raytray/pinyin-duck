@@ -11,6 +11,8 @@ export const App: React.FC = () => {
     toggleScript,
     committedText,
     setCommittedText,
+    insertPos,
+    setInsertPos,
     compositionBuffer,
     isComposing,
     pageCandidates,
@@ -22,28 +24,26 @@ export const App: React.FC = () => {
     nextPage,
     prevPage,
     handleKeyDown,
+    handleTextareaChange,
+    cursorToRestore,
     clearAll,
   } = usePinyinDuck({ pageSize: 5 });
 
-  const handleSelectPrompt = (pinyinSequence: string) => {
-    // Clear and feed the prompt sequence
+  const handleSelectPrompt = (pinyin: string) => {
     clearAll();
-    // Dispatch keystroke simulation by setting buffer
-    // or simulate typing
-    for (const char of pinyinSequence) {
-      // Use internal keyboard event or set buffer
+    // Simulate typing each character into composition buffer
+    for (let i = 0; i < pinyin.length; i++) {
+      handleKeyDown(
+        {
+          key: pinyin[i],
+          preventDefault: () => {},
+          ctrlKey: false,
+          metaKey: false,
+          altKey: false,
+        } as any,
+        null
+      );
     }
-    // We can directly dispatch keyboard event or set committedText/buffer
-    // For direct interactive demo, let's type it into compositionBuffer:
-    // We trigger window/synthetic keydown or set composition buffer
-    const fakeEvent = {
-      key: pinyinSequence,
-      preventDefault: () => {},
-      ctrlKey: false,
-      metaKey: false,
-      altKey: false,
-    } as any;
-    // We can also just set text directly or let the user try typing
   };
 
   return (
@@ -55,22 +55,7 @@ export const App: React.FC = () => {
         onToggleScript={toggleScript}
         committedText={committedText}
         onClearText={clearAll}
-        onSelectPrompt={(pinyin) => {
-          // Send key event or set text
-          const e = new KeyboardEvent('keydown', { key: pinyin });
-          // Clear and focus
-          clearAll();
-          // We can dispatch individual characters to handleKeyDown
-          for (let i = 0; i < pinyin.length; i++) {
-            handleKeyDown({
-              key: pinyin[i],
-              preventDefault: () => {},
-              ctrlKey: false,
-              metaKey: false,
-              altKey: false,
-            } as any);
-          }
-        }}
+        onSelectPrompt={handleSelectPrompt}
       />
 
       <main className="main-content">
@@ -78,17 +63,20 @@ export const App: React.FC = () => {
           <Editor
             committedText={committedText}
             compositionBuffer={compositionBuffer}
+            insertPos={insertPos}
             isComposing={isComposing}
             pageCandidates={pageCandidates}
             selectedIndex={selectedIndex}
             currentPage={currentPage}
             totalPages={totalPages}
+            cursorToRestore={cursorToRestore}
             onSelectCandidate={selectCandidate}
             onNextPage={nextPage}
             onPrevPage={prevPage}
             onSetSelectedIndex={setSelectedIndex}
+            onSetInsertPos={setInsertPos}
             onKeyDown={handleKeyDown}
-            onChangeCommittedText={setCommittedText}
+            onChangeTextarea={handleTextareaChange}
           />
 
           <LearnerGuide />
