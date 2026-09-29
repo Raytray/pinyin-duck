@@ -4,7 +4,7 @@ A TypeDuck-inspired Mandarin Pinyin input method designed for learners. As you t
 
 ## Monorepo Packages
 
-- **`packages/core`**: Pinyin syllable segmenter, CC-CEDICT indexer, Trie-based candidate search engine, and ranking algorithm.
+- **`packages/core`**: Pinyin syllable segmenter, CC-CEDICT asset generator and loader, Trie-based candidate search engine, and ranking algorithm.
 - **`packages/web`**: Web application featuring an interactive IME composition playground with inline candidate definition cards.
 - **`packages/windows`**: (Planned Milestone 2) Windows desktop integration.
 - **`packages/android`**: (Planned Milestone 3) Android input method integration.
@@ -15,6 +15,26 @@ A TypeDuck-inspired Mandarin Pinyin input method designed for learners. As you t
 npm install
 npm run dev
 ```
+
+### Dictionary
+
+Candidate data comes from the full [CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict)
+corpus, joined with an OpenSubtitles frequency list and the HSK 2012 word list. The
+generated asset is committed at `packages/web/public/dictionary.json`, so the app works
+straight after `npm install`. To rebuild it from source:
+
+```bash
+npm run build:dict                       # regenerates the asset
+npm run build:dict -w @pinyinduck/core -- --no-cache   # re-downloads the sources
+```
+
+`npm run build` runs this automatically. Downloads are cached in `packages/core/.cache/`.
+
+Current output: 125,132 lines parsed into 122,746 unique word/reading pairs
+(26,811 with frequency data, 5,247 on the HSK list), 8.1MB raw and 3.6MB gzipped. That
+is too large to bundle, so the web app fetches it at startup and indexes it into a trie
+(~90ms). The status bar shows the load state; if the asset is missing you get a
+`Failed to load` indicator and a banner telling you to run `npm run build:dict`.
 
 ## Typing Behavior
 
@@ -50,8 +70,8 @@ The repository has two test layers:
 
 | Layer | Command | Covers |
 | --- | --- | --- |
-| Unit (`packages/core`) | `npm test` | Pinyin parsing, syllable segmentation, tone-mark conversion, trie search and ranking |
-| End-to-end (Playwright) | `npm run test:e2e` | The full IME loop in a real browser: composition, candidate ranking, paging, keyboard shortcuts, script toggle |
+| Unit (`packages/core`) | `npm test` | Pinyin parsing, syllable segmentation, tone-mark conversion, trie search, ranking, dictionary generation and loading |
+| End-to-end (Playwright) | `npm run test:e2e` | The full IME loop in a real browser: composition, candidate ranking, paging, keyboard shortcuts, script toggle, dictionary loading |
 
 Run both with `npm run test:all`.
 

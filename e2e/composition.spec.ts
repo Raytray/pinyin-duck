@@ -2,11 +2,13 @@ import { test, expect } from '@playwright/test';
 import {
   editor,
   candidateList,
+  pageCounter,
   candidateItems,
   gotoApp,
   expectCandidates,
   expectPinyin,
   expectGlosses,
+  textLength,
   expectBuffer,
   expectNoMatches,
 } from './helpers';
@@ -21,7 +23,7 @@ test('loads the shell with an idle, empty editor', async ({ page }) => {
   await expect(editor(page)).toHaveValue('');
   await expect(page.locator('.empty-placeholder-layer')).toContainText('Start typing Pinyin here');
   await expect(page.locator('.status-item').first()).toContainText('Active (Ready to type)');
-  await expect(page.locator('.status-item').nth(1)).toContainText('Length: 0 characters');
+  await expect(textLength(page)).toContainText('Length: 0 characters');
   await expect(candidateList(page)).toHaveCount(0);
 });
 
@@ -29,10 +31,18 @@ test('shows ranked candidates with pinyin and glosses while composing', async ({
   await editor(page).pressSequentially('nihao');
 
   await expectBuffer(page, 'nihao');
-  await expectCandidates(page, ['你好', '你']);
-  await expectPinyin(page, ['nǐ hǎo', 'nǐ']);
-  await expectGlosses(page, ['hello / how are you', 'you (singular)']);
-  await expect(page.locator('.candidate-count-tag')).toHaveText('1 / 1');
+  // The exact two-syllable match outranks the far more frequent single character 你.
+  await expectCandidates(page, ['你好', '你', '呢', '尼', '妮']);
+  await expectPinyin(page, ['nǐ hǎo', 'nǐ', 'ní', 'ní', 'nī']);
+  await expectGlosses(page, [
+    'hello; hi',
+    'you (informal, as opposed to courteous 您)',
+    'dense wool fabric (used for coats and jackets)',
+    'Buddhist nun / (often used in phonetic spellings)',
+    'girl / phonetic "ni" (in female names) / Taiwan pr.',
+  ]);
+  // 38 readings match "nihao" across the dictionary, which is 8 pages at a size of 5.
+  await expect(pageCounter(page)).toHaveText('1 / 8');
   await expect(candidateItems(page).first()).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('.status-item').first()).toContainText('Composing Pinyin...');
   // The buffer is not committed text yet.
@@ -42,22 +52,22 @@ test('shows ranked candidates with pinyin and glosses while composing', async ({
 test('narrows candidates as more pinyin is typed', async ({ page }) => {
   await editor(page).pressSequentially('n');
   await expectBuffer(page, 'n');
-  await expectCandidates(page, ['你', '你好', '你们']);
+  await expectCandidates(page, ['那', '呢', '哪', '努力', '内']);
 
   await editor(page).pressSequentially('ih');
   await expectBuffer(page, 'nih');
-  await expectCandidates(page, ['你好', '你']);
+  await expectCandidates(page, ['你', '呢', '你好', '霓虹灯', '泥孩']);
 
   await editor(page).pressSequentially('ao');
   await expectBuffer(page, 'nihao');
-  await expectCandidates(page, ['你好', '你']);
+  await expectCandidates(page, ['你好', '你', '呢', '尼', '妮']);
 });
 
 test('normalises uppercase input to a toneless buffer', async ({ page }) => {
   await editor(page).pressSequentially('NiHao');
 
   await expectBuffer(page, 'nihao');
-  await expectCandidates(page, ['你好', '你']);
+  await expectCandidates(page, ['你好', '你', '呢', '尼', '妮']);
 });
 
 test('commits the first candidate on Space', async ({ page }) => {
@@ -66,14 +76,14 @@ test('commits the first candidate on Space', async ({ page }) => {
 
   await expect(editor(page)).toHaveValue('你好');
   await expect(candidateList(page)).toHaveCount(0);
-  await expect(page.locator('.status-item').nth(1)).toContainText('Length: 2 characters');
+  await expect(textLength(page)).toContainText('Length: 2 characters');
 });
 
 test('commits a candidate chosen by number key', async ({ page }) => {
   await editor(page).pressSequentially('shi');
-  await expectCandidates(page, ['是', '时', '十', '事']);
+  await expectCandidates(page, ['是', '十', '使', '试', '𬤊']);
 
-  await editor(page).press('3');
+  await editor(page).press('2');
 
   await expect(editor(page)).toHaveValue('十');
   await expect(candidateList(page)).toHaveCount(0);
@@ -81,11 +91,11 @@ test('commits a candidate chosen by number key', async ({ page }) => {
 
 test('commits a candidate chosen by clicking the card', async ({ page }) => {
   await editor(page).pressSequentially('shi');
-  await expectCandidates(page, ['是', '时', '十', '事']);
+  await expectCandidates(page, ['是', '十', '使', '试', '𬤊']);
 
   await candidateItems(page).nth(2).click();
 
-  await expect(editor(page)).toHaveValue('十');
+  await expect(editor(page)).toHaveValue('使');
 });
 
 test('commits the raw pinyin on Enter without translating it', async ({ page }) => {
@@ -138,7 +148,7 @@ test('composes, commits, and resumes typing at the end of the text', async ({ pa
   await editor(page).press(' ');
 
   await expect(editor(page)).toHaveValue('你好谢谢');
-  await expect(page.locator('.status-item').nth(1)).toContainText('Length: 4 characters');
+  await expect(textLength(page)).toContainText('Length: 4 characters');
 });
 
 test('inserts a newline on Enter when not composing', async ({ page }) => {

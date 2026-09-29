@@ -50,14 +50,15 @@ const TONE_MARKS: Record<string, [string, string, string, string, string]> = {
 };
 
 /**
- * Normalizes pinyin text by converting umlaut variants (u: or v) to standard ü
- * and removing stray punctuation.
+ * Normalizes pinyin text by converting umlaut variants (u: or v) to standard ü,
+ * collapsing internal whitespace and removing stray punctuation.
  */
 export function normalizePinyin(input: string): string {
   return input
     .toLowerCase()
     .replace(/u:/g, 'ü')
     .replace(/v/g, 'ü')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 

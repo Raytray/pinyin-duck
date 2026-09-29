@@ -22,9 +22,20 @@ export const nextPageButton = (page: Page) => page.getByTitle('Next page (PageDo
 
 export const prevPageButton = (page: Page) => page.getByTitle('Previous page (PageUp or [)');
 
-/** Navigates to the app and waits for the editor to be focused and ready. */
+export const textLength = (page: Page) => page.getByTestId('text-length');
+
+export const dictionaryStatus = (page: Page) => page.getByTestId('dictionary-status');
+
+export const dictionaryError = (page: Page) => page.getByRole('alert');
+
+/**
+ * Navigates to the app and waits for the editor to be focused and the dictionary
+ * to finish loading. Candidate assertions are only meaningful once the full
+ * CC-CEDICT asset has been fetched and indexed.
+ */
 export async function gotoApp(page: Page) {
   await page.goto('/');
+  await expect(dictionaryStatus(page)).toContainText('entries');
   await expect(editor(page)).toBeFocused();
 }
 

@@ -8,6 +8,7 @@ interface CandidatePopupProps {
   currentPage: number;
   totalPages: number;
   compositionBuffer: string;
+  dictionaryStatus: 'loading' | 'ready' | 'error';
   onSelectCandidate: (index: number) => void;
   onNextPage: () => void;
   onPrevPage: () => void;
@@ -20,12 +21,33 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
   currentPage,
   totalPages,
   compositionBuffer,
+  dictionaryStatus,
   onSelectCandidate,
   onNextPage,
   onPrevPage,
   onHoverIndex,
 }) => {
+  // An empty candidate list means "no match" only once the dictionary is loaded.
+  // Before that the search has not run at all, so claiming no match would be a lie.
   if (candidates.length === 0) {
+    if (dictionaryStatus !== 'ready') {
+      return (
+        <div className="candidate-popup empty">
+          <div className="candidate-empty-msg">
+            {dictionaryStatus === 'loading' ? (
+              <span>
+                Loading dictionary for <strong>"{compositionBuffer}"</strong>...
+              </span>
+            ) : (
+              <span>
+                Dictionary unavailable, cannot look up <strong>"{compositionBuffer}"</strong>
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="candidate-popup empty">
         <div className="candidate-empty-msg">

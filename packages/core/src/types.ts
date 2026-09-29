@@ -7,10 +7,14 @@ export interface DictEntry {
   pinyinMarks: string;   // e.g. "nǐ hǎo"
   pinyinClean: string;   // toneless, lowercased without spaces e.g. "nihao"
   pinyinSyllables: string[]; // e.g. ["ni3", "hao3"] or ["ni", "hao"]
-  definitions: string[];
   shortGloss: string;    // concise gloss for candidate cards
   frequency: number;     // 0 - 100000 (higher = more frequent)
   hskLevel?: number;     // 1 to 6 (if known)
+  /**
+   * Only present on hand-authored entries. The generated asset ships a trimmed gloss
+   * rather than the full CC-CEDICT definition list, so this is usually undefined.
+   */
+  definitions?: string[];
 }
 
 export interface Candidate {
@@ -21,11 +25,11 @@ export interface Candidate {
   pinyinMarks: string;
   pinyinNumbers: string;
   shortGloss: string;
-  definitions: string[];
   frequency: number;
   matchedPinyin: string;
   remainingPinyin: string;
   hskLevel?: number;
+  definitions?: string[];
 }
 
 export interface SearchOptions {

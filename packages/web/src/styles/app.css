@@ -524,6 +524,32 @@ body {
   background-color: #94a3b8;
 }
 
+.status-dot.error {
+  background-color: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);
+}
+
+.dictionary-error {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+}
+
+.dictionary-error span {
+  color: #b91c1c;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  word-break: break-word;
+}
+
 @keyframes statusPulse {
   0% {
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);

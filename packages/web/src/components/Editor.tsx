@@ -12,6 +12,8 @@ interface EditorProps {
   currentPage: number;
   totalPages: number;
   cursorToRestore: React.MutableRefObject<number | null>;
+  dictionaryStatus: 'loading' | 'ready' | 'error';
+  entryCount: number;
   onSelectCandidate: (index: number) => void;
   onNextPage: () => void;
   onPrevPage: () => void;
@@ -34,6 +36,8 @@ export const Editor: React.FC<EditorProps> = ({
   currentPage,
   totalPages,
   cursorToRestore,
+  dictionaryStatus,
+  entryCount,
   onSelectCandidate,
   onNextPage,
   onPrevPage,
@@ -131,6 +135,7 @@ export const Editor: React.FC<EditorProps> = ({
               currentPage={currentPage}
               totalPages={totalPages}
               compositionBuffer={compositionBuffer}
+              dictionaryStatus={dictionaryStatus}
               onSelectCandidate={onSelectCandidate}
               onNextPage={onNextPage}
               onPrevPage={onPrevPage}
@@ -150,9 +155,22 @@ export const Editor: React.FC<EditorProps> = ({
               : 'Active (Ready to type)'
             : 'Idle (Click to focus)'}
         </span>
-        <span className="status-item">
-          <strong>Length:</strong> {committedText.length} characters
+        <span className="status-item" data-testid="dictionary-status">
+          <span
+            className={`status-dot ${
+              dictionaryStatus === 'ready' ? 'active' : dictionaryStatus === 'error' ? 'error' : 'idle'
+            }`}
+          />
+          <strong>Dictionary:</strong>{' '}
+          {dictionaryStatus === 'ready'
+            ? `${entryCount.toLocaleString('en-US')} entries`
+            : dictionaryStatus === 'loading'
+              ? 'Loading...'
+              : 'Failed to load'}
         </span>
+          <span className="status-item" data-testid="text-length">
+            <strong>Length:</strong> {committedText.length} characters
+          </span>
         <span className="status-hint">
           Supports <kbd>Ctrl+A</kbd>, <kbd>Backspace</kbd>, <kbd>Space</kbd>, <kbd>1-9</kbd>
         </span>
