@@ -88,10 +88,16 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   // landing in quick succession build on each other rather than overwriting.
   const committedTextRef = useRef('');
 
-  // The live textarea, captured from the key handler. When a commit lands, the DOM is
-  // the authority on what the text is now: the user may have typed into it since the
-  // commit was requested, and React state for that input may not have been applied yet.
+  // The live textarea, captured from the key handler, used to read the caret a commit
+  // should follow.
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // True between the app writing text into the controlled textarea and React rendering
+  // it. Commits resolve along a promise chain, so two of them can land inside one tick,
+  // before any render. The textarea still holds the pre-commit value then, and reading it
+  // as the text to splice into rolls the first commit back and pushes the second past
+  // the end of the text.
+  const domRenderPendingRef = useRef(false);
 
   // Incremented by every pick key. A digit that resolves to "out of range" leaves the
   // composition alone, so a second digit pressed before the first resolved would
@@ -104,17 +110,26 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   const commitQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const commitPendingRef = useRef(0);
 
-  // Total length inserted by commits already in the queue. A commit captures the caret
-  // position when its key is pressed, but a commit queued before it has landed shifts
-  // that position; because the queue is ordered, the sum of what is already queued is
-  // exactly that shift.
-  const queuedInsertRef = useRef(0);
+  // Where each queued commit was requested, and how many characters it added once it
+  // landed. A commit captures the caret position when its key is pressed, but a commit
+  // queued ahead of it has landed since and pushed that position along; because the
+  // queue is ordered, what those commits claimed is exactly that shift.
+  //
+  // Entries are keyed by position rather than summed into one running total, because a
+  // commit only shifts what lands after it: one requested at a later offset than this
+  // commit inserts to its right and leaves this one where it is.
+  //
+  // The list is cleared when the queue drains, not as each commit lands. A commit that
+  // has landed still has to shift the offsets of the ones behind it, which are captured
+  // in the text as it was when their keys were pressed.
+  const queuedInsertsRef = useRef<{ at: number; length: number }[]>([]);
 
-  const enqueueCommit = useCallback((task: () => Promise<void>) => {
+  const enqueueCommit = useCallback((task: () => Promise<void>, at: number) => {
     commitPendingRef.current++;
+    queuedInsertsRef.current.push({ at, length: 0 });
     const next = commitQueueRef.current.then(task, task).finally(() => {
       commitPendingRef.current--;
-      if (commitPendingRef.current === 0) queuedInsertRef.current = 0;
+      if (commitPendingRef.current === 0) queuedInsertsRef.current = [];
     });
     // Tasks handle their own failures; the chain only has to stay alive.
     commitQueueRef.current = next.catch(() => {});
@@ -123,8 +138,16 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
 
   const setCommitted = useCallback((text: string) => {
     committedTextRef.current = text;
+    domRenderPendingRef.current = true;
     setCommittedText(text);
   }, []);
+
+  // The textarea holds the app's own text again once React has rendered it, so a value
+  // that differs from the mirrored state is the user's input rather than a commit that
+  // has already been made.
+  useEffect(() => {
+    domRenderPendingRef.current = false;
+  }, [committedText]);
 
   // Mirror the script so a key event always sees the current one.
   useEffect(() => {
@@ -266,16 +289,32 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   const insertCommitted = useCallback(
     (text: string, at: number) => {
       // Commits queued ahead of this one have not landed yet but have already claimed
-      // their space, so the insertion goes after them.
-      const position = at + queuedInsertRef.current;
+      // their space. Only those landing at or before this offset push it along; one
+      // landing further right does not.
+      const shift = queuedInsertsRef.current.reduce(
+        (total, queued) => (queued.at <= at ? total + queued.length : total),
+        0
+      );
+      const position = at + shift;
 
-      // The DOM wins over the mirrored state. Typing during the wait has already
-      // reached the textarea, and React's state for it may not have been applied yet;
-      // splicing into the ref alone would drop those characters on the next render.
+      // The DOM wins over the mirrored state only when it holds text the app has not
+      // seen yet: the user typed or pasted during the wait and React's state for it
+      // may not have been applied. A value the app has itself just pushed is the other
+      // way round -- it is a commit behind -- and splicing that in would drop the commit
+      // and land this one past the end of the text.
       const dom = textareaRef.current;
-      const current = dom ? dom.value : committedTextRef.current;
-      const caretOffset = dom ? (dom.selectionStart ?? current.length) : insertPosRef.current;
-      if (dom && dom.value !== committedTextRef.current) {
+      const domAhead =
+        dom !== null && !domRenderPendingRef.current && dom.value !== committedTextRef.current;
+      const current = domAhead ? dom.value : committedTextRef.current;
+      // The caret the same way: the DOM's is only current while it is not a render
+      // behind. A commit that landed earlier in this tick has already moved the caret,
+      // and the textarea still holds the one before it, which would read as the user
+      // having moved the caret back over the character just committed.
+      const caretOffset =
+        dom !== null && !domRenderPendingRef.current
+          ? (dom.selectionStart ?? current.length)
+          : insertPosRef.current;
+      if (domAhead) {
         setCommitted(dom.value);
       }
 
@@ -283,12 +322,23 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       const after = current.slice(position);
       const newCommitted = before + text + after;
 
-      // Follow the caret the user actually has, not the one this commit would choose:
-      // a commit landing mid-word must not yank the caret to the end of its own
-      // insertion and make the next character land in the middle of the text.
-      const caret = Math.max(caretOffset, position) + text.length;
+      // Follow the caret the user actually has, not the one this commit would choose.
+      //
+      // A caret at or after the insertion point moves with the text in front of it, so
+      // that a commit landing mid-word does not leave the caret stranded before its own
+      // output. A caret *before* the insertion point is left alone: the user moved it
+      // there deliberately while the commit was in flight, and dragging it forward would
+      // override them -- and the next character would then land in the wrong place.
+      const caret = caretOffset >= position ? caretOffset + text.length : caretOffset;
 
-      queuedInsertRef.current += text.length;
+      // Record what this commit claimed, so a commit queued behind it can see how far its
+      // own offset moves. Commits land in the order they were queued, so the entry still
+      // waiting on a length is this one. A commit that was not queued -- the synchronous
+      // fast path -- has no entry, and by the time it returns there is nothing behind it
+      // in the queue to shift.
+      const claim = queuedInsertsRef.current.find((queued) => queued.length === 0);
+      if (claim) claim.length = text.length;
+
       setCommitted(newCommitted);
       setInsertPos(caret);
       cursorToRestoreRef.current = caret;
@@ -597,7 +647,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
               } else {
                 commitCandidateFrom(candidates, index, at, '');
               }
-            });
+            }, at);
           }
         } else {
           // Insert space in accepted text
@@ -653,7 +703,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
             const { candidates } = await runSearch(query, scriptRef.current);
             if (token !== pickTokenRef.current) return;
             actOn(candidates);
-          });
+          }, at);
         }
         return;
       }
@@ -726,7 +776,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
           } else {
             enqueueCommit(async () => {
               commitWith((await runSearch(query, scriptRef.current)).candidates);
-            });
+            }, at);
           }
         } else {
           const before = committedText.slice(0, start);

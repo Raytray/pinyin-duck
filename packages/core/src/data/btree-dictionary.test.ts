@@ -58,7 +58,11 @@ describe('opening', () => {
   it('opens over HTTP range requests by default', async () => {
     const requested: string[] = [];
     const fetchMock = async (url: string, init?: RequestInit) => {
-      const range = (init?.headers as Record<string, string>).Range;
+      // The page source always sends a Range header; read it without asserting the
+      // `init` argument away, so a call that omitted it fails on the missing header
+      // rather than on `undefined.Range`.
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      const range = headers.Range ?? '';
       requested.push(range);
       const match = /bytes=(\d+)-(\d+)/.exec(range)!;
       const start = Number(match[1]);

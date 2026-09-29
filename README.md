@@ -23,22 +23,24 @@ npm run lint       # static analysis across both packages, the e2e suite and con
 npm run lint:fix   # same, applying safe autofixes
 ```
 
-A single flat config at the repo root (`eslint.config.mjs`) covers the whole
+A single flat config at the repo root (`.oxlintrc.json`) covers the whole
 monorepo: `packages/core`, `packages/web`, the Playwright suite in `e2e/` and the
-tool config files. It layers ESLint's recommended rules, `typescript-eslint`'s
-recommended TypeScript rules, and `eslint-plugin-react-hooks` for the React app.
+tool config files. It enables oxlint's `correctness` category with the `typescript` and
+`react` plugins.
 
-The config is deliberately **not** type-aware (no `projectService`), so linting stays a
-fast static pass that does not need a program or a `tsconfig` per folder. `tsc` already
-runs in `strict` mode separately, so the two tools do not overlap. Switching to
-`tseslint.configs.recommendedTypeChecked` later would enable promise-safety rules such
-as `no-floating-promises`, at the cost of a slower run.
+oxlint is deliberately **not** type-aware by default, so linting stays a fast static
+pass that does not need a program or a `tsconfig` per folder. `tsc` already runs in
+`strict` mode separately, so the two tools do not overlap. The experimental
+`--type-aware` flag would enable promise-safety rules such as `no-floating-promises`,
+at the cost of a slower run.
 
+The `react` plugin ships oxlint's implementation of the React Rules of Hooks and the
+React Compiler lint set, under a `react/` prefix rather than ESLint's `react-hooks/`.
 Two scoping decisions are worth knowing about:
 
-- `eslint-plugin-react-hooks` is applied only under `packages/web/src`. Run repo-wide it
-  flags Playwright's fixture callback, which is also called `use`, in `e2e/`.
-- `react-hooks/set-state-in-effect` is off for `usePinyinDuck.ts` only. Loading the
+- The `react/*` rules are applied only under `packages/web/src`. Run repo-wide they
+  flag Playwright's fixture callback, which is also called `use`, in `e2e/`.
+- `react/set-state-in-effect` is off for `usePinyinDuck.ts` only. Loading the
   dictionary is a real external-system sync whose status reset is load-bearing when
   `dictionaryUrl` changes. Everywhere else the rule stays on, and it is what caught a
   genuinely redundant `setState` in `Editor.tsx`.

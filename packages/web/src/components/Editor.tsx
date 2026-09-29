@@ -66,8 +66,14 @@ export const Editor: React.FC<EditorProps> = ({
     }
   }, [committedText, cursorToRestoreRef]);
 
+  // Mirrors the caret into `insertPos` on every event that can move it.
+  //
+  // This runs while composing too, and deliberately so: a composition freezes
+  // `insertPos` at the caret it started from, and if the user moves the caret
+  // mid-composition -- with a click, an arrow key, Home/End -- the commit lands
+  // at the position they have *left* rather than the one they are looking at.
   const handleTextareaSelectOrClick = () => {
-    if (textareaRef.current && !isComposing) {
+    if (textareaRef.current) {
       onSetInsertPos(textareaRef.current.selectionStart);
     }
   };
