@@ -89,18 +89,37 @@ Useful variations:
 npm run test:e2e -- --ui          # interactive debugger with time-travel
 npm run test:e2e -- --headed      # watch the browser drive the IME
 npm run test:e2e -- --grep paging # run one area
+E2E_HEADLESS=1 npm run test:e2e   # force headless (see below)
 ```
 
 `CI=1` switches to a single worker with retries and emits a GitHub Actions friendly
 report. Traces, screenshots and video are captured on first-retry failures only, and
 `playwright-report/` holds the HTML report after a local run.
 
+#### Why the suite runs headed
+
+Chromium's headless mode never schedules animation frames in this environment:
+`requestAnimationFrame` never fires, even while the app's infinite CSS animations
+(`cursorBlink`, `statusPulse`) are running, and no launch flag changes that
+(`--disable-gpu`, swiftshader, `--enable-begin-frame-control` and
+`channel: 'chromium'` were all tried).
+
+Playwright's actionability checks implement their "stable" step on top of rAF, so in
+headless mode every `click()` and `hover()` blocks until the test times out — while
+keyboard-driven tests pass, which makes the failure look like an app bug when it is
+not one. A headed browser has a real compositor and produces frames normally.
+
+`playwright.config.ts` therefore runs headed whenever a display is present and falls
+back to headless when there is none, so the suite still works on a machine (or CI
+image) without an X server. `E2E_HEADLESS=1` forces headless and `E2E_HEADLESS=0`
+forces headed, for environments where the default is not what you want.
+
 ### Code coverage
 
 | Package | Command | Report | Current |
 | --- | --- | --- | --- |
-| `@pinyinduck/core` | `npm run test:coverage` | `packages/core/coverage/` | 100% statements, 98.2% branches, 100% functions |
-| `@pinyinduck/web` | `npm run test:e2e` | `coverage/web/` | 100% statements, 99% branches, 100% functions |
+| `@pinyinduck/core` | `npm run test:coverage` | `packages/core/coverage/` | 100% statements, 100% branches, 100% functions |
+| `@pinyinduck/web` | `npm run test:e2e` | `coverage/web/` | 99.8% statements, 99% branches, 100% functions |
 
 Run both with `npm run test:coverage:all`.
 
