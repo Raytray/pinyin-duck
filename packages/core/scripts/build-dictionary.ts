@@ -32,6 +32,13 @@ const HSK_URL = 'https://raw.githubusercontent.com/gigacool/hanyu-shuiping-kaosh
 const CACHE_DIR = path.resolve(__dirname, '../.cache');
 const DEFAULT_OUT = path.resolve(__dirname, '../../web/public/dictionary.json');
 
+/** The three sources a build downloads, in the order they are logged. */
+export const SOURCE_URLS = {
+  cedict: CEDICT_URL,
+  frequency: FREQUENCY_URL,
+  hsk: HSK_URL,
+} as const;
+
 export interface RawCedictLine {
   traditional: string;
   simplified: string;
@@ -160,7 +167,7 @@ async function fetchWithCache(
   return body;
 }
 
-interface BuildStats {
+export interface BuildStats {
   cedictLines: number;
   emitted: number;
   withFrequency: number;
@@ -169,21 +176,19 @@ interface BuildStats {
   dropped: number;
 }
 
-async function build(outPath: string, useCache: boolean): Promise<BuildStats> {
-  const started = Date.now();
-  console.log('Building the PinyinDuck dictionary from CC-CEDICT...\n');
-
-  const [cedictContent, frequencyContent, hskContent] = await Promise.all([
-    fetchWithCache(CEDICT_URL, 'cedict.txt', useCache),
-    fetchWithCache(FREQUENCY_URL, 'zh_cn_50k.txt', useCache),
-    fetchWithCache(HSK_URL, 'hsk.csv', useCache),
-  ]);
-
+/**
+ * Joins the three corpora into wire rows.
+ *
+ * Split out from `build` so the dedup, join and validation logic can be tested
+ * without touching the network or the filesystem.
+ */
+export function joinCorpora(
+  cedictContent: string,
+  frequencyContent: string,
+  hskContent: string
+): { rows: DictionaryRow[]; stats: BuildStats } {
   const frequencies = parseFrequencyList(frequencyContent);
   const hskLevels = parseHskList(hskContent);
-  console.log(
-    `\n  corpus  ${frequencies.size} frequency entries, ${hskLevels.size} HSK words`
-  );
 
   const rows: DictionaryRow[] = [];
   const seen = new Set<string>();
@@ -232,18 +237,32 @@ async function build(outPath: string, useCache: boolean): Promise<BuildStats> {
     }
   }
 
+  return {
+    rows,
+    stats: { cedictLines, emitted: rows.length, withFrequency, withHsk, singleChar, dropped },
+  };
+}
+
+async function build(outPath: string, useCache: boolean): Promise<BuildStats> {
+  const started = Date.now();
+  console.log('Building the PinyinDuck dictionary from CC-CEDICT...\n');
+
+  const [cedictContent, frequencyContent, hskContent] = await Promise.all([
+    fetchWithCache(CEDICT_URL, 'cedict.txt', useCache),
+    fetchWithCache(FREQUENCY_URL, 'zh_cn_50k.txt', useCache),
+    fetchWithCache(HSK_URL, 'hsk.csv', useCache),
+  ]);
+
+  const { rows, stats } = joinCorpora(cedictContent, frequencyContent, hskContent);
+
+  console.log(
+    `\n  corpus  ${parseFrequencyList(frequencyContent).size} frequency entries, ` +
+      `${parseHskList(hskContent).size} HSK words`
+  );
+
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   const payload = JSON.stringify(rows);
   fs.writeFileSync(outPath, payload);
-
-  const stats: BuildStats = {
-    cedictLines,
-    emitted: rows.length,
-    withFrequency,
-    withHsk,
-    singleChar,
-    dropped,
-  };
 
   console.log(`\n  parsed  ${stats.cedictLines} CC-CEDICT lines`);
   console.log(`  emitted ${stats.emitted} rows (${stats.dropped} duplicate readings dropped)`);
@@ -260,12 +279,26 @@ async function build(outPath: string, useCache: boolean): Promise<BuildStats> {
   return stats;
 }
 
-async function main() {
-  const args = process.argv.slice(2);
-  const useCache = !args.includes('--no-cache');
-  const outIndex = args.indexOf('--out');
-  const outPath = outIndex >= 0 && args[outIndex + 1] ? args[outIndex + 1] : DEFAULT_OUT;
+export interface BuildOptions {
+  outPath: string;
+  useCache: boolean;
+}
 
+/**
+ * Resolves the CLI flags into build options.
+ *
+ * Split out from `main` so the flag handling can be tested without running a build.
+ */
+export function parseArgs(args: string[]): BuildOptions {
+  const outIndex = args.indexOf('--out');
+  return {
+    useCache: !args.includes('--no-cache'),
+    outPath: outIndex >= 0 && args[outIndex + 1] ? args[outIndex + 1] : DEFAULT_OUT,
+  };
+}
+
+async function main() {
+  const { outPath, useCache } = parseArgs(process.argv.slice(2));
   await build(outPath, useCache);
 }
 

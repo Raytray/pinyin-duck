@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './coverage-fixtures.js';
 import {
   editor,
   candidateList,
@@ -77,6 +77,41 @@ test('rejects a malformed dictionary payload', async ({ page }) => {
   await page.goto('/');
   await expect(dictionaryError(page)).toContainText('Could not load the dictionary');
   await expect(candidateList(page)).toHaveCount(0);
+});
+
+test('reports a dictionary payload that is not JSON at all', async ({ page }) => {
+  // A truncated or proxied asset fails to parse, which rejects with a SyntaxError
+  // rather than the Error the loader raises itself. The message must still be shown
+  // instead of a blank banner.
+  await page.route('**/dictionary.json', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '<html>oops</html>' })
+  );
+
+  await page.goto('/');
+  await expect(dictionaryError(page)).toContainText('Could not load the dictionary');
+  // The parse error is a real message rather than an empty or "undefined" one.
+  await expect(page.locator('.dictionary-error span')).not.toBeEmpty();
+  await expect(dictionaryStatus(page)).toContainText('Failed to load');
+});
+
+test('stringifies a load failure that is not an Error instance', async ({ page }) => {
+  // A fetch shim or service worker can reject with a plain value rather than an Error.
+  // Reading `.message` off that would render an empty banner, so it is stringified.
+  await page.addInitScript(() => {
+    const realFetch = window.fetch.bind(window);
+    window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('dictionary.json')) {
+        return Promise.reject('dictionary asset unreachable');
+      }
+      return realFetch(input, init);
+    }) as typeof window.fetch;
+  });
+
+  await page.goto('/');
+
+  await expect(dictionaryError(page)).toContainText('Could not load the dictionary');
+  await expect(page.locator('.dictionary-error span')).toHaveText('dictionary asset unreachable');
+  await expect(dictionaryStatus(page)).toContainText('Failed to load');
 });
 
 test('still commits newline and plain text when the dictionary failed', async ({ page }) => {

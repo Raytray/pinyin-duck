@@ -71,7 +71,7 @@ The repository has two test layers:
 | Layer | Command | Covers |
 | --- | --- | --- |
 | Unit (`packages/core`) | `npm test` | Pinyin parsing, syllable segmentation, tone-mark conversion, trie search, ranking, dictionary generation and loading |
-| End-to-end (Playwright) | `npm run test:e2e` | The full IME loop in a real browser: composition, candidate ranking, paging, keyboard shortcuts, script toggle, dictionary loading |
+| End-to-end (Playwright) | `npm run test:e2e` | The full IME loop in a real browser: composition, candidate ranking, paging, keyboard shortcuts, text editing, script toggle, dictionary loading |
 
 Run both with `npm run test:all`.
 
@@ -94,6 +94,42 @@ npm run test:e2e -- --grep paging # run one area
 `CI=1` switches to a single worker with retries and emits a GitHub Actions friendly
 report. Traces, screenshots and video are captured on first-retry failures only, and
 `playwright-report/` holds the HTML report after a local run.
+
+### Code coverage
+
+| Package | Command | Report | Current |
+| --- | --- | --- | --- |
+| `@pinyinduck/core` | `npm run test:coverage` | `packages/core/coverage/` | 100% statements, 98.2% branches, 100% functions |
+| `@pinyinduck/web` | `npm run test:e2e` | `coverage/web/` | 100% statements, 99% branches, 100% functions |
+
+Run both with `npm run test:coverage:all`.
+
+Every file in both packages is above 80% on all four metrics, and both suites enforce
+that as a build gate rather than only reporting it.
+
+Core uses the Vitest V8 provider, configured in `packages/core/vitest.config.ts` with
+per-glob thresholds (plus an 80% global floor) so a regression in the engine or the
+dictionary pipeline fails the run. Re-export barrels and type-only modules are excluded,
+since they compile to no runnable statements and would otherwise report a misleading
+zero.
+
+The dictionary builder's download, cache and file-writing paths are covered in
+`scripts/build-dictionary-io.test.ts` against a stubbed `fetch` and an in-memory `fs`,
+so the build script is held to the same threshold as the runtime engine rather than
+being exempt as a build-time tool.
+
+The web package has no unit tests: its behaviour is verified through the browser, so its
+coverage is measured from the Playwright run instead of duplicating that suite as unit
+tests. A fixture starts Chromium's V8 profiler for the duration of each test, and
+`e2e/web-coverage-reporter.ts` merges the per-test fragments into an Istanbul report at
+the end of the run. The reporter also enforces a coverage floor, setting a non-zero
+exit code if the package drops below it even when every test passed. Keeping the
+profiler on for every page has a real cost, so set `PW_SKIP_WEB_COVERAGE=1` when
+iterating on a single spec.
+
+The one branch still reported as uncovered is Vite's dev-only CJS interop shim in
+`main.tsx`; it is not in the production bundle, so there is no runtime behaviour behind
+it to test.
 
 ### Number key coverage
 

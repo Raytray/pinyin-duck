@@ -11,5 +11,9 @@ playwright-report/
 blob-report/
 playwright/.cache/
 
+# Coverage output (packages/core via vitest, packages/web via the Playwright reporter)
+coverage/
+packages/core/coverage/
+
 # Downloaded CC-CEDICT / frequency / HSK sources, re-fetchable with build:dict
 packages/core/.cache/
