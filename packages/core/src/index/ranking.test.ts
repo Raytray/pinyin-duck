@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { PinyinSearchEngine } from './search';
+import { countCharacters } from './ranking';
 import type { DictEntry } from '../types.js';
 
 function entry(partial: Partial<DictEntry>): DictEntry {
@@ -131,5 +132,83 @@ describe('PinyinSearchEngine popularity tiebreakers', () => {
 
     const { candidates } = engine.search('qiang', { limit: 10 });
     expect(candidates[0].hanzi).toBe('强');
+  });
+
+  it('does not mistake a rare supplementary-plane character for a multi-character word', () => {
+    // 𩽾 is one character that needs a surrogate pair, so a UTF-16 length check calls it
+    // two characters and hands it the word boost that belongs to 你好. Real corpus
+    // entries prove the point: typing "an1" offered 𩽾 (frequency 0) above 安.
+    const engine = engineOf([
+      entry({
+        simplified: '𩽾',
+        pinyinClean: 'an',
+        pinyinNumbers: 'an1',
+        pinyinSyllables: ['an1'],
+        shortGloss: 'used in 鮟鱇',
+      }),
+      entry({
+        simplified: '安',
+        pinyinClean: 'an',
+        pinyinNumbers: 'an1',
+        pinyinSyllables: ['an1'],
+        shortGloss: 'peaceful',
+        frequency: 54888,
+      }),
+    ]);
+
+    const { candidates } = engine.search('an1', { limit: 10 });
+    expect(candidates[0].hanzi).toBe('安');
+  });
+
+  it('still gives a genuine two-character word the boost', () => {
+    const engine = engineOf([
+      entry({ simplified: '𩽾', pinyinClean: 'an', pinyinNumbers: 'an1', pinyinSyllables: ['an1'], shortGloss: 'rare' }),
+      entry({ simplified: '安安', pinyinClean: 'anan', pinyinNumbers: 'an1 an1', pinyinSyllables: ['an1', 'an1'], shortGloss: 'word' }),
+    ]);
+
+    const { candidates } = engine.search('anan', { limit: 10 });
+    expect(candidates[0].hanzi).toBe('安安');
+  });
+});
+
+describe('PinyinSearchEngine tone filters across word lengths', () => {
+  it('does not let one typed tone promote a longer word over the character asked for', () => {
+    // Typing "bian3" must answer "which third-tone character?", so 扁 (biǎn) leads.
+    // 彼岸 matched on its first syllable alone and used to take the bonus with it.
+    const engine = engineOf([
+      entry({ simplified: '扁', pinyinClean: 'bian', pinyinNumbers: 'bian3', pinyinSyllables: ['bian3'], shortGloss: 'flat', frequency: 40000 }),
+      entry({ simplified: '彼岸', pinyinClean: 'bianan', pinyinNumbers: 'bian3 an4', pinyinSyllables: ['bian3', 'an4'], shortGloss: 'the other shore', frequency: 90000 }),
+    ]);
+
+    const { candidates } = engine.search('bian3', { limit: 10 });
+    expect(candidates[0].hanzi).toBe('扁');
+  });
+
+  it('still filters a longer word when every one of its tones is typed', () => {
+    const engine = engineOf([
+      entry({ simplified: '你好', pinyinClean: 'nihao', pinyinNumbers: 'ni3 hao3', pinyinSyllables: ['ni3', 'hao3'], shortGloss: 'hello' }),
+      entry({ simplified: '尼好', pinyinClean: 'nihao', pinyinNumbers: 'ni2 hao3', pinyinSyllables: ['ni2', 'hao3'], shortGloss: 'a name' }),
+    ]);
+
+    const { candidates } = engine.search('nihao33', { limit: 10 });
+    expect(candidates.map((c) => c.hanzi)).toEqual(['你好']);
+  });
+
+  it('drops a shorter word that cannot supply the tone that was typed', () => {
+    const engine = engineOf([
+      entry({ simplified: '安', pinyinClean: 'an', pinyinNumbers: 'an', pinyinSyllables: ['an'], shortGloss: 'toneless' }),
+    ]);
+
+    expect(engine.search('an1').candidates).toEqual([]);
+  });
+});
+
+describe('countCharacters', () => {
+  it('counts characters, not UTF-16 units', () => {
+    expect(countCharacters('你')).toBe(1);
+    expect(countCharacters('你好')).toBe(2);
+    expect(countCharacters('𩽾')).toBe(1);
+    expect(countCharacters('𩽾安')).toBe(2);
+    expect(countCharacters('')).toBe(0);
   });
 });

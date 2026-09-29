@@ -29,6 +29,16 @@ export interface ScorableEntry {
   hskLevel?: number;
 }
 
+/**
+ * Counts characters rather than UTF-16 units.
+ *
+ * Exported because the multi-character rule in `scoreEntry` depends on it, and a
+ * caller reimplementing that rule needs the same notion of "how long is this word".
+ */
+export function countCharacters(text: string): number {
+  return [...text].length;
+}
+
 /** The fields needed to build a displayed candidate. */
 export interface CandidateSource extends ScorableEntry {
   traditional: string;
@@ -67,7 +77,13 @@ export function scoreEntry(
   // The boost is capped rather than scaled by length: against a full dictionary
   // an 8-character exact match (e.g. 中国中央电视台) would otherwise bury the
   // common 2-character word it contains.
-  if (isExactPinyin && entry.simplified.length > 1) {
+  //
+  // Length is counted in code points. `String.length` counts UTF-16 units, and 205
+  // CC-CEDICT entries are single characters outside the BMP (CJK extension B and
+  // later), so the naive length calls every one of them a multi-character word and
+  // hands a rare 𩽾 the word boost that should go to 你好 — which is enough to put
+  // it above a common character with the same reading.
+  if (isExactPinyin && countCharacters(entry.simplified) > 1) {
     score += 20000;
   }
 
@@ -83,16 +99,24 @@ export function scoreEntry(
 
   if (toneFilterNumbers.length > 0) {
     const entryTones = entry.pinyinNumbers.match(/\d/g)?.map(Number) || [];
-    let toneMatches = 0;
-    for (let i = 0; i < Math.min(toneFilterNumbers.length, entryTones.length); i++) {
-      if (toneFilterNumbers[i] === entryTones[i]) {
-        toneMatches++;
+    // A tone filter only constrains as many syllables as the query has tones, so it
+    // discriminates between readings of the same length. Scoring a partial overlap let
+    // one typed digit award the full bonus to any longer word: typing "bian3" promoted
+    // 彼岸 (biàn, two syllables) above 扁 (biǎn), because 彼岸's *first* syllable
+    // matched while the character the learner actually asked for did not.
+    //
+    // An entry that is shorter than the query has no tone to offer for the syllables
+    // that were typed, so it cannot satisfy the filter and is penalized. An entry that is
+    // longer is left alone: the query says nothing about its extra syllables, and the
+    // match tier and frequency already place a longer word below an exact reading.
+    if (entryTones.length <= toneFilterNumbers.length) {
+      const matches = entryTones.length > 0 &&
+        entryTones.every((tone, index) => tone === toneFilterNumbers[index]);
+      if (matches) {
+        score += toneFilterNumbers.length * 200000; // Heavily favor exact tone match!
+      } else {
+        score -= 500000; // Penalize mismatch if tone was explicitly typed
       }
-    }
-    if (toneMatches > 0) {
-      score += toneMatches * 200000; // Heavily favor exact tone match!
-    } else {
-      score -= 500000; // Penalize mismatch if tone was explicitly typed
     }
   }
 
