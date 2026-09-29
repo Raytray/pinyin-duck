@@ -13,7 +13,7 @@ import {
   textLength,
 } from './helpers';
 
-// "ta" has 199 readings in CC-CEDICT. The hook caps a search at 50 candidates, so
+// "ta" has 1476 readings in CC-CEDICT. The hook caps a search at 50 candidates, so
 // the popup always reports 10 pages at the app's page size of 5, and page two holds
 // the sixth-ranked reading rather than the only remaining one.
 const TA_PAGE_ONE = ['他', '她', '它', '塔', 'TA'];
@@ -42,7 +42,7 @@ test('advances pages with the next button', async ({ page }) => {
 });
 
 test('disables Next on the last page and stops there', async ({ page }) => {
-  // 199 readings are capped at 50 candidates, so page 10 is the last one.
+  // 1476 readings are capped at 50 candidates, so page 10 is the last one.
   for (let current = 2; current <= 10; current++) {
     await nextPageButton(page).click();
     await expect(pageCounter(page)).toHaveText(`${current} / 10`);
@@ -160,5 +160,5 @@ test('resets paging when the buffer changes', async ({ page }) => {
 
   await expect(pinyinBufferTag(page)).toHaveText('t');
   await expect(pageCounter(page)).toHaveText('1 / 10');
-  await expectCandidates(page, ['T', '他', '她', '它', '讨厌']);
+  await expectCandidates(page, ['T', '他', '她', '听', '太']);
 });

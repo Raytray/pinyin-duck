@@ -18,7 +18,7 @@ test('reports the loaded dictionary and blocks commits until it is ready', async
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route('**/dictionary.json', async (route) => {
+  await page.route('**/dictionary.btree', async (route) => {
     await gate;
     await route.continue();
   });
@@ -46,7 +46,7 @@ test('reports the loaded dictionary and blocks commits until it is ready', async
 });
 
 test('surfaces a failed dictionary load with a recovery hint', async ({ page }) => {
-  await page.route('**/dictionary.json', (route) =>
+  await page.route('**/dictionary.btree', (route) =>
     route.fulfill({ status: 404, body: 'Not Found' })
   );
 
@@ -66,10 +66,10 @@ test('surfaces a failed dictionary load with a recovery hint', async ({ page }) 
 });
 
 test('rejects a malformed dictionary payload', async ({ page }) => {
-  await page.route('**/dictionary.json', (route) =>
+  await page.route('**/dictionary.btree', (route) =>
     route.fulfill({
       status: 200,
-      contentType: 'application/json',
+      contentType: 'application/octet-stream',
       body: JSON.stringify({ not: 'a dictionary' }),
     })
   );
@@ -79,12 +79,12 @@ test('rejects a malformed dictionary payload', async ({ page }) => {
   await expect(candidateList(page)).toHaveCount(0);
 });
 
-test('reports a dictionary payload that is not JSON at all', async ({ page }) => {
-  // A truncated or proxied asset fails to parse, which rejects with a SyntaxError
+test('reports a dictionary payload that is not a B-tree asset at all', async ({ page }) => {
+  // A truncated or proxied asset fails to parse, which rejects with a decoder error
   // rather than the Error the loader raises itself. The message must still be shown
   // instead of a blank banner.
-  await page.route('**/dictionary.json', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: '<html>oops</html>' })
+  await page.route('**/dictionary.btree', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/octet-stream', body: '<html>oops</html>' })
   );
 
   await page.goto('/');
@@ -100,7 +100,7 @@ test('stringifies a load failure that is not an Error instance', async ({ page }
   await page.addInitScript(() => {
     const realFetch = window.fetch.bind(window);
     window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input).includes('dictionary.json')) {
+      if (String(input).includes('dictionary.btree')) {
         return Promise.reject('dictionary asset unreachable');
       }
       return realFetch(input, init);
@@ -115,7 +115,7 @@ test('stringifies a load failure that is not an Error instance', async ({ page }
 });
 
 test('still commits newline and plain text when the dictionary failed', async ({ page }) => {
-  await page.route('**/dictionary.json', (route) =>
+  await page.route('**/dictionary.btree', (route) =>
     route.fulfill({ status: 500, body: 'boom' })
   );
 

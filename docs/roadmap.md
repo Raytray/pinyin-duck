@@ -67,6 +67,10 @@ To give Mandarin learners real-time English definitions anywhere in Windows (Not
 2. **Core Engine Bridge**:
    - **Option 1 (Embedded JS Engine)**: Pack `@pinyinduck/core` into a single lightweight JS bundle and execute via Hermes or QuickJS Android NDK wrapper.
    - **Option 2 (Rust JNI Port)**: Port Trie lookup to a small Rust crate and generate Kotlin bindings via `uniffi-rs` for zero-overhead, sub-millisecond lookups.
+3. **Dictionary: mmap the B+ tree, do not parse it**:
+   - Ship `dictionary.btree` in the APK's assets and `mmap` it. `MemoryPageSource` reads byte ranges straight off the mapping, so a lookup costs a few page touches and no allocation, and the kernel can page the file out under memory pressure instead of the process holding it.
+   - This is why the asset is paged rather than a JSON blob: the full corpus is 9.12MB on disk but the resident cost is the 256KB page cache plus the few pages a query touches. Loading the whole dictionary into a JS or Kotlin object graph would cost far more than the file and is what a keyboard process cannot afford.
+   - On a cold cache the first query per prefix pays a page read; the web app already range-fetches the same way, so the paging and cache behaviour is testable before any Android code exists.
 3. **Candidate Strip UI**:
    - Primary candidate strip displays top 3 suggestions with compact Hanzi + tone mark.
    - Tapping an expand button displays a floating dialog with full candidate cards and English definitions.
@@ -79,18 +83,25 @@ To give Mandarin learners real-time English definitions anywhere in Windows (Not
 
 #### Test Execution Metrics
 - **Test Runner**: Vitest v3.2.7
-- **Test Suites**: 5 passed
-- **Tests**: 68 passed, 0 failed
-- **Execution Time**: ~340ms
+- **Test Suites**: 13 passed
+- **Tests**: 242 passed, 0 failed
 - **Command**: `npm test`
 
 | Suite | Tests | Covers |
-| :--- | --- | :--- |
-| `src/parser/pinyin.test.ts` | 7 | Tone marks, umlaut handling, apostrophe splitting, normalization |
+| :--- | :--- | :--- |
+| `src/parser/pinyin.test.ts` | 21 | Tone marks, umlaut handling, apostrophe splitting, normalization |
+| `src/dictionary/gloss.test.ts` | 14 | CC-CEDICT definition trimming |
 | `src/index/search.test.ts` | 6 | Engine search behaviour against a small fixture dictionary |
 | `src/index/ranking.test.ts` | 6 | Popularity is a tiebreaker, never an override of match quality |
-| `scripts/build-dictionary.test.ts` | 34 | CC-CEDICT / frequency / HSK parsing and frequency normalization |
-| `src/data/load-dictionary.test.ts` | 15 | Wire-format decoding and loader error handling |
+| `src/index/search-options.test.ts` | 19 | Search option defaults, tone edge cases, trie traversal |
+| `src/index/lazy-search.test.ts` | 24 | Lazy engine ranking, paging, tone filters, scan budget, engine parity |
+| `src/data/btree-codec.test.ts` | 29 | Varints, page/header/directory encode + decode, malformed input |
+| `src/data/btree-builder.test.ts` | 13 | Entry ordering, multi-level trees, keys spanning several leaves |
+| `src/data/btree-dictionary.test.ts` | 20 | Descent, leaf-chain walking, page-cache bounds, error propagation |
+| `src/data/page-source.test.ts` | 9 | Range requests, whole-file fallback, HTTP error reporting |
+| `src/data/load-dictionary.test.ts` | 15 | Legacy wire-format decoding and loader error handling |
+| `scripts/build-dictionary.test.ts` | 38 | CC-CEDICT / frequency / HSK parsing and frequency normalization |
+| `scripts/build-dictionary-io.test.ts` | 27 | Download caching, both output formats, CLI flag handling |
 
 #### Verified Test Cases
 
@@ -116,9 +127,16 @@ To give Mandarin learners real-time English definitions anywhere in Windows (Not
 
 #### Test Execution Metrics
 - **Test Runner**: Playwright v1.63.0 (Chromium)
-- **Tests**: 45 passed, 0 failed
-- **Suites**: `composition`, `candidate-paging`, `number-keys`, `toolbar`, `dictionary-loading`
+- **Tests**: 66 passed, 0 failed
+- **Suites**: `composition`, `candidate-paging`, `number-keys`, `toolbar`, `editing`, `dictionary-loading`
 - **Command**: `npm run test:e2e` (boots the Vite dev server automatically)
+
+> [!NOTE]
+> The web app reads the dictionary lazily, so a commit key can arrive before the pages
+> for the buffer it is committing have been read. Commits therefore land a tick after the
+> keypress; the two punctuation tests in `editing.spec.ts` assert the editor with a
+> retrying `toHaveValue` rather than a single read, and the helper in that file documents
+> which assertions may still read synchronously.
 
 > [!IMPORTANT]
 > Every candidate expectation is pinned to the full CC-CEDICT corpus. `gotoApp` waits for
@@ -141,6 +159,7 @@ To give Mandarin learners real-time English definitions anywhere in Windows (Not
 
 ## 5. Build Verification
 
-- **`npm run build:dict`**: Full CC-CEDICT generation passed in ~1.1s from cache. 125,132 lines parsed, 122,746 rows emitted (2,386 duplicate readings dropped), 26,811 with frequency, 5,247 on the HSK list, 11,851 single characters. Emitted 8.10MB (3.58MB gzipped).
+- **`npm run build:dict`**: Full CC-CEDICT generation passed in ~2.2s from cache. 125,132 lines parsed, 122,746 rows emitted (2,386 duplicate readings dropped), 26,811 with frequency, 5,247 on the HSK list, 11,851 single characters. Emitted a 9.12MB (4.27MB gzipped) B+ tree of 1,196 pages, which reads back as the same 122,746 entries.
 - **`@pinyinduck/core`**: `tsc` build passed with zero errors (`dist/index.d.ts`, `dist/index.js`).
-- **`@pinyinduck/web`**: `tsc && vite build` passed with zero errors. The 253.28KB JS bundle (79.13KB gzipped) contains no dictionary data; `dist/dictionary.json` is copied as a separate 9.95MB static asset, confirming the dictionary is genuinely lazy rather than bundled.
+- **`@pinyinduck/web`**: `tsc && vite build` passed with zero errors. The JS bundle contains no dictionary data; `dist/dictionary.btree` is copied as a separate static asset, confirming the dictionary is genuinely lazy rather than bundled.
+- **Cross-engine parity**: the lazy and in-memory engines were compared over 4,004 sampled queries drawn from the real corpus. Every query returned the same `total`, and the 930 queries whose top-20 ordering differed were permutations of the *same* candidate set where the swapped entries score identically — the B-tree scan cannot reproduce trie insertion order, so ties are broken deterministically instead. Zero queries showed a real ranking difference.

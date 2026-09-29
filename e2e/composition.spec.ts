@@ -52,7 +52,7 @@ test('shows ranked candidates with pinyin and glosses while composing', async ({
 test('narrows candidates as more pinyin is typed', async ({ page }) => {
   await editor(page).pressSequentially('n');
   await expectBuffer(page, 'n');
-  await expectCandidates(page, ['那', '呢', '哪', '努力', '内']);
+  await expectCandidates(page, ['你', '那', '呢', '能', '哪']);
 
   await editor(page).pressSequentially('ih');
   await expectBuffer(page, 'nih');
@@ -81,7 +81,7 @@ test('commits the first candidate on Space', async ({ page }) => {
 
 test('commits a candidate chosen by number key', async ({ page }) => {
   await editor(page).pressSequentially('shi');
-  await expectCandidates(page, ['是', '十', '使', '试', '𬤊']);
+  await expectCandidates(page, ['是', '十', '使', '试', '𫚕']);
 
   await editor(page).press('2');
 
@@ -91,7 +91,7 @@ test('commits a candidate chosen by number key', async ({ page }) => {
 
 test('commits a candidate chosen by clicking the card', async ({ page }) => {
   await editor(page).pressSequentially('shi');
-  await expectCandidates(page, ['是', '十', '使', '试', '𬤊']);
+  await expectCandidates(page, ['是', '十', '使', '试', '𫚕']);
 
   await candidateItems(page).nth(2).click();
 
