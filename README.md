@@ -47,21 +47,45 @@ Two scoping decisions are worth knowing about:
 
 Candidate data comes from the full [CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict)
 corpus, joined with an OpenSubtitles frequency list and the HSK 2012 word list. The
-generated asset is committed at `packages/web/public/dictionary.json`, so the app works
-straight after `npm install`. To rebuild it from source:
+generated asset is committed at `packages/web/public/dictionary.btree`, so the app works
+straight after `npm install`. (The legacy JSON asset is gitignored; regenerate it with
+`--format json` if you need it.) To rebuild the B-tree from source:
 
 ```bash
 npm run build:dict                       # regenerates the asset
 npm run build:dict -w @pinyinduck/core -- --no-cache   # re-downloads the sources
+npm run build:dict -w @pinyinduck/core -- --format json # whole dictionary as JSON tuples
 ```
+
+Only `dictionary.btree` is committed. Pass `--` before the flags when running the
+workspace script directly, or npm will read them as its own.
 
 `npm run build` runs this automatically. Downloads are cached in `packages/core/.cache/`.
 
 Current output: 125,132 lines parsed into 122,746 unique word/reading pairs
-(26,811 with frequency data, 5,247 on the HSK list), 8.1MB raw and 3.6MB gzipped. That
-is too large to bundle, so the web app fetches it at startup and indexes it into a trie
-(~90ms). The status bar shows the load state; if the asset is missing you get a
-`Failed to load` indicator and a banner telling you to run `npm run build:dict`.
+(26,811 with frequency data, 5,247 on the HSK list), 9.12MB raw and 4.27MB gzipped.
+
+**The asset is a paged B+ tree, not a blob.** It is keyed on toneless pinyin and split
+into ~1,200 byte-ranged pages, so a client opens it by reading only the 24-byte header
+and the page directory and then fetches just the pages a query touches. Resident memory
+is bounded by a 256KB LRU page cache instead of the ~90MB object graph a full parse
+costs, which is what makes the same corpus viable in a low-memory process such as an
+Android keyboard.
+
+- `LazyPinyinSearchEngine` walks the tree per query; `PinyinSearchEngine` (the in-memory
+  trie) is kept for tests and for callers that already hold the dictionary.
+- Both engines rank through the same `scoreEntry` in `src/index/ranking.ts` and share one
+  scan budget, so they return the same candidates and the same `total` for the same
+  query. The lazy engine breaks score ties deterministically (frequency, then key, then
+  form) because trie insertion order is not reproducible from a page scan.
+- `PageSource` abstracts where pages come from: `HttpPageSource` uses HTTP `Range`
+  requests and falls back to one whole-file read if a server ignores `Range`;
+  `MemoryPageSource` serves an `mmap` or an in-memory buffer.
+- `--format json` still emits the legacy tuple array (`dictionary.json`) for callers that
+  want the whole dictionary in a single parse.
+
+The status bar shows the load state; if the asset is missing you get a `Failed to load`
+indicator and a banner telling you to run `npm run build:dict`.
 
 ## Typing Behavior
 

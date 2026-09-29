@@ -17,3 +17,8 @@ packages/core/coverage/
 
 # Downloaded CC-CEDICT / frequency / HSK sources, re-fetchable with build:dict
 packages/core/.cache/
+
+# The legacy whole-dictionary JSON asset. The B-tree at packages/web/public/dictionary.btree
+# is committed because the app needs it after a plain install; this one is only produced by
+# `build:dict -- --format json` and nothing in the app reads it.
+packages/web/public/dictionary.json

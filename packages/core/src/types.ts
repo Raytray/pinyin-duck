@@ -37,6 +37,12 @@ export interface SearchOptions {
   limit?: number;
   offset?: number;
   exactOnly?: boolean;
+  /**
+   * Caps how many prefix matches a query materializes. Both engines default to
+   * `DEFAULT_MAX_MATCHES` so a lazy B-tree search and an in-memory trie search over
+   * the same dictionary return the same candidates and the same `total`.
+   */
+  maxMatches?: number;
 }
 
 export interface SearchResult {

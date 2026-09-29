@@ -7,6 +7,14 @@ import { editor, gotoApp, textLength, expectBuffer } from './helpers';
  * working, but quietly stop doing anything sensible.
  */
 
+/**
+ * Reads the editor once, with no retry.
+ *
+ * Only valid for keys that commit synchronously. Anything that has to resolve a
+ * candidate list first -- committing a candidate, a digit pick, a punctuation commit
+ * -- lands on a later tick because the dictionary pages are read on demand, and has to
+ * be asserted with `expect(editor).toHaveValue(...)` instead.
+ */
 const editorValue = async (page: import('@playwright/test').Page) =>
   (await editor(page).inputValue());
 
@@ -78,8 +86,9 @@ test('a comma commits the current candidate and appends a full-width comma', asy
   await editor(page).pressSequentially('ni');
   await editor(page).press(',');
 
-  // 你 is the top candidate for "ni", and "," maps to "，".
-  expect(await editorValue(page)).toBe('abcd你，');
+  // 你 is the top candidate for "ni", and "," maps to "，". The candidate list is read
+  // on demand, so the commit lands a tick after the keypress.
+  await expect(editor(page)).toHaveValue('abcd你，');
   await expect(textLength(page)).toContainText('Length: 6 characters');
 });
 
@@ -88,7 +97,7 @@ test('a comma with no candidates commits the raw buffer', async ({ page }) => {
   await editor(page).pressSequentially('qqqq');
   await editor(page).press('.');
 
-  expect(await editorValue(page)).toBe('abcdqqqq。');
+  await expect(editor(page)).toHaveValue('abcdqqqq。');
 });
 
 test('a comma in committed text inserts the full-width form', async ({ page }) => {

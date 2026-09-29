@@ -2,13 +2,21 @@
  * CC-CEDICT + Frequency + HSK Dictionary Builder
  *
  * Downloads CC-CEDICT, the OpenSubtitles Chinese frequency list, and the HSK 2012
- * word list; joins them on the simplified form; and emits a compact JSON asset that
+ * word list; joins them on the simplified form; and emits the B-tree asset that
  * `@pinyinduck/core` loads lazily at runtime.
  *
+ * The default output is a paged B+ tree (`dictionary.btree`) keyed on toneless
+ * pinyin. A client opens it by reading only its header and page directory, then
+ * fetches the handful of pages a query touches, so a low-memory Android keyboard can
+ * search the full corpus without materializing it. The legacy JSON tuple asset
+ * (`--format json`) is still emitted for callers that want the whole dictionary in a
+ * single parse.
+ *
  * Usage:
- *   npm run build:dict                 # download (cached) and emit the asset
+ *   npm run build:dict                 # download (cached) and emit the B-tree asset
  *   npm run build:dict -- --no-cache   # ignore the local download cache
  *   npm run build:dict -- --out <path> # write the asset somewhere else
+ *   npm run build:dict -- --format json # emit the whole-dictionary JSON instead
  *
  * Sources:
  *   CC-CEDICT   https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz
@@ -22,6 +30,7 @@ import * as zlib from 'zlib';
 import { pinyinNumbersToMarks, cleanPinyin, normalizePinyin } from '../src/parser/pinyin.js';
 import { formatGloss } from '../src/dictionary/gloss.js';
 import { DictionaryRow } from '../src/data/dictionary-codec.js';
+import { buildBTree } from '../src/data/btree-builder.js';
 
 const CEDICT_URL =
   'https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz';
@@ -30,7 +39,12 @@ const FREQUENCY_URL =
 const HSK_URL = 'https://raw.githubusercontent.com/gigacool/hanyu-shuiping-kaoshi/master/hsk.csv';
 
 const CACHE_DIR = path.resolve(__dirname, '../.cache');
-const DEFAULT_OUT = path.resolve(__dirname, '../../web/public/dictionary.json');
+const OUT_DIR = path.resolve(__dirname, '../../web/public');
+const DEFAULT_OUT = path.join(OUT_DIR, 'dictionary.btree');
+const DEFAULT_JSON_OUT = path.join(OUT_DIR, 'dictionary.json');
+
+/** Asset layouts the builder can emit. */
+export type DictionaryFormat = 'btree' | 'json';
 
 /** The three sources a build downloads, in the order they are logged. */
 export const SOURCE_URLS = {
@@ -243,7 +257,11 @@ export function joinCorpora(
   };
 }
 
-async function build(outPath: string, useCache: boolean): Promise<BuildStats> {
+async function build(
+  outPath: string,
+  useCache: boolean,
+  format: DictionaryFormat = 'btree'
+): Promise<BuildStats> {
   const started = Date.now();
   console.log('Building the PinyinDuck dictionary from CC-CEDICT...\n');
 
@@ -261,7 +279,10 @@ async function build(outPath: string, useCache: boolean): Promise<BuildStats> {
   );
 
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  const payload = JSON.stringify(rows);
+  const payload =
+    format === 'btree'
+      ? Buffer.from(buildBTree(rows))
+      : Buffer.from(JSON.stringify(rows), 'utf8');
   fs.writeFileSync(outPath, payload);
 
   console.log(`\n  parsed  ${stats.cedictLines} CC-CEDICT lines`);
@@ -274,6 +295,11 @@ async function build(outPath: string, useCache: boolean): Promise<BuildStats> {
       1048576
     ).toFixed(2)}MB gzipped)`
   );
+  if (format === 'btree') {
+    console.log('         B+ tree: a client reads only the header and the pages it needs');
+  } else {
+    console.log('         JSON: the whole dictionary is parsed into memory at once');
+  }
   console.log(`\nDone in ${((Date.now() - started) / 1000).toFixed(1)}s.`);
 
   return stats;
@@ -282,6 +308,7 @@ async function build(outPath: string, useCache: boolean): Promise<BuildStats> {
 export interface BuildOptions {
   outPath: string;
   useCache: boolean;
+  format: DictionaryFormat;
 }
 
 /**
@@ -291,15 +318,23 @@ export interface BuildOptions {
  */
 export function parseArgs(args: string[]): BuildOptions {
   const outIndex = args.indexOf('--out');
+  const formatIndex = args.indexOf('--format');
+  const format: DictionaryFormat = args[formatIndex + 1] === 'json' ? 'json' : 'btree';
   return {
     useCache: !args.includes('--no-cache'),
-    outPath: outIndex >= 0 && args[outIndex + 1] ? args[outIndex + 1] : DEFAULT_OUT,
+    format,
+    outPath:
+      outIndex >= 0 && args[outIndex + 1]
+        ? args[outIndex + 1]
+        : format === 'btree'
+          ? DEFAULT_OUT
+          : DEFAULT_JSON_OUT,
   };
 }
 
 async function main() {
-  const { outPath, useCache } = parseArgs(process.argv.slice(2));
-  await build(outPath, useCache);
+  const { outPath, useCache, format } = parseArgs(process.argv.slice(2));
+  await build(outPath, useCache, format);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

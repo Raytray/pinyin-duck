@@ -9,6 +9,7 @@ interface CandidatePopupProps {
   totalPages: number;
   compositionBuffer: string;
   dictionaryStatus: 'loading' | 'ready' | 'error';
+  searchStatus: 'idle' | 'searching' | 'ready';
   onSelectCandidate: (index: number) => void;
   onNextPage: () => void;
   onPrevPage: () => void;
@@ -22,6 +23,7 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
   totalPages,
   compositionBuffer,
   dictionaryStatus,
+  searchStatus,
   onSelectCandidate,
   onNextPage,
   onPrevPage,
@@ -43,6 +45,18 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
                 Dictionary unavailable, cannot look up <strong>"{compositionBuffer}"</strong>
               </span>
             )}
+          </div>
+        </div>
+      );
+    }
+
+    if (searchStatus === 'searching') {
+      return (
+        <div className="candidate-popup empty">
+          <div className="candidate-empty-msg">
+            <span>
+              Searching for <strong>"{compositionBuffer}"</strong>...
+            </span>
           </div>
         </div>
       );
