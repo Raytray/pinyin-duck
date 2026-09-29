@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './coverage-fixtures.js';
 import {
   editor,
   candidateList,
@@ -139,6 +139,16 @@ test('Enter falls back to raw text when there are no candidates', async ({ page 
   await editor(page).press('Enter');
 
   await expect(editor(page)).toHaveValue('qqq');
+});
+
+test('Space falls back to raw text when there are no candidates', async ({ page }) => {
+  // Space commits the highlighted candidate, but with an empty list there is nothing
+  // to commit, so the buffered pinyin is inserted as plain text instead of being lost.
+  await editor(page).pressSequentially('qqq');
+  await editor(page).press(' ');
+
+  await expect(editor(page)).toHaveValue('qqq');
+  await expect(candidateList(page)).toHaveCount(0);
 });
 
 test('composes, commits, and resumes typing at the end of the text', async ({ page }) => {

@@ -175,21 +175,17 @@ function segmentContinuousPinyin(text: string): string[] {
       }
     }
 
-    // Fallback: If no valid syllable partition covers the whole string,
-    // take the best prefix match so incomplete input can still be searched.
-    for (let len = maxLen; len >= 1; len--) {
-      const chunk = text.slice(index, index + len);
-      const syllableMatch = chunk.match(/^([a-z\u00FC\u01D7-\u01DC]+)([1-5]?)$/);
-      if (syllableMatch && VALID_PINYIN_SYLLABLES.has(syllableMatch[1])) {
-        const remaining = text.slice(index + len);
-        const result = [chunk, ...(remaining ? [remaining] : [])];
-        memo.set(index, result);
-        return result;
-      }
-    }
-
-    memo.set(index, [text.slice(index)]);
-    return [text.slice(index)];
+    // No syllable starts here. Emit the remainder verbatim rather than dropping it,
+    // so unresolvable input ("qqq") still reaches the search engine and can be
+    // committed as raw text.
+    //
+    // There is deliberately no second "best prefix" pass here: the loop above tests
+    // exactly the same validity rule, and `search` never returns null, so any prefix
+    // it accepted would already have been returned by the first pass. A fallback
+    // re-scanning the same candidates could only ever be dead code.
+    const remainder = [text.slice(index)];
+    memo.set(index, remainder);
+    return remainder;
   }
 
   return search(0) || [text];

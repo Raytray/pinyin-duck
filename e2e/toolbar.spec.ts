@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './coverage-fixtures.js';
 import {
   editor,
   candidateList,
@@ -102,4 +102,29 @@ test('copies the committed text to the clipboard', async ({ page, context }) => 
   await expect(copyButton(page)).toContainText('Copied!');
   const clipboard = await page.evaluate(() => navigator.clipboard.readText());
   expect(clipboard).toBe('你好');
+});
+
+test('leaves the editor intact when the clipboard write is rejected', async ({ page }) => {
+  // The clipboard can be unavailable (no permission, insecure context, denied by the
+  // OS). That must not throw out of the click handler or clear the text.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: () => Promise.reject(new Error('clipboard blocked')),
+        readText: () => Promise.reject(new Error('clipboard blocked')),
+      },
+    });
+  });
+
+  await editor(page).pressSequentially('nihao');
+  await editor(page).press(' ');
+
+  await copyButton(page).click();
+
+  // The button never flips to its transient "Copied!" state...
+  await expect(copyButton(page)).toContainText('Copy');
+  // ...and the committed text survives the failed copy.
+  await expect(editor(page)).toHaveValue('你好');
+  await expect(copyButton(page)).toBeEnabled();
 });

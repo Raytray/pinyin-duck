@@ -5,10 +5,11 @@ import {
   parseHskList,
   normalizeFrequency,
   buildDictRow,
+  joinCorpora,
   type RawCedictLine,
 } from './build-dictionary';
 import { normalizePinyin } from '../src/parser/pinyin.js';
-import { formatGloss } from '../src/dictionary/gloss.js';
+import { decodeDictionary } from '../src/data/load-dictionary.js';
 
 const cctv: RawCedictLine = {
   traditional: '中國中央電視台',
@@ -63,35 +64,6 @@ describe('normalizePinyin', () => {
 
   it('trims surrounding whitespace', () => {
     expect(normalizePinyin('  zhong1 guo2  ')).toBe('zhong1 guo2');
-  });
-});
-
-describe('formatGloss', () => {
-  it('joins definitions with a slash', () => {
-    expect(formatGloss(['China', 'the Middle Kingdom'])).toBe('China / the Middle Kingdom');
-  });
-
-  it('keeps at most three definitions', () => {
-    expect(formatGloss(['a', 'b', 'c', 'd'])).toBe('a / b / c');
-  });
-
-  it('drops classifier annotations', () => {
-    expect(formatGloss(['CL:個|个[ge4]', 'classifier'])).toBe('classifier');
-  });
-
-  it('strips pronunciation bracket tags', () => {
-    expect(formatGloss(['see 塔 [ta3]'])).toBe('see 塔');
-  });
-
-  it('truncates a long gloss with an ellipsis', () => {
-    const gloss = formatGloss(['x'.repeat(100)], 20);
-    expect(gloss).toHaveLength(20);
-    expect(gloss.endsWith('…')).toBe(true);
-  });
-
-  it('returns an empty string for no definitions', () => {
-    expect(formatGloss([])).toBe('');
-    expect(formatGloss(['  '])).toBe('');
   });
 });
 
@@ -212,5 +184,93 @@ describe('buildDictRow', () => {
   it('normalizes the pinyin column', () => {
     const row = buildDictRow(cctv, 0, 0);
     expect(row[2]).toBe('zhong1 guo2 zhong1 yang2 dian4 shi4 tai2');
+  });
+});
+
+describe('joinCorpora', () => {
+  const cedict = [
+    '# CC-CEDICT comment line',
+    '中國 中国 [Zhong1 guo2] /China/',
+    '你好 你好 [Ni3 hao3] /hello/hi/',
+    '你 你 [Ni3] /you/',
+    '五 五 [Wu3] /five/',
+    '龘 龘 [da4] /a rare dragon character/',
+    'not a valid cedict line at all',
+    '',
+  ].join('\n');
+
+  const frequency = '中国 7000\n你好 5000\n五 100\n';
+  const hsk = ['1\t1\t你\tyou', '2\t2\t中国\tchina'].join('\n');
+
+  it('emits one row per valid CC-CEDICT line and reports the count', () => {
+    const { stats } = joinCorpora(cedict, frequency, hsk);
+    expect(stats.cedictLines).toBe(5);
+    expect(stats.emitted).toBe(5);
+  });
+
+  it('joins frequency and HSK data onto the matching rows', () => {
+    const { rows } = joinCorpora(cedict, frequency, hsk);
+    const china = rows.find((r) => r[0] === '中国')!;
+    // 7000 of a 7000 corpus maximum reaches the top of the scale.
+    expect(china[4]).toBe(100000);
+    expect(china[5]).toBe(2);
+  });
+
+  it('reports coverage counts for frequency, HSK and single characters', () => {
+    const { stats } = joinCorpora(cedict, frequency, hsk);
+    expect(stats.withFrequency).toBe(3);
+    expect(stats.withHsk).toBe(2);
+    // 你, 五 and 龘 are single characters; 中国 and 你好 are not.
+    expect(stats.singleChar).toBe(3);
+  });
+
+  it('leaves frequency and HSK at 0 for a word missing from both corpora', () => {
+    const { rows } = joinCorpora(cedict, frequency, hsk);
+    const rare = rows.find((r) => r[0] === '龘')!;
+    expect(rare[4]).toBe(0);
+    expect(rare[5]).toBe(0);
+  });
+
+  it('keeps distinct readings of the same word as separate rows', () => {
+    const multi = ['行 行 [hang2] /to walk/', '行 行 [xing2] /a row/', '行 行 [hang2] /to walk/'].join(
+      '\n'
+    );
+    const { rows, stats } = joinCorpora(multi, '', '');
+    expect(rows.map((r) => r[2])).toEqual(['hang2', 'xing2']);
+    expect(stats.dropped).toBe(1);
+  });
+
+  it('deduplicates an identical word and reading even when the definitions differ', () => {
+    const dupe = ['行 行 [hang2] /to walk/', '行 行 [hang2] /to stroll/'].join('\n');
+    const { rows, stats } = joinCorpora(dupe, '', '');
+    expect(rows).toHaveLength(1);
+    expect(stats.dropped).toBe(1);
+  });
+
+  it('treats a differently-cased pinyin column as the same reading', () => {
+    const dupe = ['中 中 [zhong1] /middle/', '中 中 [Zhong1] /middle/'].join('\n');
+    const { stats } = joinCorpora(dupe, '', '');
+    expect(stats.dropped).toBe(1);
+  });
+
+  it('returns no rows for an empty corpus', () => {
+    const { rows, stats } = joinCorpora('', '', '');
+    expect(rows).toEqual([]);
+    expect(stats).toMatchObject({ cedictLines: 0, emitted: 0, dropped: 0 });
+  });
+
+  it('refuses to emit a row whose pinyin column cannot be parsed', () => {
+    const broken = '中 中 [1] /middle/';
+    expect(() => joinCorpora(broken, '', '')).toThrow(/unparsable pinyin/);
+  });
+
+  it('round-trips its rows through the loader decoder', () => {
+    const { rows } = joinCorpora(cedict, frequency, hsk);
+    const entries = decodeDictionary(rows);
+    expect(entries).toHaveLength(5);
+    for (const entry of entries) {
+      expect(entry.pinyinMarks).not.toBe('');
+      expect(entry.pinyinClean).not.toBe('');
+    }
   });
 });

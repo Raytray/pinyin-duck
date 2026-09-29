@@ -11,10 +11,12 @@
     "build:dict": "npm run build:dict -w @pinyinduck/core",
     "build": "npm run build:dict && npm run --workspaces --if-present build",
     "test": "npm run --workspaces --if-present test",
+    "test:coverage": "npm run test:coverage -w @pinyinduck/core",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:all": "npm run test && npm run test:e2e",
+    "test:coverage:all": "npm run test:coverage && npm run test:e2e",
     "typecheck": "npm run --workspaces --if-present typecheck"
   },
   "keywords": [
@@ -28,6 +30,10 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@playwright/test": "^1.63.0"
+    "@playwright/test": "^1.63.0",
+    "istanbul-lib-coverage": "^3.2.2",
+    "istanbul-lib-report": "^3.0.1",
+    "istanbul-reports": "^3.2.0",
+    "v8-to-istanbul": "^9.3.0"
   }
 }
