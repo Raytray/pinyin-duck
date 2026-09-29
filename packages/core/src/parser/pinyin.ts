@@ -144,16 +144,16 @@ export function segmentPinyin(input: string): string[] {
 }
 
 /**
- * Greedy forward segmentation with backtracking for continuous syllables.
+ * Greedy forward segmentation for continuous syllables, longest match first.
+ *
+ * `search` cannot fail: when no syllable starts at `index` it emits the remainder
+ * verbatim, so every call returns a segmentation and the caller never has to back
+ * out of a choice. That makes this a single greedy pass rather than a
+ * search-with-backtracking, which is why no memo or retry is needed.
  */
 function segmentContinuousPinyin(text: string): string[] {
-  if (!text) return [];
-
-  const memo = new Map<number, string[] | null>();
-
-  function search(index: number): string[] | null {
+  function search(index: number): string[] {
     if (index === text.length) return [];
-    if (memo.has(index)) return memo.get(index)!;
 
     // Maximum pinyin syllable length is ~7 chars (e.g. "zhuang4")
     const maxLen = Math.min(8, text.length - index);
@@ -162,33 +162,19 @@ function segmentContinuousPinyin(text: string): string[] {
       const chunk = text.slice(index, index + len);
       // Check if chunk is valid syllable (optionally with trailing tone number 1-5)
       const syllableMatch = chunk.match(/^([a-z\u00FC\u01D7-\u01DC]+)([1-5]?)$/);
-      if (syllableMatch) {
-        const base = syllableMatch[1];
-        if (VALID_PINYIN_SYLLABLES.has(base)) {
-          const rest = search(index + len);
-          if (rest !== null) {
-            const result = [chunk, ...rest];
-            memo.set(index, result);
-            return result;
-          }
-        }
+      if (syllableMatch && VALID_PINYIN_SYLLABLES.has(syllableMatch[1])) {
+        return [chunk, ...search(index + len)];
       }
     }
 
     // No syllable starts here. Emit the remainder verbatim rather than dropping it,
     // so unresolvable input ("qqq") still reaches the search engine and can be
-    // committed as raw text.
-    //
-    // There is deliberately no second "best prefix" pass here: the loop above tests
-    // exactly the same validity rule, and `search` never returns null, so any prefix
-    // it accepted would already have been returned by the first pass. A fallback
-    // re-scanning the same candidates could only ever be dead code.
-    const remainder = [text.slice(index)];
-    memo.set(index, remainder);
-    return remainder;
+    // committed as raw text. Returning the remainder is also what guarantees `search`
+    // never returns null, so the loop above always commits to its first match.
+    return [text.slice(index)];
   }
 
-  return search(0) || [text];
+  return search(0);
 }
 
 const TONE_CHAR_MAP: Record<string, string> = {

@@ -10,7 +10,6 @@ import { PinyinTrie } from './trie.js';
 
 export class PinyinSearchEngine {
   private trie: PinyinTrie = new PinyinTrie();
-  private entries: DictEntry[] = [];
 
   constructor(entries?: DictEntry[]) {
     if (entries && entries.length > 0) {
@@ -22,7 +21,6 @@ export class PinyinSearchEngine {
    * Loads dictionary entries and populates the search trie.
    */
   public loadEntries(entries: DictEntry[]): void {
-    this.entries = entries;
     this.trie = new PinyinTrie();
 
     for (const entry of entries) {

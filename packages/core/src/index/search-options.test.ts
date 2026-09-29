@@ -246,17 +246,17 @@ describe('PinyinTrie', () => {
   });
 
   it('stops recursing when a branch fills the cap before its siblings are visited', () => {
-    // The cap is reached partway through a child branch, so the remaining siblings
-    // must not be walked at all. Without the guard the walk would keep descending.
+    // "ni" is an interior node here: it holds no entry of its own and has two
+    // children. Capping at 1 must stop the walk right after the first child
+    // subtree fills the cap, leaving the sibling branch entirely unwalked.
     const trie = trieOf([
-      entry({ simplified: '你', pinyinClean: 'ni', pinyinNumbers: 'ni3', pinyinSyllables: ['ni3'] }),
       entry({ simplified: '泥', pinyinClean: 'nihui', pinyinNumbers: 'ni2 hui4', pinyinSyllables: ['ni2', 'hui4'] }),
       entry({ simplified: '妮', pinyinClean: 'nini', pinyinNumbers: 'ni1 ni5', pinyinSyllables: ['ni1', 'ni5'] }),
     ]);
 
-    const capped = trie.searchPrefix('ni', 1);
-    expect(capped).toHaveLength(1);
-    expect(trie.searchPrefix('ni').map((e) => e.simplified)).toEqual(['你', '泥', '妮']);
+    expect(trie.searchPrefix('ni', 1).map((e) => e.simplified)).toEqual(['泥']);
+    // Uncapped, both branches are reachable.
+    expect(trie.searchPrefix('ni').map((e) => e.simplified).sort()).toEqual(['妮', '泥'].sort());
   });
 
   it('returns nothing for a prefix capped at zero results', () => {

@@ -12,7 +12,6 @@ export const App: React.FC = () => {
     dictionaryError,
     entryCount,
     committedText,
-    setCommittedText,
     insertPos,
     setInsertPos,
     compositionBuffer,
