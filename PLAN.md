@@ -13,12 +13,15 @@ flowchart LR
     A --> D["packages/android\n(Milestone 3: Android IME)"]
 ```
 
-- **Milestone 1 (Current Scope - MVP)**: 
+- **Milestone 1 (Complete)**: 
   - Monorepo setup with decoupled `@pinyinduck/core` and `@pinyinduck/web`.
-  - Offline Trie-based CC-CEDICT dictionary engine enriched with word frequency ranking.
+  - Offline CC-CEDICT dictionary engine enriched with word frequency ranking, emitted as a **paged B+ tree** and read on demand rather than parsed into memory.
   - Interactive Web IME composition playground featuring inline candidate cards with character, tone marks, and short English glosses.
+  - Two gated test layers: 242 Vitest unit tests over `packages/core` and 72 Playwright end-to-end tests over the browser IME, with coverage floors enforced as build gates in both.
+  - oxlint as a single flat, non-type-aware static pass across the whole monorepo.
 - **Milestone 2 (Next)**:
-  - Windows desktop integration (exploring a background system assistant / Tauri global overlay or Windows Text Services Framework / Rime schema).
+  - Windows desktop integration (exploring a background system assistant / Tauri global overlay or Windows Text Services Framework / Rime schema). See `docs/roadmap.md` §2.
+  - Work now proceeds on the `pinyin-typeduck-windows` branch; `packages/windows` does not exist yet.
 - **Milestone 3 (Future)**:
   - Android keyboard input method via Android `InputMethodService` or Trime engine integration.
 
@@ -27,11 +30,16 @@ flowchart LR
 ## 2. Monorepo Structure & Location
 
 The project resides in:
-`/home/raytray/repositories/pinyin-typeduck` (Windows UNC: `\\wsl.localhost\Ubuntu\home\raytray\repositories\pinyin-typeduck`)
+`/home/raytray/repositories/pinyin-typeduck-windows` (Windows UNC: `\\wsl.localhost\Ubuntu\home\raytray\repositories\pinyin-typeduck-windows`)
+
+Milestone 2 development happens on the `pinyin-typeduck-windows` branch. The
+working tree is a WSL checkout of a Windows machine, so the platform work is
+edited and built from WSL while the IME itself runs on the Windows host.
 
 ```text
-pinyin-typeduck/
+pinyin-typeduck-windows/
 ├── .git/                          # Git repository initialized at root
+├── .oxlintrc.json                 # Single flat oxlint config for the whole monorepo
 ├── PLAN.md                        # Master Architecture & Implementation Plan
 ├── package.json                   # Monorepo root (npm / pnpm workspaces)
 ├── tsconfig.base.json             # Shared TypeScript configuration
@@ -41,24 +49,28 @@ pinyin-typeduck/
 │   ├── core/                      # Shared dictionary and Pinyin lookup engine
 │   │   ├── package.json
 │   │   ├── tsconfig.json
+│   │   ├── vitest.config.ts       # Unit test config + enforced coverage floors
 │   │   ├── src/
 │   │   │   ├── parser/            # Pinyin tokenizer & syllable segmenter
-│   │   │   ├── dictionary/        # CC-CEDICT loader, compact binary/JSON index
-│   │   │   ├── index/             # Prefix search Trie & candidate ranking
+│   │   │   ├── dictionary/        # CC-CEDICT gloss extraction
+│   │   │   ├── data/              # B+ tree codec, builder, reader, page sources
+│   │   │   ├── index/             # Trie & lazy search engines + candidate ranking
 │   │   │   └── types.ts           # Shared data types
 │   │   └── scripts/               # CC-CEDICT download & pre-indexing scripts
-│   └── web/                       # Web application (Milestone 1)
-│       ├── package.json
-│       ├── vite.config.ts
-│       ├── index.html
-│       └── src/
-│           ├── components/
-│           │   ├── Editor.tsx     # Simulated IME composition input area
-│           │   ├── CandidatePopup.tsx  # Inline candidate cards with definitions
-│           │   └── Toolbar.tsx    # Simplified/Traditional toggle & status
-│           ├── hooks/
-│           │   └── usePinyinDuck.ts    # React hook managing composition buffer
-│           └── styles/            # Clean, modern styling
+│   ├── web/                       # Web application (Milestone 1)
+│   │   ├── package.json
+│   │   ├── vite.config.ts
+│   │   ├── index.html
+│   │   ├── public/dictionary.btree    # Generated paged B+ tree, committed
+│   │   └── src/
+│   │       ├── components/
+│   │       │   ├── Editor.tsx     # Simulated IME composition input area
+│   │       │   ├── CandidatePopup.tsx  # Inline candidate cards with definitions
+│   │       │   └── Toolbar.tsx    # Simplified/Traditional toggle & status
+│   │       ├── hooks/
+│   │       │   └── usePinyinDuck.ts    # React hook managing composition buffer
+│   │       └── styles/            # Clean, modern styling
+│   └── windows/                   # (Milestone 2 — not created yet)
 └── docs/
     └── roadmap.md                 # Architecture notes for Windows & Android
 ```
@@ -122,7 +134,7 @@ As the user types into the composition field:
 ## 5. Execution Steps & Git Commit Checkpoints
 
 > [!IMPORTANT]
-> A Git repository is initialized at `/home/raytray/repositories/pinyin-typeduck`, and a distinct Git commit will be created after completing each step.
+> A Git repository is initialized at `/home/raytray/repositories/pinyin-typeduck-windows`, and a distinct Git commit will be created after completing each step.
 
 1. **Step 1: Workspace & Monorepo Initialization** (Done)
    - Initialize Git repository and `.gitignore`.
@@ -146,7 +158,7 @@ As the user types into the composition field:
 4. **Step 4: Verification, Polish & Multi-Platform Documentation** (Done)
    - Test typing common beginner phrases, homophone differentiation (`ta1`, `shi4`), and script toggling.
    - Document extension points and roadmap for Windows (Milestone 2) and Android (Milestone 3).
-   - **Git Commit**: `docs: add multi-platform roadmap and test verification report`
+   - **Git Commit**: `docs: add multi-platform roadmap and test verification report` (`f47d0a1`)
 
 5. **Step 5: Automated Regression Testing** (Done)
    - Add Playwright to the monorepo root, configured to boot the Vite dev server automatically, with a Chromium project and CI-aware retry/reporting settings.
@@ -156,11 +168,66 @@ As the user types into the composition field:
    - `e2e/dictionary-loading.spec.ts` covers the lazy-load contract: the loading state, a blocked commit while a load is in flight, and 404 / 500 / malformed-payload failures surfacing a recovery hint rather than a false "no match" popup.
    - The suite surfaced that digits are reserved as candidate-pick shortcuts for the duration of a composition, which makes tone numbers unreachable from the Web IME. This is now the intended, explicitly documented behavior (see &sect;3.2 and &sect;4.1) and is pinned by `e2e/number-keys.spec.ts`; tone filtering remains covered by the `packages/core` unit tests.
    - Wire `npm run test:e2e`, `test:e2e:ui`, `test:e2e:headed` and `test:all` into the root workspace, and document the two test layers in the README.
-   - **Git Commit**: `test: add Playwright regression suite for the web IME`
+   - **Git Commit**: `add playwright` (`ae40dcc`)
 
 6. **Step 6: Full CC-CEDICT Dictionary** (Done)
    - Replace the 30-entry hand-written seed with the complete CC-CEDICT corpus, generated into a compact tuple asset and lazy loaded at runtime.
    - Make the build script reproducible: cache the three downloads, validate every pinyin column before emitting, and report parsed / emitted / coverage counts.
    - Fix the two ranking defects the real corpus exposed, where popularity could override match quality.
-   - **Git Commit**: `feat(core): load full CC-CEDICT dictionary and rebalance candidate ranking`
+   - **Git Commit**: `fill the dictionary` (`21acf76`)
+
+7. **Step 7: Coverage Gates & Suite Hardening** (Done)
+   - Add per-glob coverage floors to `packages/core/vitest.config.ts` so a regression in the engine or the dictionary pipeline fails the run rather than only being reported, and exclude re-export barrels and type-only modules that would report misleading zeroes.
+   - Extend the dictionary builder's own test coverage to the download, cache and file-writing paths (`build-dictionary-io.test.ts`, against a stubbed `fetch` and an in-memory `fs`), holding the build script to the same bar as the runtime engine.
+   - Add a Playwright V8-profiler fixture and `e2e/web-coverage-reporter.ts` so the web package's coverage is measured from the browser run and enforced with a non-zero exit code.
+   - **Git Commit**: `add tests for better coverage` (`e9caa1e`), `code clean up` (`fbdd30a`), `fix timing out tests` (`b822a9a`)
+
+8. **Step 8: Paged B+ Tree Dictionary** (Done — 2026-09-29)
+   - Replace the single-blob dictionary asset with a paged B+ tree (`src/data/btree-codec.ts`, `btree-builder.ts`, `btree-dictionary.ts`, `page-source.ts`) keyed on toneless pinyin, so a client reads a 24-byte header and a page directory rather than materializing 122k entries. See §3.1.
+   - Add `LazyPinyinSearchEngine` alongside the trie engine, with both ranking through the shared `scoreEntry` and sharing one scan budget, so they return identical candidates and totals. Extract `scoreEntry` into `src/index/ranking.ts` and have the trie engine delegate to it.
+   - Break score ties deterministically in the lazy engine, since trie insertion order is not reproducible from a page scan.
+   - Add `e2e/insert-position.spec.ts`, covering where a committed candidate lands relative to a live caret: click and digit picks at the caret, repeated picks not drifting, two commits landing in order, and a commit landing behind a caret the user moved on purpose.
+   - **Git Commit**: `feat: lazy-load the dictionary from a paged B+ tree` (`3391280`)
+
+9. **Step 9: Linting** (Done — 2026-09-29)
+   - Add ESLint across the monorepo, and use the pass to clean up: drop a redundant `setState` on mount in `Editor.tsx`, rename `cursorToRestore` to `cursorToRestoreRef` to say that it is a ref, and move a redundant trailing `-` out of a character class in the pinyin parser.
+   - **Superseded the same day** by Step 10.
+   - **Git Commit**: `add eslint` (`cb5df50`)
+
+10. **Step 10: oxlint** (Done — 2026-09-29)
+    - Replace ESLint with oxlint behind a single flat `.oxlintrc.json` covering `packages/core`, `packages/web`, `e2e/` and the tool configs, dropping ~1,300 lines of dependencies and running the whole pass in ~90ms.
+    - Enable oxlint's `correctness` category with the `typescript` and `react` plugins. Scope `react/*` to `packages/web/src` (run repo-wide it flags Playwright's fixture callback, which is also named `use`), and turn `react/set-state-in-effect` off for `usePinyinDuck.ts` only, where the dictionary load's status reset is load-bearing.
+    - oxlint is deliberately not type-aware, so linting stays a static pass with no program; `tsc` runs separately in `strict` mode and the two do not overlap.
+    - **Git Commit**: `swap to oxlint` (`11c245b`)
+
+11. **Step 11: Windows Input Method** (Not started)
+    - See `docs/roadmap.md` §2 for the two candidate architectures (Tauri global overlay vs. Rime/Weasel TSF schema) and the trade-offs between them. No `packages/windows` exists yet.
+
+---
+
+## 6. Current Verification State
+
+Re-measured on the `pinyin-typeduck-windows` branch at `11c245b`:
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Core unit tests | `npm test` | 13 files, 242 tests passed |
+| Core coverage | `npm run test:coverage` | 99% statements, 97.29% branches, 99% functions; gate passes (exit 0) |
+| End-to-end tests | `npm run test:e2e` | 72 tests passed |
+| Web coverage | `npm run test:e2e` | 98.93% statements, 99.25% branches, 100% functions |
+| Lint | `npm run lint` | 0 warnings, 0 errors over 47 files |
+
+> [!NOTE]
+> `npm run typecheck` currently resolves to nothing: the root script uses
+> `--if-present` and neither workspace defines a `typecheck` script. Type errors are
+> caught by `npm run build` (`tsc` in `packages/core`, `tsc && vite build` in
+> `packages/web`) rather than by a standalone command.
+
+> [!NOTE]
+> The coverage floors in `packages/core/vitest.config.ts` are 95% statements / 88%
+> branches for `src/**` and 95% across the board for `scripts/**`, on an 80% global
+> floor. The package no longer reports 100% on every metric: the B+ tree work added
+> defensive branches (malformed input, whole-file fallback, engine-parity tie
+> ordering) that are only partially covered. The README still quotes the pre-B+ tree
+> 100% figures.
 
