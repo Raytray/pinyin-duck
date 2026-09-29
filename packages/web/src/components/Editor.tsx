@@ -11,7 +11,7 @@ interface EditorProps {
   selectedIndex: number;
   currentPage: number;
   totalPages: number;
-  cursorToRestore: React.MutableRefObject<number | null>;
+  cursorToRestoreRef: React.MutableRefObject<number | null>;
   dictionaryStatus: 'loading' | 'ready' | 'error';
   entryCount: number;
   onSelectCandidate: (index: number) => void;
@@ -35,7 +35,7 @@ export const Editor: React.FC<EditorProps> = ({
   selectedIndex,
   currentPage,
   totalPages,
-  cursorToRestore,
+  cursorToRestoreRef,
   dictionaryStatus,
   entryCount,
   onSelectCandidate,
@@ -49,20 +49,20 @@ export const Editor: React.FC<EditorProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isFocused, setIsFocused] = useState<boolean>(true);
 
-  // Auto-focus on mount
+  // Auto-focus on mount. `isFocused` already starts out `true`, so there is nothing
+  // to set here -- assigning it again would just be a no-op re-render bailout.
   useEffect(() => {
     textareaRef.current?.focus();
-    setIsFocused(true);
   }, []);
 
   // Restore cursor position after state changes (deleting, inserting, committing)
   useEffect(() => {
-    if (cursorToRestore.current !== null && textareaRef.current) {
-      const pos = Math.min(cursorToRestore.current, committedText.length);
+    if (cursorToRestoreRef.current !== null && textareaRef.current) {
+      const pos = Math.min(cursorToRestoreRef.current, committedText.length);
       textareaRef.current.setSelectionRange(pos, pos);
-      cursorToRestore.current = null;
+      cursorToRestoreRef.current = null;
     }
-  }, [committedText, cursorToRestore]);
+  }, [committedText, cursorToRestoreRef]);
 
   const handleTextareaSelectOrClick = () => {
     if (textareaRef.current && !isComposing) {

@@ -26,7 +26,7 @@ export const App: React.FC = () => {
     prevPage,
     handleKeyDown,
     handleTextareaChange,
-    cursorToRestore,
+    cursorToRestoreRef,
     clearAll,
   } = usePinyinDuck({ pageSize: 5 });
 
@@ -58,7 +58,7 @@ export const App: React.FC = () => {
             selectedIndex={selectedIndex}
             currentPage={currentPage}
             totalPages={totalPages}
-            cursorToRestore={cursorToRestore}
+            cursorToRestoreRef={cursorToRestoreRef}
             dictionaryStatus={dictionaryStatus}
             entryCount={entryCount}
             onSelectCandidate={selectCandidate}

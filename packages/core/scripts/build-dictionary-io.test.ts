@@ -340,7 +340,7 @@ describe('command line entry point', () => {
 
   it('reports a download failure and sets a failing exit code', async () => {
     const errors: unknown[] = [];
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+    vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
       errors.push(args[0]);
     });
     installFetch({

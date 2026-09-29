@@ -110,9 +110,9 @@ export function toneNumberToMark(syllable: string): string {
  */
 export function pinyinNumbersToMarks(pinyinWithNumbers: string): string {
   return pinyinWithNumbers
-    .split(/([ \t'’\-]+)/)
+    .split(/([ \t'’-]+)/)
     .map((part) => {
-      if (/^[ \t'’\-]+$/.test(part)) return part;
+      if (/^[ \t'’-]+$/.test(part)) return part;
       return toneNumberToMark(part);
     })
     .join('');
@@ -131,8 +131,8 @@ export function segmentPinyin(input: string): string[] {
   if (!cleaned) return [];
 
   // If input contains explicit separators (spaces or apostrophes), split by them first
-  if (/[\s'’\-]/.test(cleaned)) {
-    const parts = cleaned.split(/[\s'’\-]+/).filter(Boolean);
+  if (/[\s'’-]/.test(cleaned)) {
+    const parts = cleaned.split(/[\s'’-]+/).filter(Boolean);
     const result: string[] = [];
     for (const part of parts) {
       result.push(...segmentContinuousPinyin(part));

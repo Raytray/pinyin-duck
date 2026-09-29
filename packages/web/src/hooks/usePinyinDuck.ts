@@ -40,7 +40,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
 
   // Target cursor position to restore on next render
-  const cursorToRestore = useRef<number | null>(null);
+  const cursorToRestoreRef = useRef<number | null>(null);
 
   // The dictionary is a multi-megabyte asset, so it is fetched and indexed
   // asynchronously. Typing still works while it loads; candidates appear once ready.
@@ -104,7 +104,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       const newCursor = insertPos + candidate.hanzi.length;
 
       setCommittedText(newCommitted);
-      cursorToRestore.current = newCursor;
+      cursorToRestoreRef.current = newCursor;
 
       // If candidate had remaining pinyin (partial match), keep remaining in buffer
       if (candidate.remainingPinyin) {
@@ -132,7 +132,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     const newCursor = insertPos + compositionBuffer.length;
 
     setCommittedText(newCommitted);
-    cursorToRestore.current = newCursor;
+    cursorToRestoreRef.current = newCursor;
     setCompositionBuffer('');
     setInsertPos(newCursor);
     setCurrentPage(0);
@@ -223,7 +223,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
           navigator.clipboard.writeText(selected).catch(() => {});
           const newText = committedText.slice(0, start) + committedText.slice(end);
           setCommittedText(newText);
-          cursorToRestore.current = start;
+          cursorToRestoreRef.current = start;
           setInsertPos(start);
           e.preventDefault();
         }
@@ -261,7 +261,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
           // Delete selected accepted characters
           const newText = committedText.slice(0, start) + committedText.slice(end);
           setCommittedText(newText);
-          cursorToRestore.current = start;
+          cursorToRestoreRef.current = start;
           setInsertPos(start);
         } else if (start > 0) {
           // Delete one character before cursor
@@ -272,7 +272,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
           const newStart = start - removeLen;
           const newText = committedText.slice(0, newStart) + committedText.slice(start);
           setCommittedText(newText);
-          cursorToRestore.current = newStart;
+          cursorToRestoreRef.current = newStart;
           setInsertPos(newStart);
         }
         return;
@@ -284,7 +284,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
         if (hasSelection) {
           const newText = committedText.slice(0, start) + committedText.slice(end);
           setCommittedText(newText);
-          cursorToRestore.current = start;
+          cursorToRestoreRef.current = start;
           setInsertPos(start);
         } else if (start < committedText.length) {
           const afterArr = Array.from(committedText.slice(start));
@@ -292,7 +292,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
           const removeLen = removed.length;
           const newText = committedText.slice(0, start) + committedText.slice(start + removeLen);
           setCommittedText(newText);
-          cursorToRestore.current = start;
+          cursorToRestoreRef.current = start;
           setInsertPos(start);
         }
         return;
@@ -313,7 +313,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
           const newText = before + '\n' + after;
           const newCursor = start + 1;
           setCommittedText(newText);
-          cursorToRestore.current = newCursor;
+          cursorToRestoreRef.current = newCursor;
           setInsertPos(newCursor);
         }
         return;
@@ -336,7 +336,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
           const newText = before + ' ' + after;
           const newCursor = start + 1;
           setCommittedText(newText);
-          cursorToRestore.current = newCursor;
+          cursorToRestoreRef.current = newCursor;
           setInsertPos(newCursor);
         }
         return;
@@ -409,7 +409,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
           const newCursor = insertPos + chosenHanzi.length + mappedPunct.length;
 
           setCommittedText(newCommitted);
-          cursorToRestore.current = newCursor;
+          cursorToRestoreRef.current = newCursor;
           setCompositionBuffer('');
           setInsertPos(newCursor);
           setCurrentPage(0);
@@ -421,7 +421,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
           const newCursor = start + mappedPunct.length;
 
           setCommittedText(newCommitted);
-          cursorToRestore.current = newCursor;
+          cursorToRestoreRef.current = newCursor;
           setInsertPos(newCursor);
         }
         return;
@@ -472,7 +472,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     setInsertPos(0);
     setCurrentPage(0);
     setSelectedIndex(0);
-    cursorToRestore.current = 0;
+    cursorToRestoreRef.current = 0;
   }, []);
 
   return {
@@ -502,7 +502,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     prevPage,
     handleKeyDown,
     handleTextareaChange,
-    cursorToRestore,
+    cursorToRestoreRef,
     clearAll,
   };
 }
