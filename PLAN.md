@@ -19,9 +19,18 @@ flowchart LR
   - Interactive Web IME composition playground featuring inline candidate cards with character, tone marks, and short English glosses.
   - Two gated test layers: 242 Vitest unit tests over `packages/core` and 72 Playwright end-to-end tests over the browser IME, with coverage floors enforced as build gates in both.
   - oxlint as a single flat, non-type-aware static pass across the whole monorepo.
-- **Milestone 2 (Next)**:
-  - Windows desktop integration (exploring a background system assistant / Tauri global overlay or Windows Text Services Framework / Rime schema). See `docs/roadmap.md` §2.
-  - Work now proceeds on the `pinyin-typeduck-windows` branch; `packages/windows` does not exist yet.
+- **Milestone 2 (Complete)**:
+  - Windows desktop integration via a Rime/Weasel (小狼毫) schema generated from the same
+    `@pinyinduck/core` engine, so it is a real system input method rather than a
+    keyboard hook. See `docs/roadmap.md` §2 and `packages/windows/README.md`.
+  - The B+ tree asset is walked in key order and each homophone cluster is emitted as it
+    is left, so the generator's peak memory is one cluster rather than the 122k-entry
+    corpus. It emits a simplified and a traditional dictionary (~9.3MB each) whose
+    candidate order matches the web app.
+  - Two ranking defects the real corpus exposed were fixed in `scoreEntry`, both pinned
+    by unit tests: UTF-16 length miscounted the 205 single characters outside the BMP as
+    multi-character words, and one typed tone number awarded the tone bonus to any longer
+    word whose first syllable matched.
 - **Milestone 3 (Future)**:
   - Android keyboard input method via Android `InputMethodService` or Trime engine integration.
 
@@ -70,7 +79,13 @@ pinyin-typeduck-windows/
 │   │       ├── hooks/
 │   │       │   └── usePinyinDuck.ts    # React hook managing composition buffer
 │   │       └── styles/            # Clean, modern styling
-│   └── windows/                   # (Milestone 2 — not created yet)
+│   ├── windows/                   # Windows input method (Milestone 2)
+│   │   ├── src/rime-dict.ts       # Rime dictionary emitter (pure, no fs)
+│   │   ├── scripts/
+│   │   │   ├── build-rime-dict.ts # Walks the B+ tree, writes both dictionaries
+│   │   │   └── install.ps1        # Copies the schemas into %APPDATA%\Rime
+│   │   └── rime/                  # Schemas (committed) + generated dictionaries
+│   └── android/                   # (Milestone 3 — not created yet)
 └── docs/
     └── roadmap.md                 # Architecture notes for Windows & Android
 ```
@@ -200,34 +215,51 @@ As the user types into the composition field:
     - oxlint is deliberately not type-aware, so linting stays a static pass with no program; `tsc` runs separately in `strict` mode and the two do not overlap.
     - **Git Commit**: `swap to oxlint` (`11c245b`)
 
-11. **Step 11: Windows Input Method** (Not started)
-    - See `docs/roadmap.md` §2 for the two candidate architectures (Tauri global overlay vs. Rime/Weasel TSF schema) and the trade-offs between them. No `packages/windows` exists yet.
+11. **Step 11: Windows Input Method** (Done — 2026-09-29)
+    - Build Windows as a Rime/Weasel schema rather than the Tauri overlay of Approach A. The working tree is a WSL checkout and neither side has a Rust toolchain, so a Tauri app could not be compiled or verified here at all; Rime is a real registered TSF input method that the OS already knows how to activate, focus and compose, so the work is the part that is PinyinDuck's — the dictionary and its ranking. See `docs/roadmap.md` §2 for the trade-off and `packages/windows/README.md` for install and verification.
+    - Add `packages/windows`: `src/rime-dict.ts` emits Rime's `.dict.yaml` format (a YAML header plus a TSV body) from the same B+ tree, and `scripts/build-rime-dict.ts` walks the asset in key order, emitting each homophone cluster as the scan leaves it, so the corpus is never held in memory. Both dictionaries build in ~1s.
+    - Pin the format against librime rather than against the tutorial version of it: the body is TSV (since 1.9), `columns` must declare `comment` (the built-in default is text/code/weight with **no comment column**, so an undeclared gloss is dropped silently), and `Vocabulary::SortHomophones` is a *stable* sort by weight, which makes the emitted order the tiebreak — so the generator mirrors `scoreEntry` and `compareScored` exactly. Measured over the real asset, 103,521 readings and 121,304 rows agree with the web engine; the 3 that do not are CC-CEDICT's own `ㄏㄤ` / `PO` / `TA` syllable-abbreviation rows, where the Rime file ranks the real character first.
+    - Two schemas over two generated dictionaries, switched with `F4` / ``Ctrl+` ``: the traditional one uses CC-CEDICT's own traditional column instead of converting with OpenCC at runtime. `default.custom.yaml` appends both to the scheme switcher, so a Weasel update cannot overwrite them.
+    - `scripts/install.ps1` verifies all five files exist before copying anything, clears `%APPDATA%\Rime\build` so a stale compiled table cannot be reused, and prints the deploy step.
+    - Fix the two ranking defects the parity work exposed in `scoreEntry`: `String.length` counts UTF-16 units, so the 205 CC-CEDICT characters outside the BMP were each treated as a two-character word and given the word boost (typing `an1` offered 𩽾 above 安); and one typed tone number awarded the full tone bonus to any longer word whose *first* syllable matched (typing `bian3` offered 彼岸 above 扁). A tone filter now only constrains as many syllables as the query has tones.
+    - **Git Commit**: `feat(windows): add the PinyinDuck Rime input method`
 
 ---
 
 ## 6. Current Verification State
 
-Re-measured on the `pinyin-typeduck-windows` branch at `11c245b`:
+Re-measured on the `pinyin-typeduck-windows` branch after Step 11:
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Core unit tests | `npm test` | 13 files, 242 tests passed |
-| Core coverage | `npm run test:coverage` | 99% statements, 97.29% branches, 99% functions; gate passes (exit 0) |
+| Core unit tests | `npm test -w @pinyinduck/core` | 13 files, 248 tests passed |
+| Core coverage | `npm run test:coverage -w @pinyinduck/core` | 99% statements, 97.29% branches, 99% functions; gate passes (exit 0) |
+| Windows unit tests | `npm test -w @pinyinduck/windows` | 2 files, 47 tests passed |
+| Windows coverage | `npm run test:coverage -w @pinyinduck/windows` | 97.94% statements, 96.66% branches, 100% functions; gate passes (exit 0) |
+| Rime dictionary build | `npm run build:rime` | 122,746 rows simplified, 122,734 traditional (12 duplicate collapses), 0 unusable, ~1s |
 | End-to-end tests | `npm run test:e2e` | 72 tests passed |
-| Web coverage | `npm run test:e2e` | 98.93% statements, 99.25% branches, 100% functions |
-| Lint | `npm run lint` | 0 warnings, 0 errors over 47 files |
+| Web coverage | `npm run test:e2e` | 98.93% statements, 99.24% branches, 100% functions |
+| Lint | `npm run lint` | 0 warnings, 0 errors over 52 files |
 
 > [!NOTE]
-> `npm run typecheck` currently resolves to nothing: the root script uses
-> `--if-present` and neither workspace defines a `typecheck` script. Type errors are
-> caught by `npm run build` (`tsc` in `packages/core`, `tsc && vite build` in
-> `packages/web`) rather than by a standalone command.
+> `npm run typecheck` resolves to nothing: the root script uses `--if-present` and no
+> workspace defines a `typecheck` script. Type errors are caught by `npm run build` —
+> `tsc` in `packages/core`, `tsc && vite build` in `packages/web`, and `tsc --noEmit`
+> over `src` **and** `scripts` in `packages/windows`, which is why that package is the
+> one that needs `@types/node`.
 
 > [!NOTE]
-> The coverage floors in `packages/core/vitest.config.ts` are 95% statements / 88%
-> branches for `src/**` and 95% across the board for `scripts/**`, on an 80% global
-> floor. The package no longer reports 100% on every metric: the B+ tree work added
-> defensive branches (malformed input, whole-file fallback, engine-parity tie
-> ordering) that are only partially covered. The README still quotes the pre-B+ tree
-> 100% figures.
+> The coverage floors are 95% statements / 88% branches for `packages/core/src/**`,
+> 95% across the board for `packages/core/scripts/**`, and 95% on all four metrics for
+> `packages/windows`, each on an 80% global floor. No package reports 100% on every
+> metric: the B+ tree work added defensive branches (malformed input, whole-file
+> fallback, engine-parity tie ordering) that are only partially covered, and the Windows
+> generator leaves its `import.meta.url` command line entry uncovered.
+
+> [!NOTE]
+> The Rime dictionaries cannot be executed in this repository, so the last mile is
+> manual: `packages/windows/README.md` carries a verification table whose expected
+> candidate lists were read out of the generated asset rather than assumed. The client's
+> *ordering* was checked against the web engine over the whole corpus (see Step 11), but
+> deploying to Windows is still unverified here, since the host has no Rime installed.
 

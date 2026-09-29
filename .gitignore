@@ -22,3 +22,7 @@ packages/core/.cache/
 # is committed because the app needs it after a plain install; this one is only produced by
 # `build:dict -- --format json` and nothing in the app reads it.
 packages/web/public/dictionary.json
+
+# The generated Rime dictionaries. The hand-written schemas next to them are committed;
+# these two are ~7MB each and are rebuilt by `npm run build:rime`.
+packages/windows/rime/*.dict.yaml

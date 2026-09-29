@@ -6,7 +6,7 @@ A TypeDuck-inspired Mandarin Pinyin input method designed for learners. As you t
 
 - **`packages/core`**: Pinyin syllable segmenter, CC-CEDICT asset generator and loader, Trie-based candidate search engine, and ranking algorithm.
 - **`packages/web`**: Web application featuring an interactive IME composition playground with inline candidate definition cards.
-- **`packages/windows`**: (Planned Milestone 2) Windows desktop integration.
+- **`packages/windows`**: Windows input method, delivered as a Rime/Weasel schema generated from the same engine. See [packages/windows/README.md](packages/windows/README.md).
 - **`packages/android`**: (Planned Milestone 3) Android input method integration.
 
 ## Getting Started
@@ -67,6 +67,18 @@ workspace script directly, or npm will read them as its own.
 Current output: 125,132 lines parsed into 122,746 unique word/reading pairs
 (26,811 with frequency data, 5,247 on the HSK list), 9.12MB raw and 4.27MB gzipped.
 
+The same asset also feeds the Windows input method:
+
+```bash
+npm run build:rime                   # regenerates packages/windows/rime/*.dict.yaml
+npm run build:rime -- --out /tmp/rime   # writes the dictionaries somewhere else
+npm run build:rime -- --btree <path>    # reads a different asset
+```
+
+The Rime dictionaries are ~9.3MB each and gitignored, so `npm run build` regenerates
+them. Installing them on Windows is one PowerShell script; see
+[packages/windows/README.md](packages/windows/README.md).
+
 **The asset is a paged B+ tree, not a blob.** It is keyed on toneless pinyin and split
 into ~1,200 byte-ranged pages, so a client opens it by reading only the 24-byte header
 and the page directory and then fetches just the pages a query touches. Resident memory
@@ -114,19 +126,23 @@ does the same predictable thing, instead of changing meaning depending on how ma
 candidates happen to be on screen.
 
 Tone-number filtering still exists in `@pinyinduck/core` for direct callers — including
-the planned Windows and Android clients — and is covered by the unit tests. Once no
-composition is active, number keys are ordinary text input again.
+the Windows and Android clients — and is covered by the unit tests. It is not reachable
+from either keyboard: the Windows schema leaves digits out of `speller/alphabet` so
+number keys keep selecting candidates, exactly as here. Once no composition is active,
+number keys are ordinary text input again.
 
 ## Testing
 
-The repository has two test layers:
+The repository has three test layers:
 
 | Layer | Command | Covers |
 | --- | --- | --- |
 | Unit (`packages/core`) | `npm test` | Pinyin parsing, syllable segmentation, tone-mark conversion, trie search, ranking, dictionary generation and loading |
+| Unit (`packages/windows`) | `npm test` | The Rime dictionary emitter: column order, weights, candidate ordering, duplicate collapsing, and the file writing |
 | End-to-end (Playwright) | `npm run test:e2e` | The full IME loop in a real browser: composition, candidate ranking, paging, keyboard shortcuts, text editing, script toggle, dictionary loading |
 
-Run both with `npm run test:all`.
+Run everything with `npm run test:all` (unit + end-to-end) or
+`npm run test:coverage:all`.
 
 The Playwright suite lives in `e2e/` and is configured by `playwright.config.ts` at the
 repo root. It starts the Vite dev server automatically, so no server needs to be running
@@ -171,13 +187,12 @@ forces headed, for environments where the default is not what you want.
 
 | Package | Command | Report | Current |
 | --- | --- | --- | --- |
-| `@pinyinduck/core` | `npm run test:coverage` | `packages/core/coverage/` | 100% statements, 100% branches, 100% functions |
-| `@pinyinduck/web` | `npm run test:e2e` | `coverage/web/` | 99.8% statements, 99% branches, 100% functions |
+| `@pinyinduck/core` | `npm run test:coverage -w @pinyinduck/core` | `packages/core/coverage/` | 99% statements, 97.29% branches, 99% functions |
+| `@pinyinduck/windows` | `npm run test:coverage -w @pinyinduck/windows` | `packages/windows/coverage/` | 97.94% statements, 96.66% branches, 100% functions |
+| `@pinyinduck/web` | `npm run test:e2e` | `coverage/web/` | 98.93% statements, 99.24% branches, 100% functions |
 
-Run both with `npm run test:coverage:all`.
-
-Every file in both packages is above 80% on all four metrics, and both suites enforce
-that as a build gate rather than only reporting it.
+`npm run test:coverage` runs the two unit suites; `npm run test:coverage:all` adds the
+browser one. Every package is held to a floor rather than only reported.
 
 Core uses the Vitest V8 provider, configured in `packages/core/vitest.config.ts` with
 per-glob thresholds (plus an 80% global floor) so a regression in the engine or the
@@ -189,6 +204,12 @@ The dictionary builder's download, cache and file-writing paths are covered in
 `scripts/build-dictionary-io.test.ts` against a stubbed `fetch` and an in-memory `fs`,
 so the build script is held to the same threshold as the runtime engine rather than
 being exempt as a build-time tool.
+
+`packages/windows` is held to a 95% floor on all four metrics, for the same reason: a
+drift in the Rime dictionary format still compiles and still deploys, and silently drops
+every definition or reorders the candidate list. Its file writing is exercised twice —
+once against injected fakes and once against a real temporary directory, so the real
+`fs` adapter's row buffering is covered too.
 
 The web package has no unit tests: its behaviour is verified through the browser, so its
 coverage is measured from the Playwright run instead of duplicating that suite as unit

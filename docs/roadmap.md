@@ -13,8 +13,8 @@ flowchart TD
     end
     
     subgraph Milestone2["Milestone 2 (Desktop: Windows)"]
-        WinTauri["Tauri v2 Global Overlay\n(Rust LL Hook + Webview Card Tether)"]
-        WinRime["Rime / Weasel Schema\n(CC-CEDICT with Gloss Comments)"]
+        WinRime["Rime / Weasel Schema\n(CC-CEDICT with Gloss Comments)\nBUILT"]
+        WinTauri["Tauri v2 Global Overlay\n(Rust LL Hook + Webview Card Tether)\ndeferred"]
     end
     
     subgraph Milestone3["Milestone 3 (Mobile: Android)"]
@@ -33,9 +33,20 @@ flowchart TD
 
 ## 2. Milestone 2: Windows Input Architecture
 
-To give Mandarin learners real-time English definitions anywhere in Windows (Notepad, Word, Discord, browsers), two architectures are detailed below:
+To give Mandarin learners real-time English definitions anywhere in Windows (Notepad, Word, Discord, browsers), two architectures were designed. **Approach B was built.**
 
-### Approach A: Tauri Global Assistant (Recommended for Fast Iteration)
+### Approach B: Rime / Weasel Engine Schema — Implemented
+
+1. **Windows Text Services Framework (TSF)**:
+   - Rather than authoring a COM C++ TSF driver from scratch, utilize the battle-tested **Rime (Weasel / 小狼毫)** framework.
+2. **Schema & Dictionary Generation**:
+   - `packages/windows/scripts/build-rime-dict.ts` walks the shared B+ tree and emits `pinyinduck.dict.yaml` (122,746 rows) and `pinyinduck_trad.dict.yaml` (122,734 rows), where the comment field of each entry carries its tone marks and concise CC-CEDICT English definition.
+   - `pinyinduck.schema.yaml` sets `always_show_comments: true` so every candidate carries its definition, not just the selected one, and leaves digits out of `speller/alphabet` so number keys keep selecting candidates.
+   - The traditional scheme uses CC-CEDICT's own traditional column rather than converting with OpenCC at runtime, so 中国 is offered as 中國 because that is what the source says.
+3. **Why this won.** The Windows client is a real, registered IME, so the OS already handles activation, focus, composing strings and per-app compatibility. That leaves the work being the part that is PinyinDuck's: the dictionary, the glosses and the ranking, all of which come from `@pinyinduck/core` unchanged. It also builds and is tested from this WSL checkout — Approach A cannot be compiled or verified here at all, because neither the WSL side nor the Windows host has a Rust toolchain or MSVC.
+
+### Approach A: Tauri Global Assistant — Not Built
+
 1. **Background Tray App**:
    - Built with Tauri v2 (Rust backend + React frontend).
    - Runs in the Windows system tray with low memory footprint (~25 MB).
@@ -48,12 +59,7 @@ To give Mandarin learners real-time English definitions anywhere in Windows (Not
 4. **Text Injection**:
    - When a candidate is committed (Space or numbers `1`–`9`), sends Unicode characters via `SendInput` using `KEYEVENTF_UNICODE` / `VK_PACKET`.
 
-### Approach B: Rime / Weasel Engine Schema (Native TSF IME)
-1. **Windows Text Services Framework (TSF)**:
-   - Rather than authoring a COM C++ TSF driver from scratch, utilize the battle-tested **Rime (Weasel / 小狼毫)** framework.
-2. **Schema & Dictionary Generation**:
-   - Generate a custom Rime dictionary (`pinyinduck.dict.yaml`) where the comment field of each entry is populated with the concise CC-CEDICT English definition.
-   - Configure candidate layout in `weasel.custom.yaml` to display candidate comments horizontally with distinctive tone coloring.
+Retained as a fallback for a future milestone if the Rime candidate window is ever judged too plain for a learner: it would carry the exact candidate-card UI of the web app. The costs that ruled it out for this milestone are the multi-GB Visual Studio Build Tools install it needs on the host, an extra resident process, having to re-implement composing and candidate windows, and its coexistence with the IME Windows already has installed. Nothing about the dictionary or the ranking would be reusable from Approach A — both approaches read the same `@pinyinduck/core` output, which is why the choice does not fork the project.
 
 ---
 
@@ -84,15 +90,15 @@ To give Mandarin learners real-time English definitions anywhere in Windows (Not
 #### Test Execution Metrics
 - **Test Runner**: Vitest v3.2.7
 - **Test Suites**: 13 passed
-- **Tests**: 242 passed, 0 failed
-- **Command**: `npm test`
+- **Tests**: 248 passed, 0 failed
+- **Command**: `npm test -w @pinyinduck/core`
 
 | Suite | Tests | Covers |
 | :--- | :--- | :--- |
 | `src/parser/pinyin.test.ts` | 21 | Tone marks, umlaut handling, apostrophe splitting, normalization |
 | `src/dictionary/gloss.test.ts` | 14 | CC-CEDICT definition trimming |
 | `src/index/search.test.ts` | 6 | Engine search behaviour against a small fixture dictionary |
-| `src/index/ranking.test.ts` | 6 | Popularity is a tiebreaker, never an override of match quality |
+| `src/index/ranking.test.ts` | 11 | Popularity is a tiebreaker, never an override of match quality; supplementary-plane characters are not words; tone filters across word lengths |
 | `src/index/search-options.test.ts` | 19 | Search option defaults, tone edge cases, trie traversal |
 | `src/index/lazy-search.test.ts` | 24 | Lazy engine ranking, paging, tone filters, scan budget, engine parity |
 | `src/data/btree-codec.test.ts` | 29 | Varints, page/header/directory encode + decode, malformed input |
@@ -102,6 +108,24 @@ To give Mandarin learners real-time English definitions anywhere in Windows (Not
 | `src/data/load-dictionary.test.ts` | 15 | Legacy wire-format decoding and loader error handling |
 | `scripts/build-dictionary.test.ts` | 38 | CC-CEDICT / frequency / HSK parsing and frequency normalization |
 | `scripts/build-dictionary-io.test.ts` | 27 | Download caching, both output formats, CLI flag handling |
+
+### Unit Tests (`packages/windows`)
+
+#### Test Execution Metrics
+- **Test Runner**: Vitest v3.2.7
+- **Test Suites**: 2 passed
+- **Tests**: 47 passed, 0 failed
+- **Coverage**: 97.94% statements, 96.66% branches, 100% functions (gate: 95% on all four)
+- **Command**: `npm test -w @pinyinduck/windows`
+
+| Suite | Tests | Covers |
+| :--- | :--- | :--- |
+| `src/rime-dict.test.ts` | 33 | Column order and the comment column, the weight formula against `scoreEntry`, tie order against `compareScored`, tone marks and gloss formatting, interleaved tones within one key block, duplicate collapsing, and a whole dictionary built and read back through a real B+ tree |
+| `scripts/build-rime-dict-io.test.ts` | 14 | Flag handling, both output files, header and body shape, a missing asset, a corrupt asset, the real `fs` adapter's row buffering against a temp directory, and the CLI output |
+
+The suite pins the Rime dictionary format against librime's source rather than against a
+tutorial, because a drift still compiles and still deploys while silently dropping every
+definition or reordering the candidate list. See `packages/windows/README.md`.
 
 #### Verified Test Cases
 
@@ -121,14 +145,38 @@ To give Mandarin learners real-time English definitions anywhere in Windows (Not
 > [!NOTE]
 > The tone-number cases above exercise the **engine API directly**. They are not reachable
 > from the Web IME keyboard, where digits are reserved as candidate-pick shortcuts for the
-> duration of a composition (see `PLAN.md` &sect;3.2).
+> duration of a composition (see `PLAN.md` &sect;3.2). The Windows schema leaves digits out
+> of `speller/alphabet` for the same reason, so number keys keep selecting candidates there
+> too.
+
+> [!NOTE]
+> Two of these expectations changed when Milestone 2 compared the Windows client against
+> the engine over the whole corpus, and both fixes are in `scoreEntry`:
+> `String.length` counted UTF-16 units, so the 205 CC-CEDICT characters outside the BMP were
+> treated as multi-character words (typing `an1` offered 𩽾 above **安**), and one typed tone
+> number awarded the full tone bonus to any longer word whose *first* syllable matched
+> (typing `bian3` offered **彼岸** above 扁). A tone filter now only constrains as many
+> syllables as the query has tones. Pinned by `packages/core/src/index/ranking.test.ts`.
+
+### Cross-Client Parity (`packages/windows` → Rime)
+
+The Windows menu and the web candidate list are ranked by the same rules, which is only
+true if the emitted dictionary preserves them. Measured over the real asset by comparing
+each Rime menu against the engine's results for the same reading:
+
+| Check | Result |
+| :--- | :--- |
+| Readings compared | 103,521 (every code a user can type) |
+| Rows compared | 121,304 |
+| Orderings identical | 103,518 (99.997%) |
+| Orderings that differ | 3 — CC-CEDICT's `ㄏㄤ`, `PO` and `TA` syllable abbreviations, where the Rime file ranks the real character first |
 
 ### End-to-End Tests (`e2e/`)
 
 #### Test Execution Metrics
 - **Test Runner**: Playwright v1.63.0 (Chromium)
-- **Tests**: 66 passed, 0 failed
-- **Suites**: `composition`, `candidate-paging`, `number-keys`, `toolbar`, `editing`, `dictionary-loading`
+- **Tests**: 72 passed, 0 failed
+- **Suites**: `composition`, `candidate-paging`, `number-keys`, `toolbar`, `editing`, `dictionary-loading`, `insert-position`
 - **Command**: `npm run test:e2e` (boots the Vite dev server automatically)
 
 > [!NOTE]
@@ -162,4 +210,8 @@ To give Mandarin learners real-time English definitions anywhere in Windows (Not
 - **`npm run build:dict`**: Full CC-CEDICT generation passed in ~2.2s from cache. 125,132 lines parsed, 122,746 rows emitted (2,386 duplicate readings dropped), 26,811 with frequency, 5,247 on the HSK list, 11,851 single characters. Emitted a 9.12MB (4.27MB gzipped) B+ tree of 1,196 pages, which reads back as the same 122,746 entries.
 - **`@pinyinduck/core`**: `tsc` build passed with zero errors (`dist/index.d.ts`, `dist/index.js`).
 - **`@pinyinduck/web`**: `tsc && vite build` passed with zero errors. The JS bundle contains no dictionary data; `dist/dictionary.btree` is copied as a separate static asset, confirming the dictionary is genuinely lazy rather than bundled.
+- **`@pinyinduck/windows`**: `tsc --noEmit` passed with zero errors over `src` and `scripts`.
+- **`npm run build:rime`**: walked the 9.12MB B+ tree in ~1s and emitted `pinyinduck.dict.yaml` (122,746 rows) and `pinyinduck_trad.dict.yaml` (122,734 rows, 12 duplicates dropped, 0 unusable). Neither the asset nor the corpus is held in memory: the tree is scanned in key order and each homophone cluster is emitted as the scan leaves it.
 - **Cross-engine parity**: the lazy and in-memory engines were compared over 4,004 sampled queries drawn from the real corpus. Every query returned the same `total`, and the 930 queries whose top-20 ordering differed were permutations of the *same* candidate set where the swapped entries score identically — the B-tree scan cannot reproduce trie insertion order, so ties are broken deterministically instead. Zero queries showed a real ranking difference.
+- **Cross-client parity**: the generated Rime dictionaries were compared against the web engine over every typeable reading — see §4.
+- **Not verified here**: deploying to Windows. The host has no Rime installed, so the schemas have never been loaded by librime. The format is pinned against librime's source and the expected candidate lists in `packages/windows/README.md` are read out of the generated asset, but the last mile is a manual step.
