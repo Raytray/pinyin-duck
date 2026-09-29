@@ -8,6 +8,9 @@ export const App: React.FC = () => {
   const {
     script,
     toggleScript,
+    dictionaryStatus,
+    dictionaryError,
+    entryCount,
     committedText,
     setCommittedText,
     insertPos,
@@ -41,6 +44,12 @@ export const App: React.FC = () => {
 
       <main className="main-content">
         <div className="content-container">
+          {dictionaryStatus === 'error' && (
+            <div className="dictionary-error" role="alert">
+              <strong>Could not load the dictionary.</strong>
+              <span>{dictionaryError}</span>
+            </div>
+          )}
           <Editor
             committedText={committedText}
             compositionBuffer={compositionBuffer}
@@ -51,6 +60,8 @@ export const App: React.FC = () => {
             currentPage={currentPage}
             totalPages={totalPages}
             cursorToRestore={cursorToRestore}
+            dictionaryStatus={dictionaryStatus}
+            entryCount={entryCount}
             onSelectCandidate={selectCandidate}
             onNextPage={nextPage}
             onPrevPage={prevPage}

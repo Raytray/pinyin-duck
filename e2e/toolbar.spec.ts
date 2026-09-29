@@ -8,6 +8,7 @@ import {
   gotoApp,
   expectCandidates,
   expectGlosses,
+  textLength,
 } from './helpers';
 
 test.beforeEach(async ({ page }) => {
@@ -18,7 +19,7 @@ test('starts in simplified script', async ({ page }) => {
   await expect(scriptToggle(page)).toContainText('简体 (Simplified)');
 
   await editor(page).pressSequentially('xiexie');
-  await expectCandidates(page, ['谢谢']);
+  await expectCandidates(page, ['谢谢', '泄泻', '写', '些', '鞋']);
   await editor(page).press(' ');
 
   await expect(editor(page)).toHaveValue('谢谢');
@@ -29,8 +30,14 @@ test('renders traditional characters after the script toggle', async ({ page }) 
   await expect(scriptToggle(page)).toContainText('繁體 (Traditional)');
 
   await editor(page).pressSequentially('xiexie');
-  await expectCandidates(page, ['謝謝']);
-  await expectGlosses(page, ['thank you / thanks']);
+  await expectCandidates(page, ['謝謝', '泄瀉', '寫', '些', '鞋']);
+  await expectGlosses(page, [
+    'to thank / thanks / thank you',
+    '(TCM) to have diarrhea',
+    'to write',
+    'classifier indicating a small amount or small number greater tha…',
+    'shoe',
+  ]);
   await editor(page).press(' ');
 
   await expect(editor(page)).toHaveValue('謝謝');
@@ -40,11 +47,11 @@ test('toggles back to simplified without losing the composition buffer', async (
   await scriptToggle(page).click();
 
   await editor(page).pressSequentially('zaijian');
-  await expectCandidates(page, ['再見', '在']);
+  await expectCandidates(page, ['再見', '在建', '再建', '在', '再']);
   await expect(page.locator('.candidate-buffer-text')).toHaveText('zaijian');
 
   await scriptToggle(page).click();
-  await expectCandidates(page, ['再见', '在']);
+  await expectCandidates(page, ['再见', '在建', '再建', '在', '再']);
   await expect(page.locator('.candidate-buffer-text')).toHaveText('zaijian');
 });
 
@@ -81,7 +88,7 @@ test('clears committed text and any active composition', async ({ page }) => {
   await expect(editor(page)).toHaveValue('');
   await expect(candidateList(page)).toHaveCount(0);
   await expect(clearButton(page)).toBeDisabled();
-  await expect(page.locator('.status-item').nth(1)).toContainText('Length: 0 characters');
+  await expect(textLength(page)).toContainText('Length: 0 characters');
 });
 
 test('copies the committed text to the clipboard', async ({ page, context }) => {

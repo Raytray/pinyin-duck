@@ -10,3 +10,6 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+
+# Downloaded CC-CEDICT / frequency / HSK sources, re-fetchable with build:dict
+packages/core/.cache/

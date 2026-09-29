@@ -79,10 +79,18 @@ To give Mandarin learners real-time English definitions anywhere in Windows (Not
 
 #### Test Execution Metrics
 - **Test Runner**: Vitest v3.2.7
-- **Test Suites**: 2 passed
-- **Tests**: 13 passed, 0 failed
-- **Execution Time**: ~400ms
+- **Test Suites**: 5 passed
+- **Tests**: 68 passed, 0 failed
+- **Execution Time**: ~340ms
 - **Command**: `npm test`
+
+| Suite | Tests | Covers |
+| :--- | --- | :--- |
+| `src/parser/pinyin.test.ts` | 7 | Tone marks, umlaut handling, apostrophe splitting, normalization |
+| `src/index/search.test.ts` | 6 | Engine search behaviour against a small fixture dictionary |
+| `src/index/ranking.test.ts` | 6 | Popularity is a tiebreaker, never an override of match quality |
+| `scripts/build-dictionary.test.ts` | 34 | CC-CEDICT / frequency / HSK parsing and frequency normalization |
+| `src/data/load-dictionary.test.ts` | 15 | Wire-format decoding and loader error handling |
 
 #### Verified Test Cases
 
@@ -108,24 +116,31 @@ To give Mandarin learners real-time English definitions anywhere in Windows (Not
 
 #### Test Execution Metrics
 - **Test Runner**: Playwright v1.63.0 (Chromium)
-- **Tests**: 39 passed, 0 failed
-- **Suites**: `composition`, `candidate-paging`, `number-keys`, `toolbar`
+- **Tests**: 45 passed, 0 failed
+- **Suites**: `composition`, `candidate-paging`, `number-keys`, `toolbar`, `dictionary-loading`
 - **Command**: `npm run test:e2e` (boots the Vite dev server automatically)
+
+> [!IMPORTANT]
+> Every candidate expectation is pinned to the full CC-CEDICT corpus. `gotoApp` waits for
+> the dictionary status to report a loaded entry count before asserting, so no test can
+> pass against an empty index.
 
 #### Covered Behaviors
 - **Composition Lifecycle**: Buffer growth, uppercase normalization, `Backspace` per letter, `Escape` cancel, `Enter` raw-pinyin commit, cursor resumption after commit.
 - **Candidate Ranking**: Order, tone marks and English glosses rendered per card; assertions pinned to real engine output.
-- **Paging**: Multi-page homophone clusters (`ta` &rarr; 6 candidates over 2 pages) via pager buttons, `PageUp` / `PageDown` and `[` / `]`, with paging reset on buffer change.
+- **Paging**: A broad syllable cluster (`ta` &rarr; 199 readings, capped to 50 candidates over 10 pages) via pager buttons, `PageUp` / `PageDown` and `[` / `]`, including the disabled state on the last page and paging reset on buffer change.
 - **Selection**: Digit pick, arrow-key navigation including page roll-over, and mouse hover.
 - **Partial Matches**: Committing a prefix candidate keeps the leftover syllable buffered.
 - **No-Match Handling**: Empty-state messaging plus raw-text fallback on `Enter`.
 - **Script Toggle**: Simplified/Traditional candidate rendering, buffer preservation across toggle, and committed-text stability.
 - **Toolbar**: Copy to clipboard, clear, and disabled-state gating.
 - **Number Keys**: Digit reservation during composition, including out-of-range and `0` handling.
+- **Dictionary Loading**: The status indicator, a commit key swallowed while a load is in flight, the buffer surviving the transition to ready, and 404 / 500 / malformed-payload failures surfacing a `build:dict` recovery hint while raw pinyin stays committable.
 
 ---
 
 ## 5. Build Verification
 
+- **`npm run build:dict`**: Full CC-CEDICT generation passed in ~1.1s from cache. 125,132 lines parsed, 122,746 rows emitted (2,386 duplicate readings dropped), 26,811 with frequency, 5,247 on the HSK list, 11,851 single characters. Emitted 8.10MB (3.58MB gzipped).
 - **`@pinyinduck/core`**: `tsc` build passed with zero errors (`dist/index.d.ts`, `dist/index.js`).
-- **`@pinyinduck/web`**: `tsc && vite build` passed with zero errors (`dist/index.html`, CSS and JS bundles generated).
+- **`@pinyinduck/web`**: `tsc && vite build` passed with zero errors. The 253.28KB JS bundle (79.13KB gzipped) contains no dictionary data; `dist/dictionary.json` is copied as a separate 9.95MB static asset, confirming the dictionary is genuinely lazy rather than bundled.

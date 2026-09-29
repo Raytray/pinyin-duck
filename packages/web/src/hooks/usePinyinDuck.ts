@@ -1,14 +1,18 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   PinyinSearchEngine,
-  SEED_DICTIONARY,
+  loadDictionary,
+  DEFAULT_DICTIONARY_URL,
   Candidate,
   ScriptType,
 } from '@pinyinduck/core';
 
+export type DictionaryStatus = 'loading' | 'ready' | 'error';
+
 export interface UsePinyinDuckOptions {
   pageSize?: number;
   initialScript?: ScriptType;
+  dictionaryUrl?: string;
 }
 
 const PUNCTUATION_MAP: Record<string, string> = {
@@ -23,9 +27,12 @@ const PUNCTUATION_MAP: Record<string, string> = {
 };
 
 export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
-  const { pageSize = 5, initialScript = 'simplified' } = options;
+  const { pageSize = 5, initialScript = 'simplified', dictionaryUrl = DEFAULT_DICTIONARY_URL } = options;
 
-  const [engine] = useState(() => new PinyinSearchEngine(SEED_DICTIONARY));
+  const [engine, setEngine] = useState<PinyinSearchEngine | null>(null);
+  const [dictionaryStatus, setDictionaryStatus] = useState<DictionaryStatus>('loading');
+  const [dictionaryError, setDictionaryError] = useState<string | null>(null);
+  const [entryCount, setEntryCount] = useState(0);
   const [script, setScript] = useState<ScriptType>(initialScript);
   const [committedText, setCommittedText] = useState<string>('');
   const [compositionBuffer, setCompositionBuffer] = useState<string>('');
@@ -36,9 +43,37 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   // Target cursor position to restore on next render
   const cursorToRestore = useRef<number | null>(null);
 
+  // The dictionary is a multi-megabyte asset, so it is fetched and indexed
+  // asynchronously. Typing still works while it loads; candidates appear once ready.
+  useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+
+    setDictionaryStatus('loading');
+    setDictionaryError(null);
+
+    loadDictionary(dictionaryUrl, { signal: controller.signal })
+      .then((entries) => {
+        if (cancelled) return;
+        setEngine(new PinyinSearchEngine(entries));
+        setEntryCount(entries.length);
+        setDictionaryStatus('ready');
+      })
+      .catch((err: unknown) => {
+        if (cancelled || (err instanceof Error && err.name === 'AbortError')) return;
+        setDictionaryError(err instanceof Error ? err.message : String(err));
+        setDictionaryStatus('error');
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [dictionaryUrl]);
+
   // Search candidates whenever composition buffer or script changes
   const searchResult = useMemo(() => {
-    if (!compositionBuffer) {
+    if (!engine || !compositionBuffer) {
       return { query: '', segments: [], candidates: [], total: 0 };
     }
     return engine.search(compositionBuffer, {
@@ -163,6 +198,9 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       textarea: HTMLTextAreaElement | null
     ) => {
       const isComposing = compositionBuffer.length > 0;
+      // True only while a load is genuinely in flight. A failed load is terminal,
+      // so the user must still be able to commit the raw pinyin they typed.
+      const isPending = dictionaryStatus === 'loading';
       const start = textarea?.selectionStart ?? insertPos;
       const end = textarea?.selectionEnd ?? insertPos;
       const hasSelection = start !== end;
@@ -265,7 +303,10 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       if (e.key === 'Enter') {
         e.preventDefault();
         if (isComposing) {
-          commitRaw();
+          // While the dictionary is still loading, committing raw pinyin would
+          // silently discard the candidate the user expects in a moment. Once the
+          // load has failed there is nothing to wait for, so raw text is inserted.
+          if (!isPending) commitRaw();
         } else {
           // Insert newline in accepted text
           const before = committedText.slice(0, start);
@@ -283,6 +324,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       if (e.key === ' ') {
         e.preventDefault();
         if (isComposing) {
+          if (isPending) return;
           if (pageCandidates.length > 0) {
             selectCandidate(selectedIndex);
           } else {
@@ -359,6 +401,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
         e.preventDefault();
         const mappedPunct = PUNCTUATION_MAP[e.key];
         if (isComposing) {
+          if (isPending) return;
           const chosenHanzi =
             pageCandidates.length > 0 ? pageCandidates[selectedIndex].hanzi : compositionBuffer;
           const before = committedText.slice(0, insertPos);
@@ -406,6 +449,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     },
     [
       compositionBuffer,
+      dictionaryStatus,
       pageCandidates,
       selectedIndex,
       insertPos,
@@ -436,6 +480,9 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     script,
     setScript,
     toggleScript,
+    dictionaryStatus,
+    dictionaryError,
+    entryCount,
     committedText,
     setCommittedText,
     insertPos,

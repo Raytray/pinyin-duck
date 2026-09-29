@@ -8,12 +8,16 @@ import {
   gotoApp,
   expectCandidates,
   expectGlosses,
-  expectNoMatches,
+  expectBuffer,
+  pinyinBufferTag,
+  textLength,
 } from './helpers';
 
-// "ta" resolves to 6 homophones, which spans two pages at the app's page size of 5.
-const TA_PAGE_ONE = ['他', '她', '它', '他们', '踏'];
-const TA_PAGE_TWO = ['塌'];
+// "ta" has 199 readings in CC-CEDICT. The hook caps a search at 50 candidates, so
+// the popup always reports 10 pages at the app's page size of 5, and page two holds
+// the sixth-ranked reading rather than the only remaining one.
+const TA_PAGE_ONE = ['他', '她', '它', '塔', 'TA'];
+const TA_PAGE_TWO = ['𨱏', '塌', '祂', '嗒', '踏'];
 
 test.beforeEach(async ({ page }) => {
   await gotoApp(page);
@@ -23,7 +27,7 @@ test.beforeEach(async ({ page }) => {
 
 test('splits homophones across pages and reports the page count', async ({ page }) => {
   await expectCandidates(page, TA_PAGE_ONE);
-  await expect(pageCounter(page)).toHaveText('1 / 2');
+  await expect(pageCounter(page)).toHaveText('1 / 10');
   await expect(prevPageButton(page)).toBeDisabled();
   await expect(nextPageButton(page)).toBeEnabled();
 });
@@ -32,19 +36,34 @@ test('advances pages with the next button', async ({ page }) => {
   await nextPageButton(page).click();
 
   await expectCandidates(page, TA_PAGE_TWO);
-  await expect(pageCounter(page)).toHaveText('2 / 2');
+  await expect(pageCounter(page)).toHaveText('2 / 10');
+  await expect(nextPageButton(page)).toBeEnabled();
+  await expect(prevPageButton(page)).toBeEnabled();
+});
+
+test('disables Next on the last page and stops there', async ({ page }) => {
+  // 199 readings are capped at 50 candidates, so page 10 is the last one.
+  for (let current = 2; current <= 10; current++) {
+    await nextPageButton(page).click();
+    await expect(pageCounter(page)).toHaveText(`${current} / 10`);
+  }
+
   await expect(nextPageButton(page)).toBeDisabled();
   await expect(prevPageButton(page)).toBeEnabled();
+
+  // Pressing the shortcut past the end must not wrap around.
+  await editor(page).press(']');
+  await expect(pageCounter(page)).toHaveText('10 / 10');
 });
 
 test('advances and returns with PageDown and PageUp', async ({ page }) => {
   await editor(page).press('PageDown');
   await expectCandidates(page, TA_PAGE_TWO);
-  await expect(pageCounter(page)).toHaveText('2 / 2');
+  await expect(pageCounter(page)).toHaveText('2 / 10');
 
   await editor(page).press('PageUp');
   await expectCandidates(page, TA_PAGE_ONE);
-  await expect(pageCounter(page)).toHaveText('1 / 2');
+  await expect(pageCounter(page)).toHaveText('1 / 10');
 });
 
 test('advances and returns with the bracket shortcuts', async ({ page }) => {
@@ -59,7 +78,7 @@ test('commits a candidate from the second page', async ({ page }) => {
   await editor(page).press(']');
   await editor(page).press(' ');
 
-  await expect(editor(page)).toHaveValue('塌');
+  await expect(editor(page)).toHaveValue('𨱏');
 });
 
 test('moves the selection with the arrow keys and commits the highlighted candidate', async ({
@@ -85,11 +104,11 @@ test('rolls the arrow selection onto the next page at the end of the list', asyn
   }
 
   await expectCandidates(page, TA_PAGE_TWO);
-  await expect(pageCounter(page)).toHaveText('2 / 2');
+  await expect(pageCounter(page)).toHaveText('2 / 10');
   await expect(candidateItems(page).nth(0)).toHaveAttribute('aria-selected', 'true');
 
   await editor(page).press(' ');
-  await expect(editor(page)).toHaveValue('塌');
+  await expect(editor(page)).toHaveValue('𨱏');
 });
 
 test('moves the selection back to the last entry of the previous page', async ({ page }) => {
@@ -99,7 +118,7 @@ test('moves the selection back to the last entry of the previous page', async ({
   await editor(page).press('ArrowUp');
 
   await expectCandidates(page, TA_PAGE_ONE);
-  await expect(pageCounter(page)).toHaveText('1 / 2');
+  await expect(pageCounter(page)).toHaveText('1 / 10');
   await expect(candidateItems(page).nth(4)).toHaveAttribute('aria-selected', 'true');
 });
 
@@ -111,26 +130,35 @@ test('moves the selection on hover', async ({ page }) => {
 });
 
 test('commits a partial match and keeps the leftover pinyin buffered', async ({ page }) => {
-  // "nihao" offers 你 as a partial match that leaves "hao" in the buffer.
+  // "nihao" offers 你 as a partial match that leaves "hao" in the buffer, so
+  // committing it commits one character and resumes composition on the remainder.
   await editor(page).press('Escape');
   await editor(page).pressSequentially('nihao');
-  await expectGlosses(page, ['hello / how are you', 'you (singular)']);
+  await expectGlosses(page, [
+    'hello; hi',
+    'you (informal, as opposed to courteous 您)',
+    'dense wool fabric (used for coats and jackets)',
+    'Buddhist nun / (often used in phonetic spellings)',
+    'girl / phonetic "ni" (in female names) / Taiwan pr.',
+  ]);
 
   await editor(page).press('2');
 
   await expect(editor(page)).toHaveValue('你');
-  // The leftover syllable is re-queried; it has no entry of its own.
-  await expectNoMatches(page, 'hao');
-  await expect(page.locator('.status-item').nth(1)).toContainText('Length: 1 characters');
+  // The leftover syllable is re-queried; "hao" has readings of its own in the
+  // full dictionary, so the popup stays open on them.
+  await expectBuffer(page, 'hao');
+  await expectCandidates(page, ['好', '号', '浩', '豪', '嚎']);
+  await expect(textLength(page)).toContainText('Length: 1 characters');
 });
 
 test('resets paging when the buffer changes', async ({ page }) => {
   await editor(page).press(']');
-  await expect(pageCounter(page)).toHaveText('2 / 2');
+  await expect(pageCounter(page)).toHaveText('2 / 10');
 
   await editor(page).press('Backspace');
 
-  await expect(page.locator('.candidate-buffer-text')).toHaveText('t');
-  await expect(pageCounter(page)).toHaveText('1 / 2');
-  await expectCandidates(page, ['他', '她', '他们', '它', '天安门']);
+  await expect(pinyinBufferTag(page)).toHaveText('t');
+  await expect(pageCounter(page)).toHaveText('1 / 10');
+  await expectCandidates(page, ['T', '他', '她', '它', '讨厌']);
 });

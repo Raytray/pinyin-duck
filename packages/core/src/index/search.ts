@@ -93,7 +93,10 @@ export class PinyinSearchEngine {
       const startsWithPinyin = entry.pinyinClean.startsWith(tonelessQuery);
       const isPrefixQuery = tonelessQuery.startsWith(entry.pinyinClean);
 
-      // Exact match bonus
+      // Match quality dominates. The tiers are spaced 50000 apart, and the largest
+      // popularity contribution below is 30000, so a common character can never
+      // outrank a better match: typing "nihao" must offer 你好, not the far more
+      // frequent 你.
       if (isExactPinyin) {
         score += 100000;
       } else if (startsWithPinyin) {
@@ -103,13 +106,18 @@ export class PinyinSearchEngine {
         score += 20000;
       }
 
-      // Word length bonus (multi-character words matching multiple syllables get boost)
+      // Prefer multi-character words over single characters for the same reading.
+      // The boost is capped rather than scaled by length: against a full dictionary
+      // an 8-character exact match (e.g. 中国中央电视台) would otherwise bury the
+      // common 2-character word it contains.
       if (isExactPinyin && entry.simplified.length > 1) {
-        score += 20000 * entry.simplified.length;
+        score += 20000;
       }
 
-      // Frequency score
-      score += entry.frequency;
+      // Popularity and difficulty are tiebreakers within a tier. Frequency is
+      // compressed to at most 20000 so it orders candidates but cannot promote a
+      // weaker match above a stronger one.
+      score += Math.round(entry.frequency / 5);
 
       // HSK bonus (HSK 1 words are most frequent for learners)
       if (entry.hskLevel) {

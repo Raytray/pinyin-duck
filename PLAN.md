@@ -69,7 +69,11 @@ pinyin-typeduck/
 
 ### 3.1 Dictionary Dataset & Frequency Weighting
 - **CC-CEDICT**: Provides full coverage of Traditional and Simplified characters, Pinyin with tone numbers, and English translations.
-- **Frequency Indexing**: To prevent rare homophones from cluttering beginner suggestions (e.g. typing `ta` should prioritize `他`, `她`, `它` rather than archaic characters like `塌` or `挞`), dictionary entries are scored against a standard frequency corpus (e.g. SUBTLEX-CH / HSK frequency tables).
+- **Full corpus, lazy loaded**: The whole of CC-CEDICT (125,132 lines) is compiled into a single generated asset rather than shipping a hand-written seed list. 122,746 unique `(word, reading)` pairs survive deduplication, covering 26,811 words with frequency data, 5,247 on the HSK list and 11,851 single characters. The asset is 8.1MB raw / 3.6MB gzipped, which is too large to bundle, so it is emitted to `packages/web/public/dictionary.json` and fetched at runtime. `npm run build:dict` regenerates it from three sources, caching downloads in `packages/core/.cache/`; `npm run build` runs it automatically.
+  - Sources: [CC-CEDICT](https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz) (headwords, pinyin, definitions), [OpenSubtitles frequency list](https://github.com/hermitdave/FrequencyWords) (popularity), [HSK 2012 list](https://github.com/gigacool/hanyu-shuiping-kaoshi) (difficulty).
+  - Rows are compact tuples (`[simplified, traditional, pinyinNumbers, gloss, frequency, hskLevel]`) rather than objects; repeating nine JSON keys across 122k entries would more than double the payload. Tone marks, clean pinyin and syllables are derived on load so they always match the pinyin column.
+- **Frequency Indexing**: To prevent rare homophones from cluttering beginner suggestions (e.g. typing `ta` should prioritize `他`, `她`, `它` rather than archaic characters like `塌` or `挞`), dictionary entries are scored against a standard frequency corpus (e.g. SUBTLEX-CH / HSK frequency tables). Raw counts span four orders of magnitude, so they are log-scaled against the busiest word in the corpus onto the 0&ndash;100000 range the ranker expects; a linear map would flatten every mid-frequency word to indistinguishable noise.
+- **Match quality outranks popularity**: The ranker spaces its match tiers 50000 apart and caps the largest popularity contribution at 30000, so an extremely common character can never displace a better match. Without this, real corpus frequencies break the intended behaviour &mdash; typing `nihao` surfaced `你` (3.2M occurrences) above `你好` (50k). The multi-character word boost is likewise capped rather than scaled by length, so `中国` stays ahead of `中国中央电视台`. Both rules are pinned by `packages/core/src/index/ranking.test.ts`.
 - **Concise Gloss Extraction**: Long CC-CEDICT definition strings (`"also/in addition/more/still/else/yet"`) are cleaned and trimmed into crisp, readable glosses for instant visual scanning.
 
 ### 3.2 Pinyin Parsing & Syllable Segmentation
@@ -78,9 +82,10 @@ pinyin-typeduck/
   > [!IMPORTANT]
   > **Key binding rule: number keys select candidates, they do not enter tone numbers.** Throughout an active composition the IME binds digit keys to candidate selection and never appends them to the pinyin buffer, so `shi4` picks candidate #4 rather than filtering to the fourth tone. This is the intended interaction, and it keeps candidate selection on a single predictable key. Tone-number queries therefore remain an `@pinyinduck/core` capability for direct callers and the planned native clients, where the digit key is not competing for the same role; the behavior is covered by the `packages/core` unit tests, and the key binding is pinned by `e2e/number-keys.spec.ts`.
 - **Paging & Ranking**: Returns top candidates sorted by:
-  1. Exact pinyin match length
-  2. Frequency / everyday usage score
-  3. Character count (words before single characters for multi-syllable inputs)
+  1. Match quality tier: exact pinyin &rarr; pinyin prefix &rarr; query extends the entry
+  2. Words before single characters within the same tier (capped bonus)
+  3. Frequency / everyday usage score, then HSK level, as tiebreakers only
+- **Result cap**: The Web hook requests at most 50 candidates, so a broad syllable like `ta` (199 readings) reports 10 pages rather than an unbounded list.
 
 ---
 
@@ -141,9 +146,16 @@ As the user types into the composition field:
 
 5. **Step 5: Automated Regression Testing** (Done)
    - Add Playwright to the monorepo root, configured to boot the Vite dev server automatically, with a Chromium project and CI-aware retry/reporting settings.
-   - Add an `e2e/` suite (39 specs) covering the full composition loop: candidate ranking, tone-mark and gloss rendering, paging across multiple pages, selection by digit / arrow / mouse, partial-match chaining, no-match fallback, raw-pinyin commit, script toggle, and clipboard / clear actions.
-   - Ground every assertion in real `PinyinSearchEngine` output rather than assumed values, so the suite stays meaningful as the dictionary grows.
+   - Add an `e2e/` suite covering the full composition loop: candidate ranking, tone-mark and gloss rendering, paging across multiple pages, selection by digit / arrow / mouse, partial-match chaining, no-match fallback, raw-pinyin commit, script toggle, and clipboard / clear actions.
+   - Ground every assertion in real `PinyinSearchEngine` output rather than assumed values, so the suite stays meaningful as the dictionary grows. Every candidate expectation in the suite was re-derived after switching to the full CC-CEDICT asset, since the old 30-entry seed produced different (and in one case wrong) rankings.
+   - `e2e/dictionary-loading.spec.ts` covers the lazy-load contract: the loading state, a blocked commit while a load is in flight, and 404 / 500 / malformed-payload failures surfacing a recovery hint rather than a false "no match" popup.
    - The suite surfaced that digits are reserved as candidate-pick shortcuts for the duration of a composition, which makes tone numbers unreachable from the Web IME. This is now the intended, explicitly documented behavior (see &sect;3.2 and &sect;4.1) and is pinned by `e2e/number-keys.spec.ts`; tone filtering remains covered by the `packages/core` unit tests.
    - Wire `npm run test:e2e`, `test:e2e:ui`, `test:e2e:headed` and `test:all` into the root workspace, and document the two test layers in the README.
    - **Git Commit**: `test: add Playwright regression suite for the web IME`
+
+6. **Step 6: Full CC-CEDICT Dictionary** (Done)
+   - Replace the 30-entry hand-written seed with the complete CC-CEDICT corpus, generated into a compact tuple asset and lazy loaded at runtime.
+   - Make the build script reproducible: cache the three downloads, validate every pinyin column before emitting, and report parsed / emitted / coverage counts.
+   - Fix the two ranking defects the real corpus exposed, where popularity could override match quality.
+   - **Git Commit**: `feat(core): load full CC-CEDICT dictionary and rebalance candidate ranking`
 
