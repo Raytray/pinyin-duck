@@ -3,7 +3,6 @@ import {
   PinyinSearchEngine,
   loadDictionary,
   DEFAULT_DICTIONARY_URL,
-  Candidate,
   ScriptType,
 } from '@pinyinduck/core';
 

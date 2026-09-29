@@ -1,6 +1,6 @@
 import React from 'react';
 import { Candidate } from '@pinyinduck/core';
-import { ChevronLeft, ChevronRight, CornerDownLeft, Space } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface CandidatePopupProps {
   candidates: Candidate[];
