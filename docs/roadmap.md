@@ -75,13 +75,16 @@ To give Mandarin learners real-time English definitions anywhere in Windows (Not
 
 ## 4. Test Verification Report
 
-### Test Execution Metrics
+### Unit Tests (`packages/core`)
+
+#### Test Execution Metrics
 - **Test Runner**: Vitest v3.2.7
 - **Test Suites**: 2 passed
 - **Tests**: 13 passed, 0 failed
 - **Execution Time**: ~400ms
+- **Command**: `npm test`
 
-### Verified Test Cases
+#### Verified Test Cases
 
 | Category | Query | Expected Candidate #1 | Tested Behavior | Status |
 | :--- | :--- | :--- | :--- | :--- |
@@ -95,6 +98,30 @@ To give Mandarin learners real-time English definitions anywhere in Windows (Not
 | **Umlaut Handling** | `lü4` / `lv4` | `lǜ` | Umlaut conversion and diacritic placement | ✅ PASS |
 | **Script Toggle** | `zhongguo` | **中國** (traditional) | Correctly outputs Traditional characters when script toggled | ✅ PASS |
 | **Prefix Matching** | `niha` | **你好** | Partial syllable prefix candidate retrieval | ✅ PASS |
+
+> [!NOTE]
+> The tone-number cases above exercise the **engine API directly**. They are not reachable
+> from the Web IME keyboard, where digits are reserved as candidate-pick shortcuts for the
+> duration of a composition (see `PLAN.md` &sect;3.2).
+
+### End-to-End Tests (`e2e/`)
+
+#### Test Execution Metrics
+- **Test Runner**: Playwright v1.63.0 (Chromium)
+- **Tests**: 39 passed, 0 failed
+- **Suites**: `composition`, `candidate-paging`, `number-keys`, `toolbar`
+- **Command**: `npm run test:e2e` (boots the Vite dev server automatically)
+
+#### Covered Behaviors
+- **Composition Lifecycle**: Buffer growth, uppercase normalization, `Backspace` per letter, `Escape` cancel, `Enter` raw-pinyin commit, cursor resumption after commit.
+- **Candidate Ranking**: Order, tone marks and English glosses rendered per card; assertions pinned to real engine output.
+- **Paging**: Multi-page homophone clusters (`ta` &rarr; 6 candidates over 2 pages) via pager buttons, `PageUp` / `PageDown` and `[` / `]`, with paging reset on buffer change.
+- **Selection**: Digit pick, arrow-key navigation including page roll-over, and mouse hover.
+- **Partial Matches**: Committing a prefix candidate keeps the leftover syllable buffered.
+- **No-Match Handling**: Empty-state messaging plus raw-text fallback on `Enter`.
+- **Script Toggle**: Simplified/Traditional candidate rendering, buffer preservation across toggle, and committed-text stability.
+- **Toolbar**: Copy to clipboard, clear, and disabled-state gating.
+- **Number Keys**: Digit reservation during composition, including out-of-range and `0` handling.
 
 ---
 

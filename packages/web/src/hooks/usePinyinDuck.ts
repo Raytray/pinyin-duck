@@ -301,17 +301,22 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
         return;
       }
 
-      // Handle Number Keys 1-9
-      if (/^[1-9]$/.test(e.key)) {
-        if (isComposing) {
-          const digit = parseInt(e.key, 10);
-          if (digit <= pageCandidates.length) {
-            e.preventDefault();
-            selectCandidate(digit - 1);
-            return;
-          }
+      // Handle Number Keys 0-9
+      // While composing, a digit is always a candidate-pick shortcut and is never
+      // appended to the buffer. Out-of-range digits are swallowed instead of falling
+      // through, so the buffer can only ever grow with letters. This makes tone
+      // numbers (e.g. "shi4") unreachable from the keyboard; tone filtering remains
+      // available to callers of the search engine itself.
+      if (/^[0-9]$/.test(e.key)) {
+        if (!isComposing) {
+          return; // Plain number input in committed text.
         }
-        // If not composing, regular number input (falls through to default)
+        e.preventDefault();
+        const digit = parseInt(e.key, 10);
+        if (digit >= 1 && digit <= pageCandidates.length) {
+          selectCandidate(digit - 1);
+        }
+        return;
       }
 
       // Handle Page Navigation with [ and ] or PageUp / PageDown

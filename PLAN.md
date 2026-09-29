@@ -35,6 +35,8 @@ pinyin-typeduck/
 ├── PLAN.md                        # Master Architecture & Implementation Plan
 ├── package.json                   # Monorepo root (npm / pnpm workspaces)
 ├── tsconfig.base.json             # Shared TypeScript configuration
+├── playwright.config.ts           # End-to-end test configuration (Playwright)
+├── e2e/                           # Playwright regression specs for the web IME
 ├── packages/
 │   ├── core/                      # Shared dictionary and Pinyin lookup engine
 │   │   ├── package.json
@@ -72,8 +74,9 @@ pinyin-typeduck/
 
 ### 3.2 Pinyin Parsing & Syllable Segmentation
 - **Toneless by default**: Typing `nihao` segments into syllables `ni` + `hao` and matches `你好`.
-- **Optional Tone Numbers**: Typing `ni3hao3` or `ni3 hao3` filters candidates strictly to third tone syllables, eliminating homophone confusion.
-- **Tone Mark Conversion**: Automatically converts tone numbers into standard tone marks (e.g., `ni3 hao3` &rarr; `nǐ hǎo`).
+- **Tone Numbers (Engine-Level)**: When a query carries tone numbers (`ni3hao3` or `ni3 hao3`), the engine filters candidates strictly by tone, eliminating homophone confusion. Tone numbers are also automatically converted into standard tone marks (e.g., `ni3 hao3` &rarr; `nǐ hǎo`).
+  > [!IMPORTANT]
+  > **Key binding rule: number keys select candidates, they do not enter tone numbers.** Throughout an active composition the IME binds digit keys to candidate selection and never appends them to the pinyin buffer, so `shi4` picks candidate #4 rather than filtering to the fourth tone. This is the intended interaction, and it keeps candidate selection on a single predictable key. Tone-number queries therefore remain an `@pinyinduck/core` capability for direct callers and the planned native clients, where the digit key is not competing for the same role; the behavior is covered by the `packages/core` unit tests, and the key binding is pinned by `e2e/number-keys.spec.ts`.
 - **Paging & Ranking**: Returns top candidates sorted by:
   1. Exact pinyin match length
   2. Frequency / everyday usage score
@@ -97,7 +100,7 @@ As the user types into the composition field:
    Page 1/3 (Press 1-4, Space to select, PageUp/PageDown or Up/Down to flip)
    ```
 3. **Keyboard Controls**:
-   - `1` &ndash; `9`: Instant selection of candidate number.
+   - `1` &ndash; `9`: Instant selection of candidate number. **Number keys select candidates; they do not type tone numbers.** Digit keys stay bound to candidate selection for the entire duration of a composition and are never appended to the pinyin buffer, so `shi4` selects candidate #4 rather than entering a fourth tone. Out-of-range digits and `0` are ignored, and digits return to plain text input once no composition is active. This keeps candidate selection on one predictable key. See &sect;3.2 for the engine-side tone-number capability.
    - `Space`: Commit candidate #1.
    - `Enter`: Commit raw pinyin as English text.
    - `Backspace`: Delete previous pinyin letter or committed character.
@@ -135,4 +138,12 @@ As the user types into the composition field:
    - Test typing common beginner phrases, homophone differentiation (`ta1`, `shi4`), and script toggling.
    - Document extension points and roadmap for Windows (Milestone 2) and Android (Milestone 3).
    - **Git Commit**: `docs: add multi-platform roadmap and test verification report`
+
+5. **Step 5: Automated Regression Testing** (Done)
+   - Add Playwright to the monorepo root, configured to boot the Vite dev server automatically, with a Chromium project and CI-aware retry/reporting settings.
+   - Add an `e2e/` suite (39 specs) covering the full composition loop: candidate ranking, tone-mark and gloss rendering, paging across multiple pages, selection by digit / arrow / mouse, partial-match chaining, no-match fallback, raw-pinyin commit, script toggle, and clipboard / clear actions.
+   - Ground every assertion in real `PinyinSearchEngine` output rather than assumed values, so the suite stays meaningful as the dictionary grows.
+   - The suite surfaced that digits are reserved as candidate-pick shortcuts for the duration of a composition, which makes tone numbers unreachable from the Web IME. This is now the intended, explicitly documented behavior (see &sect;3.2 and &sect;4.1) and is pinned by `e2e/number-keys.spec.ts`; tone filtering remains covered by the `packages/core` unit tests.
+   - Wire `npm run test:e2e`, `test:e2e:ui`, `test:e2e:headed` and `test:all` into the root workspace, and document the two test layers in the README.
+   - **Git Commit**: `test: add Playwright regression suite for the web IME`
 

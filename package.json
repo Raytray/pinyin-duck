@@ -10,6 +10,10 @@
     "dev": "npm run -w @pinyinduck/web dev",
     "build": "npm run --workspaces --if-present build",
     "test": "npm run --workspaces --if-present test",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:all": "npm run test && npm run test:e2e",
     "typecheck": "npm run --workspaces --if-present typecheck"
   },
   "keywords": [
@@ -21,5 +25,8 @@
     "ime"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
 }
