@@ -1,0 +1,88 @@
+import { test, expect } from '@playwright/test';
+import {
+  editor,
+  candidateList,
+  candidateItems,
+  gotoApp,
+  expectCandidates,
+} from './helpers';
+
+// Digits are a candidate-pick shortcut for the whole time a composition is active.
+// They never reach the buffer, so tone numbers such as "shi4" cannot be typed from
+// the keyboard; the search engine still supports them for direct callers, and that
+// filtering is covered by the unit tests in packages/core.
+test.beforeEach(async ({ page }) => {
+  await gotoApp(page);
+});
+
+test('picks a candidate with a digit while composing', async ({ page }) => {
+  await editor(page).pressSequentially('shi');
+  await expectCandidates(page, ['是', '时', '十', '事']);
+
+  await editor(page).press('4');
+
+  await expect(editor(page)).toHaveValue('事');
+  await expect(candidateList(page)).toHaveCount(0);
+});
+
+test('treats a digit as a pick even when it reads like a tone number', async ({ page }) => {
+  await editor(page).pressSequentially('shi');
+  await editor(page).pressSequentially('4');
+
+  await expect(editor(page)).toHaveValue('事');
+  await expect(candidateList(page)).toHaveCount(0);
+});
+
+test('swallows a digit that is out of range for the visible page', async ({ page }) => {
+  await editor(page).pressSequentially('shi');
+  await expectCandidates(page, ['是', '时', '十', '事']);
+
+  await editor(page).press('7');
+
+  // The composition survives, the buffer is untouched, nothing is committed.
+  await expect(page.locator('.candidate-buffer-text')).toHaveText('shi');
+  await expect(editor(page)).toHaveValue('');
+  await expectCandidates(page, ['是', '时', '十', '事']);
+  await expect(candidateItems(page).first()).toHaveAttribute('aria-selected', 'true');
+});
+
+test('swallows 0 while composing because it is not a candidate index', async ({ page }) => {
+  await editor(page).pressSequentially('shi');
+
+  await editor(page).press('0');
+
+  await expect(page.locator('.candidate-buffer-text')).toHaveText('shi');
+  await expect(editor(page)).toHaveValue('');
+});
+
+test('keeps the buffer free of digits when the candidate count is small', async ({ page }) => {
+  // "zhongguo" yields a single candidate, so 1 picks it and 2 is out of range.
+  await editor(page).pressSequentially('zhongguo');
+  await editor(page).press('2');
+
+  await expect(page.locator('.candidate-buffer-text')).toHaveText('zhongguo');
+
+  await editor(page).press('1');
+  await expect(editor(page)).toHaveValue('中国');
+});
+
+test('inserts digits as plain text when no composition is active', async ({ page }) => {
+  await editor(page).pressSequentially('7');
+  await expect(editor(page)).toHaveValue('7');
+
+  await editor(page).pressSequentially('nihao');
+  await editor(page).press(' ');
+  await editor(page).press('5');
+
+  await expect(editor(page)).toHaveValue('7你好5');
+});
+
+test('types digits into committed text after a commit', async ({ page }) => {
+  await editor(page).pressSequentially('nihao');
+  await editor(page).press(' ');
+
+  await editor(page).pressSequentially('2026');
+
+  await expect(editor(page)).toHaveValue('你好2026');
+  await expect(candidateList(page)).toHaveCount(0);
+});
