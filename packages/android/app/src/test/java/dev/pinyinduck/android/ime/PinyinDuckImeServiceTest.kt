@@ -430,6 +430,25 @@ class PinyinDuckImeServiceTest {
         assertEquals(Lifecycle.State.DESTROYED, svc.lifecycle.currentState)
     }
 
+    @Test
+    fun destroyingTheServiceCancelsAnInFlightDictionaryLoad() {
+        // The load is real I/O on a background thread, so it is still running when the user
+        // switches away. Cancelling the scope must discard the result: the session is never
+        // created and the keyboard never claims to be ready.
+        val svc = service
+        assertNull(svc.session)
+        assertTrue("the dictionary should still be loading", svc.uiState.loading)
+
+        destroy()
+        // Drain the main looper. Without cancellation the pending continuation would run
+        // here and assign `session`; with it, the coroutine is already cancelled and the
+        // continuation throws instead.
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertNull("a cancelled load must not create a session", svc.session)
+        assertTrue("a cancelled load must not clear the loading flag", svc.uiState.loading)
+    }
+
     // --- helpers ----------------------------------------------------------------
 
     /** Types [text] one hardware letter at a time. */

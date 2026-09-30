@@ -1,8 +1,6 @@
 package dev.pinyinduck.android.ime
 
 import android.inputmethodservice.InputMethodService
-import android.os.Handler
-import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -26,6 +24,12 @@ import dev.pinyinduck.android.ui.KeyLayout
 import dev.pinyinduck.android.ui.KeyboardCallbacks
 import dev.pinyinduck.android.ui.PinyinDuckKeyboard
 import dev.pinyinduck.android.ui.PinyinDuckTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * The PinyinDuck input method.
@@ -44,6 +48,16 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
 
     private val settings by lazy { KeyboardSettings(this) }
+
+    /**
+     * The scope the dictionary load runs in.
+     *
+     * Cancelled in [onDestroy], so a load that is still in flight when the user switches
+     * away from the keyboard cannot come back and reassign [dictionary] and [session] on a
+     * service that is already gone. A raw `Thread` has no handle to cancel, which is why
+     * this is a scope and not the thread it replaced.
+     */
+    private val dictionaryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var dictionary: OpenedDictionary? = null
 
@@ -79,12 +93,15 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
      *
      * Opening only reads a 24-byte header and the page directory, so this is quick, but it
      * is still file I/O and the first frame of the keyboard should not wait on it.
+     *
+     * The result is posted back on the main dispatcher, and the scope's cancellation is
+     * what stops a late result from landing on a destroyed service: once [onDestroy] cancels
+     * [dictionaryScope], the `withContext` below throws and the state is never reassigned.
      */
     private fun loadDictionary() {
-        val main = Handler(Looper.getMainLooper())
-        Thread({
+        dictionaryScope.launch {
             val result = runCatching { DictionaryLoader.openFromAssets(assets) }
-            main.post {
+            withContext(Dispatchers.Main) {
                 result
                     .onSuccess { opened ->
                         dictionary = opened
@@ -101,7 +118,7 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
                         uiState = uiState.copy(loading = false, dictionaryError = describe(error))
                     }
             }
-        }, "pinyinduck-dictionary").start()
+        }
     }
 
     override fun onCreateInputView(): View {
@@ -142,6 +159,9 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
 
     override fun onDestroy() {
         lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
+        // Cancel before closing the dictionary, so a load that is still running cannot
+        // finish afterwards and hand its result to a service that no longer exists.
+        dictionaryScope.cancel()
         dictionary?.close()
         dictionary = null
         session = null
