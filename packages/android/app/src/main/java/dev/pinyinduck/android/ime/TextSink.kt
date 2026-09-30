@@ -8,7 +8,6 @@ package dev.pinyinduck.android.ime
  * against a fake editor, which is the part of an IME most likely to be wrong.
  */
 interface TextSink {
-
     /**
      * Replaces the composing region with [text].
      *
@@ -22,7 +21,10 @@ interface TextSink {
     fun commitText(text: String)
 
     /** Deletes [before] characters behind the cursor and [after] in front of it. */
-    fun deleteSurrounding(before: Int, after: Int = 0)
+    fun deleteSurrounding(
+        before: Int,
+        after: Int = 0,
+    )
 
     /** Sends a raw key event, for Enter and the like. */
     fun sendEnter()

@@ -20,7 +20,6 @@ import java.io.FileNotFoundException
  */
 @RunWith(RobolectricTestRunner::class)
 class DictionaryLoaderTest {
-
     private val assets
         get() = ApplicationProvider.getApplicationContext<android.content.Context>().assets
 
@@ -63,9 +62,10 @@ class DictionaryLoaderTest {
     fun aMissingAssetFailsRatherThanReturningAnEmptyDictionary() {
         // Silently opening an empty dictionary would look like "no candidates match" to a
         // learner, which is a far worse failure than an explicit error.
-        val error = assertThrows(FileNotFoundException::class.java) {
-            DictionaryLoader.openFromAssets(assets, "not-a-real-asset.btree")
-        }
+        val error =
+            assertThrows(FileNotFoundException::class.java) {
+                DictionaryLoader.openFromAssets(assets, "not-a-real-asset.btree")
+            }
         assertNotNull(error)
     }
 
@@ -76,8 +76,9 @@ class DictionaryLoaderTest {
     @Test
     fun itOpensTheSameDictionaryFromDisk() {
         // The unit tests use this path, so the two loaders agreeing matters.
-        val path = System.getProperty("pinyinduck.dictionary")
-            ?: error("The pinyinduck.dictionary system property is not set.")
+        val path =
+            System.getProperty("pinyinduck.dictionary")
+                ?: error("The pinyinduck.dictionary system property is not set.")
         DictionaryLoader.openFromFile(File(path)).use { opened ->
             assertEquals(122_746, opened.entryCount)
         }

@@ -16,7 +16,6 @@ import org.junit.Test
  * wrong: swallowing a key the app behind it needed, or sending a tone digit as plain text.
  */
 class KeyRoutingTest {
-
     // --- keys the keyboard owns -------------------------------------------------
 
     @Test

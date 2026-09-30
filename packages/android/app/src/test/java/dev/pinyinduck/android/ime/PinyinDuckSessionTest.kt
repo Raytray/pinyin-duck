@@ -16,7 +16,6 @@ import org.junit.Test
  * character" bug, and it is invisible if a test only inspects the session's own state.
  */
 class PinyinDuckSessionTest {
-
     /**
      * A stand-in editor that models the composing region separately from committed text.
      *
@@ -43,7 +42,10 @@ class PinyinDuckSessionTest {
             composing = ""
         }
 
-        override fun deleteSurrounding(before: Int, after: Int) {
+        override fun deleteSurrounding(
+            before: Int,
+            after: Int,
+        ) {
             // The cursor sits at the end of the composing region, so a delete takes from
             // there first and only then from committed text.
             val fromComposing = if (before < composing.length) before else composing.length
@@ -61,11 +63,12 @@ class PinyinDuckSessionTest {
     }
 
     private val editor = FakeEditor()
-    private val session = PinyinDuckSession(
-        // The same real dictionary the engine tests use; it is only read.
-        engine = TestDictionary.engine,
-        sink = editor,
-    )
+    private val session =
+        PinyinDuckSession(
+            // The same real dictionary the engine tests use; it is only read.
+            engine = TestDictionary.engine,
+            sink = editor,
+        )
 
     private fun type(text: String) = text.forEach { session.typeLetter(it) }
 

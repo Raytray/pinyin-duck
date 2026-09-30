@@ -1,9 +1,12 @@
 package dev.pinyinduck.android.engine
 
 /** Which character set candidates are displayed in. */
-enum class ScriptType { SIMPLIFIED, TRADITIONAL;
+enum class ScriptType {
+    SIMPLIFIED,
+    TRADITIONAL,
+    ;
 
-/** Cycles between the two scripts, for the keyboard's toggle. */
+    /** Cycles between the two scripts, for the keyboard's toggle. */
     fun toggled(): ScriptType = if (this == SIMPLIFIED) TRADITIONAL else SIMPLIFIED
 }
 

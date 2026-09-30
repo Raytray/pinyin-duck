@@ -21,32 +21,33 @@ jacoco {
  * they are all testable without a device. Gating the rest too would mean either writing
  * instrumentation tests or setting a floor so low it means nothing.
  */
-val COVERAGE_FLOOR = "0.85"
+val coverageFloor = "0.85"
 
 /**
  * The instruction-coverage floor for the module as a whole, every class included.
  *
  * Set to 80% because that is what the project claims, and a claim the build does not check
- * is a claim that decays. It is below [COVERAGE_FLOOR] on purpose: the Compose UI and the
+ * is a claim that decays. It is below [coverageFloor] on purpose: the Compose UI and the
  * `InputMethodService` cannot be fully reached from a JVM test, so a module-wide floor at 85%
  * could only be met by excluding them, which would make the number a lie. The strict per-class
  * floor covers the part where strictness is achievable.
  */
-val MODULE_COVERAGE_FLOOR = "0.80"
+val moduleCoverageFloor = "0.80"
 
 /** The classes the coverage floor is enforced on. */
-val GATED_CLASSES = listOf(
-    "dev.pinyinduck.android.engine.PinyinKt",
-    "dev.pinyinduck.android.engine.PinyinDuckEngine",
-    "dev.pinyinduck.android.engine.PinyinDuckEngineKt",
-    "dev.pinyinduck.android.engine.BTreeDictionary*",
-    "dev.pinyinduck.android.engine.BTreeCodecKt",
-    "dev.pinyinduck.android.engine.ByteReader",
-    "dev.pinyinduck.android.engine.RankingKt",
-    "dev.pinyinduck.android.engine.MappedPageSource",
-    "dev.pinyinduck.android.ime.PinyinDuckSession",
-    "dev.pinyinduck.android.ui.KeysKt",
-)
+val gatedClasses =
+    listOf(
+        "dev.pinyinduck.android.engine.PinyinKt",
+        "dev.pinyinduck.android.engine.PinyinDuckEngine",
+        "dev.pinyinduck.android.engine.PinyinDuckEngineKt",
+        "dev.pinyinduck.android.engine.BTreeDictionary*",
+        "dev.pinyinduck.android.engine.BTreeCodecKt",
+        "dev.pinyinduck.android.engine.ByteReader",
+        "dev.pinyinduck.android.engine.RankingKt",
+        "dev.pinyinduck.android.engine.MappedPageSource",
+        "dev.pinyinduck.android.ime.PinyinDuckSession",
+        "dev.pinyinduck.android.ui.KeysKt",
+    )
 
 /**
  * Where the shared dictionary is copied to before being packaged.
@@ -70,7 +71,7 @@ val syncDictionaryAsset by tasks.registering(Copy::class) {
         if (!source.isFile) {
             throw GradleException(
                 "Missing ${source.absolutePath}. Run \"npm run build:dict\" at the repository " +
-                    "root to generate it before building the Android app."
+                    "root to generate it before building the Android app.",
             )
         }
         true
@@ -139,7 +140,7 @@ android {
                 // same corpus the web app serves, rather than a hand-written fixture.
                 it.systemProperty(
                     "pinyinduck.dictionary",
-                    rootProject.file("../web/public/dictionary.btree").absolutePath
+                    rootProject.file("../web/public/dictionary.btree").absolutePath,
                 )
                 it.systemProperty("robolectric.logging.enabled", "false")
 
@@ -147,7 +148,7 @@ android {
                     isIncludeNoLocationClasses = true
                     // Never instrument the JDK itself; Jacoco otherwise trips over the
                     // reflection accessors it generates for Serializable lambdas.
-                    excludes = listOf("jdk.internal.*") + COVERAGE_EXCLUDED_CLASSES
+                    excludes = listOf("jdk.internal.*") + coverageExcludedClasses
                 }
             }
         }
@@ -162,18 +163,19 @@ android {
  * would otherwise be reported as a large block of uncovered lines that hides real gaps. The
  * `DuckColors` palette is the same thing: colour constants with no logic in them.
  */
-val COVERAGE_EXCLUDED_CLASSES = listOf(
-    "dev.pinyinduck.android.engine.Candidate",
-    "dev.pinyinduck.android.engine.SearchResult",
-    "dev.pinyinduck.android.engine.SearchOptions",
-    "dev.pinyinduck.android.engine.StoredEntry",
-    "dev.pinyinduck.android.ime.KeyboardUiState",
-    "dev.pinyinduck.android.ime.KeyboardSettings",
-    "dev.pinyinduck.android.ui.KeySpec",
-    "dev.pinyinduck.android.ui.KeyboardCallbacks",
-    "dev.pinyinduck.android.ui.DuckColors",
-    "dev.pinyinduck.android.ui.ThemeKt",
-)
+val coverageExcludedClasses =
+    listOf(
+        "dev.pinyinduck.android.engine.Candidate",
+        "dev.pinyinduck.android.engine.SearchResult",
+        "dev.pinyinduck.android.engine.SearchOptions",
+        "dev.pinyinduck.android.engine.StoredEntry",
+        "dev.pinyinduck.android.ime.KeyboardUiState",
+        "dev.pinyinduck.android.ime.KeyboardSettings",
+        "dev.pinyinduck.android.ui.KeySpec",
+        "dev.pinyinduck.android.ui.KeyboardCallbacks",
+        "dev.pinyinduck.android.ui.DuckColors",
+        "dev.pinyinduck.android.ui.ThemeKt",
+    )
 
 /**
  * The same exclusions as Ant file patterns, for the report's class directories.
@@ -182,13 +184,15 @@ val COVERAGE_EXCLUDED_CLASSES = listOf(
  * forms are needed: excluding only at instrumentation time leaves the class files on disk
  * with no execution data, which JaCoCo then reports as completely uncovered.
  */
-val COVERAGE_EXCLUDED_FILES = COVERAGE_EXCLUDED_CLASSES.map { className ->
-    "**/${className.substringAfterLast('.')}.class"
-} + listOf(
-    "**/DictionaryStatus*.class",
-    "**/KeyboardKey*.class",
-    "**/ExpandableCandidate*.class",
-)
+val coverageExcludedFiles =
+    coverageExcludedClasses.map { className ->
+        "**/${className.substringAfterLast('.')}.class"
+    } +
+        listOf(
+            "**/DictionaryStatus*.class",
+            "**/KeyboardKey*.class",
+            "**/ExpandableCandidate*.class",
+        )
 
 /**
  * Where the debug variant's compiled classes land.
@@ -206,15 +210,21 @@ val debugMainClasses by lazy {
         // AGP 9 compiles Kotlin with its own built-in compiler, whose output lands under
         // `built_in_kotlinc/<variant>/<task>/classes`. The `**` is deliberate: the task
         // segment is part of the path, so it is matched rather than hard-coded.
-        layout.buildDirectory.dir("intermediates/built_in_kotlinc/debug")
-            .get().asFileTree.matching {
+        layout.buildDirectory
+            .dir("intermediates/built_in_kotlinc/debug")
+            .get()
+            .asFileTree
+            .matching {
                 include("**/classes/**")
-                exclude(COVERAGE_EXCLUDED_FILES)
+                exclude(coverageExcludedFiles)
             },
         // Java sources, if any are ever added to the module.
-        layout.buildDirectory.dir("intermediates/javac/debug/classes")
-            .get().asFileTree.matching {
-                exclude(COVERAGE_EXCLUDED_FILES)
+        layout.buildDirectory
+            .dir("intermediates/javac/debug/classes")
+            .get()
+            .asFileTree
+            .matching {
+                exclude(coverageExcludedFiles)
             },
     )
 }
@@ -264,7 +274,7 @@ val jacocoTestCoverageVerification by tasks.registering(JacocoCoverageVerificati
             limit {
                 counter = "INSTRUCTION"
                 value = "COVEREDRATIO"
-                minimum = BigDecimal(MODULE_COVERAGE_FLOOR)
+                minimum = BigDecimal(moduleCoverageFloor)
             }
             element = "BUNDLE"
         }
@@ -278,10 +288,10 @@ val jacocoTestCoverageVerification by tasks.registering(JacocoCoverageVerificati
                 limit {
                     this.counter = counter
                     value = "COVEREDRATIO"
-                    minimum = BigDecimal(COVERAGE_FLOOR)
+                    minimum = BigDecimal(coverageFloor)
                 }
                 element = "CLASS"
-                includes = GATED_CLASSES
+                includes = gatedClasses
             }
         }
     }

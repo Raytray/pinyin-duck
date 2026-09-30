@@ -18,8 +18,10 @@ class BTreeDictionary private constructor(
     private val directory: Array<PageLocation>,
     private val pageCacheBytes: Int,
 ) {
-
-    private class CacheSlot(val page: BTreePage, val bytes: Int)
+    private class CacheSlot(
+        val page: BTreePage,
+        val bytes: Int,
+    )
 
     /** Access-ordered so eviction from the front drops the coldest page first. */
     private val cache = LinkedHashMap<Int, CacheSlot>(64, 0.75f, true)
@@ -56,7 +58,10 @@ class BTreeDictionary private constructor(
      * Visits every entry whose key starts with [prefix], in key order, stopping early when
      * [visit] returns false. The search engine uses that to enforce its scan budget.
      */
-    fun scanPrefix(prefix: String, visit: (StoredEntry) -> Boolean) {
+    fun scanPrefix(
+        prefix: String,
+        visit: (StoredEntry) -> Boolean,
+    ) {
         var leaf = findLeaf(prefix)
         while (true) {
             for (entry in leaf.entries) {
@@ -84,7 +89,10 @@ class BTreeDictionary private constructor(
         return page as LeafPage
     }
 
-    private fun childFor(page: InternalPage, key: String): Int {
+    private fun childFor(
+        page: InternalPage,
+        key: String,
+    ): Int {
         if (page.children.size == 1) return page.children[0]
         // First child whose high key is >= `key`; the last child is unbounded.
         //
@@ -108,22 +116,28 @@ class BTreeDictionary private constructor(
     private fun readPage(id: Int): BTreePage {
         cache[id]?.let { return it.page }
 
-        val location = directory.getOrNull(id)
-            ?: throw DictionaryFormatException("Page $id is outside the directory")
+        val location =
+            directory.getOrNull(id)
+                ?: throw DictionaryFormatException("Page $id is outside the directory")
 
         val bytes = source.read(location.offset, location.length)
         val kind = if (bytes.limit() > 0) bytes.get(0).toInt() else -1
-        val page: BTreePage = when (kind) {
-            INTERNAL_KIND -> decodeInternalPage(bytes)
-            LEAF_KIND -> decodeLeafPage(bytes)
-            else -> throw DictionaryFormatException("Unknown page kind $kind")
-        }
+        val page: BTreePage =
+            when (kind) {
+                INTERNAL_KIND -> decodeInternalPage(bytes)
+                LEAF_KIND -> decodeLeafPage(bytes)
+                else -> throw DictionaryFormatException("Unknown page kind $kind")
+            }
 
         remember(id, page, bytes.limit())
         return page
     }
 
-    private fun remember(id: Int, page: BTreePage, bytes: Int) {
+    private fun remember(
+        id: Int,
+        page: BTreePage,
+        bytes: Int,
+    ) {
         cache[id] = CacheSlot(page, bytes)
         cacheBytes += bytes
         while (cacheBytes > pageCacheBytes && cache.size > 1) {
@@ -137,12 +151,16 @@ class BTreeDictionary private constructor(
         const val DEFAULT_PAGE_CACHE_BYTES = 256 * 1024
 
         /** Reads the header and directory, leaving the pages on disk. */
-        fun open(source: PageSource, pageCacheBytes: Int = DEFAULT_PAGE_CACHE_BYTES): BTreeDictionary {
+        fun open(
+            source: PageSource,
+            pageCacheBytes: Int = DEFAULT_PAGE_CACHE_BYTES,
+        ): BTreeDictionary {
             val header = decodeHeader(source.read(0, HEADER_SIZE))
-            val directory = decodeDirectory(
-                source.read(header.directoryOffset, header.pageCount * 8),
-                header.pageCount,
-            )
+            val directory =
+                decodeDirectory(
+                    source.read(header.directoryOffset, header.pageCount * 8),
+                    header.pageCount,
+                )
             return BTreeDictionary(source, header, directory, pageCacheBytes)
         }
     }

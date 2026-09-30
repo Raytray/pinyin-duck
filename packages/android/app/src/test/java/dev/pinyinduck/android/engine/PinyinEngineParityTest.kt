@@ -16,7 +16,6 @@ import org.junit.Test
  * runs the real engine over the real dictionary. This test is the guard on that seam.
  */
 class PinyinEngineParityTest {
-
     private data class GoldenCase(
         val query: String,
         val script: ScriptType,
@@ -34,10 +33,11 @@ class PinyinEngineParityTest {
         assertTrue("The golden file pinned no queries", cases.isNotEmpty())
         for (case in cases) {
             val label = "${case.query} (${case.script})"
-            val actual = TestDictionary.engine.search(
-                case.query,
-                SearchOptions(script = case.script, limit = case.hanzi.size),
-            )
+            val actual =
+                TestDictionary.engine.search(
+                    case.query,
+                    SearchOptions(script = case.script, limit = case.hanzi.size),
+                )
 
             assertEquals("candidate total for $label", case.total, actual.total)
             assertEquals("segments for $label", case.segments, actual.segments)
@@ -57,9 +57,10 @@ class PinyinEngineParityTest {
 
     private fun parseGolden(): List<GoldenCase> {
         val loader = checkNotNull(javaClass.classLoader) { "The test class loader is unavailable" }
-        val stream = checkNotNull(
-            loader.getResourceAsStream(GOLDEN_RESOURCE),
-        ) { "$GOLDEN_RESOURCE is missing. Run packages/core/scripts/generate-android-parity.ts." }
+        val stream =
+            checkNotNull(
+                loader.getResourceAsStream(GOLDEN_RESOURCE),
+            ) { "$GOLDEN_RESOURCE is missing. Run packages/core/scripts/generate-android-parity.ts." }
 
         val cases = mutableListOf<GoldenCase>()
         var query: String? = null
