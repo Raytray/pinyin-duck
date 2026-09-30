@@ -70,7 +70,7 @@ pinyin-typeduck-windows/
 │   │   ├── package.json
 │   │   ├── vite.config.ts
 │   │   ├── index.html
-│   │   ├── public/dictionary.btree    # Generated paged B+ tree, committed
+│   │   ├── public/dictionary.btree    # Generated paged B+ tree (build:dict, not committed)
 │   │   └── src/
 │   │       ├── components/
 │   │       │   ├── Editor.tsx     # Simulated IME composition input area
@@ -88,6 +88,9 @@ pinyin-typeduck-windows/
 │   └── android/                   # (Milestone 3 — not created yet)
 └── docs/
     └── roadmap.md                 # Architecture notes for Windows & Android
+├── scripts/
+│   └── require-dict-asset.mjs     # Fails with the build command when an asset is absent
+└── e2e/                           # Playwright specs against the web app
 ```
 
 ---

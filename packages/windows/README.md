@@ -82,12 +82,13 @@ in WSL and run the IME on the Windows host):
 
 ```bash
 npm install
-npm run build:dict     # packages/web/public/dictionary.btree (committed; rarely needed)
+npm run build:dict     # packages/web/public/dictionary.btree (not committed)
 npm run build:rime     # packages/windows/rime/*.dict.yaml  (~1s)
 ```
 
-`npm run build` runs both. The two dictionaries are ~9.3 MB each and are gitignored;
-regenerate them after any dictionary change.
+`npm run build` runs both. Neither the 9.6 MB B-tree nor the two Rime dictionaries is
+committed — all three are derived data — so a fresh clone needs `build:dict` once before
+`build:rime` has anything to read. The sources are cached in `packages/core/.cache/`.
 
 ```
   source  .../packages/web/public/dictionary.btree (122746 entries)
