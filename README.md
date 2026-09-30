@@ -125,13 +125,16 @@ inherits `InputMethodService`, draws a Jetpack Compose keyboard, and maps the sa
 `dictionary.btree` the web app serves straight out of the APK, so it works offline and
 needs no network permission.
 
+`packages/android` is a Gradle project, so it is built with Gradle rather than npm. From
+the repository root:
+
 ```bash
-export ANDROID_HOME="$HOME/Android/Sdk"
-npm install
-npm run build:android      # packages/android/app/build/outputs/apk/debug/app-debug.apk
-npm run test:android       # JVM tests, including the engine parity test
-adb install -r packages/android/app/build/outputs/apk/debug/app-debug.apk
+npm install                  # once, for the workspace
+cd packages/android
+./gradlew assembleDebug      # app/build/outputs/apk/debug/app-debug.apk
 ```
+
+It needs `ANDROID_HOME` set, or `sdk.dir` in `packages/android/local.properties`.
 
 Then enable it under **Settings → System → Languages & input → On-screen keyboard**.
 Full instructions, key bindings and troubleshooting are in
@@ -151,10 +154,11 @@ The repository has two test layers, plus a third for the Android client:
 | --- | --- | --- |
 | Unit (`packages/core`) | `npm test` | Pinyin parsing, syllable segmentation, tone-mark conversion, trie search, ranking, dictionary generation and loading |
 | End-to-end (Playwright) | `npm run test:e2e` | The full IME loop in a real browser: composition, candidate ranking, paging, keyboard shortcuts, text editing, script toggle, dictionary loading |
-| Android (`packages/android`) | `npm run test:android` | The Kotlin engine against the real dictionary, its parity with the TypeScript engine, and the composition rules against a fake editor |
+| Android (`packages/android`) | `./gradlew test` | The Kotlin engine against the real dictionary, its parity with the TypeScript engine, and the composition rules against a fake editor |
 
-Run the browser and unit suites with `npm run test:all`. The Android tests need the SDK
-(see [`packages/android/README.md`](packages/android/README.md)).
+Run the browser and unit suites with `npm run test:all`. The Android package is built and
+tested with Gradle, so it is not part of the npm workspace scripts; see
+[`packages/android/README.md`](packages/android/README.md).
 
 The Playwright suite lives in `e2e/` and is configured by `playwright.config.ts` at the
 repo root. It starts the Vite dev server automatically, so no server needs to be running
@@ -201,11 +205,15 @@ forces headed, for environments where the default is not what you want.
 | --- | --- | --- | --- |
 | `@pinyinduck/core` | `npm run test:coverage` | `packages/core/coverage/` | 100% statements, 100% branches, 100% functions |
 | `@pinyinduck/web` | `npm run test:e2e` | `coverage/web/` | 99.8% statements, 99% branches, 100% functions |
+| `packages/android` | `cd packages/android && ./gradlew check` | `app/build/reports/jacoco/jacocoTestReport/html/` | 92% instructions, 186 tests |
 
-Run both with `npm run test:coverage:all`.
+Run the first two with `npm run test:coverage:all`; the Android one is Gradle and needs no npm.
 
-Every file in both packages is above 80% on all four metrics, and both suites enforce
-that as a build gate rather than only reporting it.
+Every file in both npm packages is above 80% on all four metrics, and both suites enforce
+that as a build gate rather than only reporting it. The Android app is gated at 80%
+instructions module-wide, plus 85% instruction and branch coverage per class on the portable
+half of the code. Its Compose and activity tests run under Robolectric, so the UI and the
+`InputMethodService` are covered from the JVM without a device.
 
 Core uses the Vitest V8 provider, configured in `packages/core/vitest.config.ts` with
 per-glob thresholds (plus an 80% global floor) so a regression in the engine or the

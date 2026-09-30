@@ -2,7 +2,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     jacoco
 }
@@ -23,6 +22,17 @@ jacoco {
  */
 val COVERAGE_FLOOR = "0.85"
 
+/**
+ * The instruction-coverage floor for the module as a whole, every class included.
+ *
+ * Set to 80% because that is what the project claims, and a claim the build does not check
+ * is a claim that decays. It is below [COVERAGE_FLOOR] on purpose: the Compose UI and the
+ * `InputMethodService` cannot be fully reached from a JVM test, so a module-wide floor at 85%
+ * could only be met by excluding them, which would make the number a lie. The strict per-class
+ * floor covers the part where strictness is achievable.
+ */
+val MODULE_COVERAGE_FLOOR = "0.80"
+
 /** The classes the coverage floor is enforced on. */
 val GATED_CLASSES = listOf(
     "dev.pinyinduck.android.engine.PinyinKt",
@@ -36,6 +46,16 @@ val GATED_CLASSES = listOf(
     "dev.pinyinduck.android.ime.PinyinDuckSession",
     "dev.pinyinduck.android.ui.KeysKt",
 )
+
+/**
+ * Where the shared dictionary is copied to before being packaged.
+ *
+ * Resolved to a plain [File] rather than a `Provider`: AGP 9 refuses `Provider` instances
+ * in the SourceSet API, because it cannot tell whether the directory holds generated
+ * read-only files or static read-write ones. The path is resolved now; the directory itself
+ * is created by [syncDictionaryAsset], which `preBuild` depends on.
+ */
+val dictionaryAssetsDir = layout.buildDirectory.dir("generated/dictionaryAssets")
 
 /**
  * The dictionary is generated once by `packages/core` and already committed at
@@ -55,24 +75,24 @@ val syncDictionaryAsset by tasks.registering(Copy::class) {
         true
     }
     from(source)
-    into(layout.buildDirectory.dir("generated/dictionaryAssets"))
+    into(dictionaryAssetsDir)
 }
 
 android {
     namespace = "dev.pinyinduck.android"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "dev.pinyinduck.android"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
     }
 
     sourceSets {
         getByName("main") {
-            assets.srcDir(layout.buildDirectory.dir("generated/dictionaryAssets"))
+            assets.srcDir(dictionaryAssetsDir.get().asFile)
         }
     }
 
@@ -107,36 +127,67 @@ android {
     }
 
     testOptions {
-        unitTests.all {
-            it.useJUnit()
-            // Unit tests read the real 9.1MB asset so ranking is verified against the
-            // same corpus the web app serves, rather than a hand-written fixture.
-            it.systemProperty(
-                "pinyinduck.dictionary",
-                rootProject.file("../web/public/dictionary.btree").absolutePath
-            )
+        unitTests {
+            // Robolectric needs the merged resources and manifest to build a context.
+            isIncludeAndroidResources = true
 
-            it.extensions.configure<JacocoTaskExtension> {
-                // Kotlin data classes generate equals, hashCode, toString and componentN
-                // for every property, none of which carry behaviour worth asserting on and
-                // all of which would otherwise be reported as uncovered.
-                isIncludeNoLocationClasses = true
-                excludes = listOf(
-                    "jdk.internal.*",
-                    "dev.pinyinduck.android.engine.Candidate",
-                    "dev.pinyinduck.android.engine.SearchResult",
-                    "dev.pinyinduck.android.engine.SearchOptions",
-                    "dev.pinyinduck.android.engine.ScoredEntry",
-                    "dev.pinyinduck.android.engine.StoredEntry",
-                    "dev.pinyinduck.android.engine.ScrollableEntry",
-                    "dev.pinyinduck.android.ime.KeyboardUiState",
-                    "dev.pinyinduck.android.ui.KeySpec",
-                    "dev.pinyinduck.android.ui.KeyboardCallbacks",
+            all {
+                it.useJUnit()
+
+                // Unit tests read the real 9.1MB asset so ranking is verified against the
+                // same corpus the web app serves, rather than a hand-written fixture.
+                it.systemProperty(
+                    "pinyinduck.dictionary",
+                    rootProject.file("../web/public/dictionary.btree").absolutePath
                 )
+                it.systemProperty("robolectric.logging.enabled", "false")
+
+                it.extensions.configure<JacocoTaskExtension> {
+                    isIncludeNoLocationClasses = true
+                    // Never instrument the JDK itself; Jacoco otherwise trips over the
+                    // reflection accessors it generates for Serializable lambdas.
+                    excludes = listOf("jdk.internal.*") + COVERAGE_EXCLUDED_CLASSES
+                }
             }
         }
     }
 }
+
+/**
+ * Classes excluded from coverage, by Jacoco class name (dots, as JaCoCo spells them).
+ *
+ * Kotlin data classes generate `equals`, `hashCode`, `toString`, `copy` and `componentN`
+ * for every property. None of that carries behaviour worth asserting on, and all of it
+ * would otherwise be reported as a large block of uncovered lines that hides real gaps. The
+ * `DuckColors` palette is the same thing: colour constants with no logic in them.
+ */
+val COVERAGE_EXCLUDED_CLASSES = listOf(
+    "dev.pinyinduck.android.engine.Candidate",
+    "dev.pinyinduck.android.engine.SearchResult",
+    "dev.pinyinduck.android.engine.SearchOptions",
+    "dev.pinyinduck.android.engine.StoredEntry",
+    "dev.pinyinduck.android.ime.KeyboardUiState",
+    "dev.pinyinduck.android.ime.KeyboardSettings",
+    "dev.pinyinduck.android.ui.KeySpec",
+    "dev.pinyinduck.android.ui.KeyboardCallbacks",
+    "dev.pinyinduck.android.ui.DuckColors",
+    "dev.pinyinduck.android.ui.ThemeKt",
+)
+
+/**
+ * The same exclusions as Ant file patterns, for the report's class directories.
+ *
+ * The report walks files, so it needs path patterns rather than JaCoCo class names. Both
+ * forms are needed: excluding only at instrumentation time leaves the class files on disk
+ * with no execution data, which JaCoCo then reports as completely uncovered.
+ */
+val COVERAGE_EXCLUDED_FILES = COVERAGE_EXCLUDED_CLASSES.map { className ->
+    "**/${className.substringAfterLast('.')}.class"
+} + listOf(
+    "**/DictionaryStatus*.class",
+    "**/KeyboardKey*.class",
+    "**/ExpandableCandidate*.class",
+)
 
 /**
  * Where the debug variant's compiled classes land.
@@ -144,11 +195,26 @@ android {
  * AGP's unit tests are per-variant (`testDebugUnitTest`), so the Jacoco plugin never creates
  * a report task for them the way it does for a plain JVM `test` task. Both the report and
  * the verification below are registered by hand against those classes.
+ *
+ * [COVERAGE_EXCLUDES] is applied here as well as at instrumentation time, because the report
+ * scans every class file it is pointed at: excluding only at instrumentation leaves the
+ * generated members on disk with no execution data, which Jacoco reports as uncovered.
  */
 val debugMainClasses by lazy {
     files(
-        layout.buildDirectory.dir("tmp/kotlin-classes/debug"),
-        layout.buildDirectory.dir("intermediates/javac/debug/classes"),
+        // AGP 9 compiles Kotlin with its own built-in compiler, whose output lands under
+        // `built_in_kotlinc/<variant>/<task>/classes`. The `**` is deliberate: the task
+        // segment is part of the path, so it is matched rather than hard-coded.
+        layout.buildDirectory.dir("intermediates/built_in_kotlinc/debug")
+            .get().asFileTree.matching {
+                include("**/classes/**")
+                exclude(COVERAGE_EXCLUDED_FILES)
+            },
+        // Java sources, if any are ever added to the module.
+        layout.buildDirectory.dir("intermediates/javac/debug/classes")
+            .get().asFileTree.matching {
+                exclude(COVERAGE_EXCLUDED_FILES)
+            },
     )
 }
 
@@ -184,6 +250,24 @@ val jacocoTestCoverageVerification by tasks.registering(JacocoCoverageVerificati
     sourceDirectories.setFrom(files("src/main/java"))
 
     violationRules {
+        // A floor on the whole module, so "we are above 80%" is a fact the build enforces
+        // rather than a number that was true once. This is the coarse guard against new code
+        // going in untested; the per-class rules below are the strict one.
+        //
+        // Instructions only. The Compose compiler emits branches for recomposition, group
+        // keys and stability checks that no unit test can drive, so a module-wide *branch*
+        // floor measures the compiler rather than this code and would only be met by
+        // excluding the UI. Branch coverage is still enforced, at the same 85%, on the
+        // classes where it means something — see the per-class rule below.
+        rule {
+            limit {
+                counter = "INSTRUCTION"
+                value = "COVEREDRATIO"
+                minimum = BigDecimal(MODULE_COVERAGE_FLOOR)
+            }
+            element = "BUNDLE"
+        }
+
         // `counter` is what JaCoCo measures, `value` is which form of that measurement is
         // checked, and `minimum` is the line it has to clear. Applied per class so a drop
         // anywhere in the portable half fails, rather than being diluted by the Android
@@ -209,6 +293,15 @@ tasks.named("check") {
     dependsOn(jacocoTestReport, jacocoTestCoverageVerification)
 }
 
+/**
+ * Compiles on the build JDK (25) but emits Java 17 bytecode.
+ *
+ * These are different things and confusing them breaks in opposite directions. The build
+ * runs on whatever JDK Gradle itself is running under, and that one wants to be recent.
+ * The *target* has to stay at 17 because Android's runtime cannot load class files newer
+ * than that, so raising `jvmTarget` to 25 would produce an APK that installs and then
+ * crashes on device.
+ */
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
@@ -233,6 +326,13 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)
+    // Robolectric runs the Android framework on the JVM, which is what makes the manifest
+    // declarations, the asset loader and the Compose keyboard testable without a device.
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

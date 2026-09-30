@@ -21,13 +21,11 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import dev.pinyinduck.android.data.DictionaryLoader
 import dev.pinyinduck.android.data.OpenedDictionary
-import dev.pinyinduck.android.engine.DictionaryFormatException
 import dev.pinyinduck.android.ui.KeyAction
 import dev.pinyinduck.android.ui.KeyLayout
 import dev.pinyinduck.android.ui.KeyboardCallbacks
 import dev.pinyinduck.android.ui.PinyinDuckKeyboard
 import dev.pinyinduck.android.ui.PinyinDuckTheme
-import java.io.FileNotFoundException
 
 /**
  * The PinyinDuck input method.
@@ -48,9 +46,14 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
     private val settings by lazy { KeyboardSettings(this) }
 
     private var dictionary: OpenedDictionary? = null
-    private var session: PinyinDuckSession? = null
 
-    private var uiState by mutableStateOf(KeyboardUiState())
+    // `internal` rather than `private` so `PinyinDuckImeServiceTest` can assert on the state
+    // the wiring produces. This is the app's only entry point, and it is where a broken
+    // reference to the session or a mis-wired callback would show up; leaving it untested
+    // would mean the only untested class is the one the user actually runs.
+    internal var session: PinyinDuckSession? = null
+
+    internal var uiState by mutableStateOf(KeyboardUiState())
 
     override val lifecycle: Lifecycle get() = lifecycleRegistry
 
@@ -155,48 +158,30 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         val session = session ?: return super.onKeyDown(keyCode, event)
 
-        when (keyCode) {
-            KeyEvent.KEYCODE_SPACE -> session.space()
-            KeyEvent.KEYCODE_DEL -> session.backspace()
-            KeyEvent.KEYCODE_ENTER -> session.enter()
-            KeyEvent.KEYCODE_ESCAPE -> session.cancelComposition()
-            KeyEvent.KEYCODE_DPAD_LEFT -> session.moveSelection(-1)
-            KeyEvent.KEYCODE_DPAD_RIGHT -> session.moveSelection(1)
-            KeyEvent.KEYCODE_DPAD_UP -> session.moveSelectionByPage(-1, PAGE_SIZE)
-            KeyEvent.KEYCODE_DPAD_DOWN -> session.moveSelectionByPage(1, PAGE_SIZE)
-            else -> {
-                val handled = typeFromUnicode(event.unicodeChar)
-                if (!handled) return super.onKeyDown(keyCode, event)
-            }
+        val outcome = KeyRouting.route(
+            keyCode = keyCode,
+            unicode = event.unicodeChar.toChar(),
+            shift = event.isShiftPressed,
+        ) ?: return super.onKeyDown(keyCode, event)
+
+        when (outcome) {
+            is KeyRouting.Outcome.Act -> handleKey(outcome.action)
+            is KeyRouting.Outcome.Move -> session.moveSelection(outcome.delta)
+            is KeyRouting.Outcome.MoveByPage ->
+                session.moveSelectionByPage(outcome.pages, KeyRouting.PAGE_SIZE)
+            KeyRouting.Outcome.Enter -> session.enter()
+            KeyRouting.Outcome.Cancel -> session.cancelComposition()
         }
         return true
     }
 
-    /** Routes a printable character into the composition, or reports that it cannot. */
-    private fun typeFromUnicode(unicode: Int): Boolean {
-        val session = session ?: return false
-        // apostrophe is part of pinyin: `xi'an` is 西安, not `xian`.
-        if (unicode == '\''.code) {
-            session.typeLetter('\'')
-            return true
-        }
-        if (unicode !in 32..126) return false
-
-        val char = unicode.toChar()
-        return when {
-            char in 'a'..'z' || char in 'A'..'Z' -> {
-                session.typeLetter(char.lowercaseChar())
-                true
-            }
-            char in '0'..'9' -> {
-                session.typeDigit(char - '0')
-                true
-            }
-            else -> false
-        }
-    }
-
-    private fun callbacks() = KeyboardCallbacks(
+    /**
+     * The wiring between the on-screen keyboard and the session.
+     *
+     * Exposed to the test so the same code path the taps take can be driven directly, rather
+     * than by synthesising pointer events against the Compose tree.
+     */
+    internal fun callbacks() = KeyboardCallbacks(
         onKey = ::handleKey,
         onSelectCandidate = { session?.selectCandidate(it) },
         onToggleScript = { session?.toggleScript() },
@@ -261,9 +246,7 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
          */
         override fun sendEnter() {
             val connection = currentInputConnection ?: return
-            val options = currentInputEditorInfo?.imeOptions ?: return
-            val action = options and EditorInfo.IME_MASK_ACTION
-            if (action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED) {
+            KeyRouting.editorAction(currentInputEditorInfo?.imeOptions)?.let { action ->
                 connection.performEditorAction(action)
                 return
             }
@@ -272,24 +255,5 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
         }
     }
 
-    private fun describe(error: Throwable): String = when {
-        error is FileNotFoundException && error.message?.contains("compressed") == true ->
-            "The dictionary asset is compressed. It must ship uncompressed to be mmapped; " +
-                "check the noCompress setting in app/build.gradle.kts."
-
-        error is FileNotFoundException ->
-            "dictionary.btree is missing from the app. Run \"npm run build:dict\" at the " +
-                "repository root and rebuild."
-
-        error is DictionaryFormatException ->
-            "The dictionary is unreadable (${error.message}). Run \"npm run build:dict\" to regenerate it."
-
-        else ->
-            "The dictionary could not be opened: ${error.message ?: error.javaClass.simpleName}"
-    }
-
-    private companion object {
-        /** Candidates moved per Up/Down press on a hardware keyboard. */
-        const val PAGE_SIZE = 9
-    }
+    private fun describe(error: Throwable): String = DictionaryErrors.describe(error)
 }
