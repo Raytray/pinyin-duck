@@ -14,9 +14,7 @@ import java.nio.ByteBuffer
  * suite covers the same ground in `btree-codec.test.ts`.
  */
 class BTreeCodecTest {
-
-    private fun bufferOf(vararg bytes: Int): ByteBuffer =
-        ByteBuffer.wrap(ByteArray(bytes.size) { bytes[it].toByte() })
+    private fun bufferOf(vararg bytes: Int): ByteBuffer = ByteBuffer.wrap(ByteArray(bytes.size) { bytes[it].toByte() })
 
     // --- varints -----------------------------------------------------------------
 
@@ -96,27 +94,44 @@ class BTreeCodecTest {
 
     @Test
     fun rejectsAnUnsupportedFormatVersion() {
-        val header = ByteBuffer.wrap(
-            "PDBT".toByteArray(Charsets.US_ASCII) + byteArrayOf(99.toByte()) + ByteArray(19)
-        )
+        val header =
+            ByteBuffer.wrap(
+                "PDBT".toByteArray(Charsets.US_ASCII) + byteArrayOf(99.toByte()) + ByteArray(19),
+            )
         val error = assertThrows(DictionaryFormatException::class.java) { decodeHeader(header) }
         assertTrue(error.message!!.contains("format 99"))
     }
 
     @Test
     fun rejectsATruncatedHeader() {
-        val error = assertThrows(DictionaryFormatException::class.java) {
-            decodeHeader(bufferOf('P'.code, 'D'.code))
-        }
+        val error =
+            assertThrows(DictionaryFormatException::class.java) {
+                decodeHeader(bufferOf('P'.code, 'D'.code))
+            }
         assertTrue(error.message!!.contains("truncated"))
     }
 
     @Test
     fun readsThePageDirectory() {
-        val bytes = byteArrayOf(
-            0x18, 0, 0, 0, 0x64, 0, 0, 0,
-            0x40, 0, 0, 0, 0x32, 0, 0, 0,
-        )
+        val bytes =
+            byteArrayOf(
+                0x18,
+                0,
+                0,
+                0,
+                0x64,
+                0,
+                0,
+                0,
+                0x40,
+                0,
+                0,
+                0,
+                0x32,
+                0,
+                0,
+                0,
+            )
         val directory = decodeDirectory(ByteBuffer.wrap(bytes), 2)
         assertEquals(2, directory.size)
         assertEquals(24, directory[0].offset)
@@ -154,12 +169,23 @@ class BTreeCodecTest {
     @Test
     fun decodesAnInternalPage() {
         // Two children means one high key, stored between the two child ids.
-        val bytes = byteArrayOf(
-            INTERNAL_KIND.toByte(), 0x02, 0x00,
-            0x07, 0x00, 0x00, 0x00,
-            0x02, 'n'.code.toByte(), 'i'.code.toByte(),
-            0x09, 0x00, 0x00, 0x00,
-        )
+        val bytes =
+            byteArrayOf(
+                INTERNAL_KIND.toByte(),
+                0x02,
+                0x00,
+                0x07,
+                0x00,
+                0x00,
+                0x00,
+                0x02,
+                'n'.code.toByte(),
+                'i'.code.toByte(),
+                0x09,
+                0x00,
+                0x00,
+                0x00,
+            )
         val page = decodeInternalPage(ByteBuffer.wrap(bytes))
         assertEquals(listOf(7, 9), page.children.toList())
         assertEquals(listOf("ni"), page.highKeys)
@@ -168,9 +194,10 @@ class BTreeCodecTest {
     @Test
     fun rejectsAnInternalPageWithNoChildren() {
         val bytes = byteArrayOf(INTERNAL_KIND.toByte(), 0x00, 0x00)
-        val error = assertThrows(DictionaryFormatException::class.java) {
-            decodeInternalPage(ByteBuffer.wrap(bytes))
-        }
+        val error =
+            assertThrows(DictionaryFormatException::class.java) {
+                decodeInternalPage(ByteBuffer.wrap(bytes))
+            }
         assertTrue(error.message!!.contains("at least one child"))
     }
 
@@ -188,20 +215,25 @@ class BTreeCodecTest {
         pageCount: Int,
         root: Int,
         directoryOffset: Int,
-    ): ByteBuffer = ByteBuffer.wrap(
-        byteArrayOf('P'.code.toByte(), 'D'.code.toByte(), 'B'.code.toByte(), 'T'.code.toByte()) +
-            byteArrayOf(BTREE_FORMAT_VERSION.toByte(), 0, 0, 0) +
-            intBytes(entryCount) + intBytes(pageCount) + intBytes(root) + intBytes(directoryOffset),
-    )
+    ): ByteBuffer =
+        ByteBuffer.wrap(
+            byteArrayOf('P'.code.toByte(), 'D'.code.toByte(), 'B'.code.toByte(), 'T'.code.toByte()) +
+                byteArrayOf(BTREE_FORMAT_VERSION.toByte(), 0, 0, 0) +
+                intBytes(entryCount) + intBytes(pageCount) + intBytes(root) + intBytes(directoryOffset),
+        )
 
-    private fun intBytes(value: Int) = byteArrayOf(
-        (value and 0xff).toByte(),
-        ((value ushr 8) and 0xff).toByte(),
-        ((value ushr 16) and 0xff).toByte(),
-        ((value ushr 24) and 0xff).toByte(),
-    )
+    private fun intBytes(value: Int) =
+        byteArrayOf(
+            (value and 0xff).toByte(),
+            ((value ushr 8) and 0xff).toByte(),
+            ((value ushr 16) and 0xff).toByte(),
+            ((value ushr 24) and 0xff).toByte(),
+        )
 
-    private fun encodeLeafForTest(keys: List<String>, nextLeaf: Int): ByteBuffer {
+    private fun encodeLeafForTest(
+        keys: List<String>,
+        nextLeaf: Int,
+    ): ByteBuffer {
         val out = mutableListOf<Byte>()
 
         fun writeString(value: String) {
@@ -222,12 +254,12 @@ class BTreeCodecTest {
 
         for (key in keys) {
             writeString(key)
-            writeString("你好")      // simplified
-            writeString("你好")      // traditional
-            writeString("ni3 hao3")  // pinyinNumbers
-            writeString("hello")     // shortGloss
+            writeString("你好") // simplified
+            writeString("你好") // traditional
+            writeString("ni3 hao3") // pinyinNumbers
+            writeString("hello") // shortGloss
             varintBytes(50_000).forEach { out.add(it) } // frequency
-            out.add(3)              // hskLevel
+            out.add(3) // hskLevel
         }
 
         return ByteBuffer.wrap(out.toByteArray())

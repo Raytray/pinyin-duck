@@ -31,7 +31,9 @@ const val LEAF_KIND = 1
 const val NO_PAGE = -1
 
 /** Raised when the asset is not a readable PinyinDuck B-tree. */
-class DictionaryFormatException(message: String) : RuntimeException(message)
+class DictionaryFormatException(
+    message: String,
+) : RuntimeException(message)
 
 /** A dictionary row as stored in a leaf, before tone marks are derived. */
 data class StoredEntry(
@@ -49,7 +51,10 @@ data class StoredEntry(
 sealed interface BTreePage
 
 /** A leaf page: the records themselves, plus a link to the next leaf in key order. */
-class LeafPage(val nextLeaf: Int, val entries: List<StoredEntry>) : BTreePage
+class LeafPage(
+    val nextLeaf: Int,
+    val entries: List<StoredEntry>,
+) : BTreePage
 
 /**
  * An internal page. `highKeys[i]` is the *last* key held by `children[i]`, so
@@ -59,7 +64,10 @@ class LeafPage(val nextLeaf: Int, val entries: List<StoredEntry>) : BTreePage
  * reading can span several leaves, and a low-key separator would send the lookup past
  * the first of them and silently drop its higher-ranked entries.
  */
-class InternalPage(val children: IntArray, val highKeys: List<String>) : BTreePage
+class InternalPage(
+    val children: IntArray,
+    val highKeys: List<String>,
+) : BTreePage
 
 data class BTreeHeader(
     val entryCount: Int,
@@ -68,13 +76,18 @@ data class BTreeHeader(
     val directoryOffset: Int,
 )
 
-data class PageLocation(val offset: Int, val length: Int)
+data class PageLocation(
+    val offset: Int,
+    val length: Int,
+)
 
 /**
  * Little-endian reader with LEB128 varints, reading from a [ByteBuffer] without moving
  * the buffer's own position, so the caller can hand out views over the same mapping.
  */
-internal class ByteReader(private val buffer: ByteBuffer) {
+internal class ByteReader(
+    private val buffer: ByteBuffer,
+) {
     private var position = 0
 
     val offset: Int get() = position
@@ -84,17 +97,19 @@ internal class ByteReader(private val buffer: ByteBuffer) {
     fun u8(): Int = buffer.get(position++).toInt() and 0xff
 
     fun u16(): Int {
-        val value = (buffer.get(position).toInt() and 0xff) or
-            ((buffer.get(position + 1).toInt() and 0xff) shl 8)
+        val value =
+            (buffer.get(position).toInt() and 0xff) or
+                ((buffer.get(position + 1).toInt() and 0xff) shl 8)
         position += 2
         return value
     }
 
     fun u32(): Int {
-        val value = (buffer.get(position).toInt() and 0xff) or
-            ((buffer.get(position + 1).toInt() and 0xff) shl 8) or
-            ((buffer.get(position + 2).toInt() and 0xff) shl 16) or
-            ((buffer.get(position + 3).toInt() and 0xff) shl 24)
+        val value =
+            (buffer.get(position).toInt() and 0xff) or
+                ((buffer.get(position + 1).toInt() and 0xff) shl 8) or
+                ((buffer.get(position + 2).toInt() and 0xff) shl 16) or
+                ((buffer.get(position + 3).toInt() and 0xff) shl 24)
         position += 4
         return value
     }
@@ -129,15 +144,16 @@ internal class ByteReader(private val buffer: ByteBuffer) {
 }
 
 /** Reads one leaf record. */
-internal fun readStoredEntry(reader: ByteReader) = StoredEntry(
-    key = reader.string(),
-    simplified = reader.string(),
-    traditional = reader.string(),
-    pinyinNumbers = reader.string(),
-    shortGloss = reader.string(),
-    frequency = reader.varint(),
-    hskLevel = reader.u8(),
-)
+internal fun readStoredEntry(reader: ByteReader) =
+    StoredEntry(
+        key = reader.string(),
+        simplified = reader.string(),
+        traditional = reader.string(),
+        pinyinNumbers = reader.string(),
+        shortGloss = reader.string(),
+        frequency = reader.varint(),
+        hskLevel = reader.u8(),
+    )
 
 internal fun decodeLeafPage(bytes: ByteBuffer): LeafPage {
     val reader = ByteReader(bytes)
@@ -176,7 +192,7 @@ internal fun decodeHeader(bytes: ByteBuffer): BTreeHeader {
     val version = reader.u8()
     if (version != BTREE_FORMAT_VERSION) {
         throw DictionaryFormatException(
-            "The dictionary was built with B-tree format $version, but this reader expects $BTREE_FORMAT_VERSION"
+            "The dictionary was built with B-tree format $version, but this reader expects $BTREE_FORMAT_VERSION",
         )
     }
     reader.u8()
@@ -189,7 +205,10 @@ internal fun decodeHeader(bytes: ByteBuffer): BTreeHeader {
     )
 }
 
-internal fun decodeDirectory(bytes: ByteBuffer, pageCount: Int): Array<PageLocation> {
+internal fun decodeDirectory(
+    bytes: ByteBuffer,
+    pageCount: Int,
+): Array<PageLocation> {
     val reader = ByteReader(bytes)
     val locations = arrayOfNulls<PageLocation>(pageCount)
     for (i in 0 until pageCount) {

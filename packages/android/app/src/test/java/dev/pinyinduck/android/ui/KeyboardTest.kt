@@ -25,7 +25,6 @@ import org.robolectric.RobolectricTestRunner
  */
 @RunWith(RobolectricTestRunner::class)
 class KeyboardTest {
-
     @get:Rule
     val compose = createComposeRule()
 
@@ -37,13 +36,14 @@ class KeyboardTest {
         var expandedToggles = 0
         var clears = 0
 
-        fun callbacks() = KeyboardCallbacks(
-            onKey = { keys.add(it) },
-            onSelectCandidate = { selected.add(it) },
-            onToggleScript = { scriptToggles++ },
-            onToggleExpanded = { expandedToggles++ },
-            onClear = { clears++ },
-        )
+        fun callbacks() =
+            KeyboardCallbacks(
+                onKey = { keys.add(it) },
+                onSelectCandidate = { selected.add(it) },
+                onToggleScript = { scriptToggles++ },
+                onToggleExpanded = { expandedToggles++ },
+                onClear = { clears++ },
+            )
     }
 
     // --- keys -------------------------------------------------------------------
@@ -217,7 +217,8 @@ class KeyboardTest {
     fun aFailedDictionaryExplainsItself() {
         show(Recorder(), error = "dictionary.btree is missing from the app.")
 
-        compose.onNodeWithText("dictionary.btree is missing from the app.", substring = true)
+        compose
+            .onNodeWithText("dictionary.btree is missing from the app.", substring = true)
             .assertIsDisplayed()
     }
 
@@ -229,10 +230,11 @@ class KeyboardTest {
             Recorder(),
             expanded = true,
             buffer = "ni",
-            candidates = listOf(
-                candidate("你", "nǐ", "you (informal)"),
-                candidate("泥", "ní", "mud / clay"),
-            ),
+            candidates =
+                listOf(
+                    candidate("你", "nǐ", "you (informal)"),
+                    candidate("泥", "ní", "mud / clay"),
+                ),
         )
 
         compose.onNodeWithText("你").assertIsDisplayed()
@@ -274,10 +276,11 @@ class KeyboardTest {
             recorder,
             expanded = true,
             buffer = "ni",
-            candidates = listOf(
-                candidate("你", "nǐ", "you"),
-                candidate("尼", "ní", "nun"),
-            ),
+            candidates =
+                listOf(
+                    candidate("你", "nǐ", "you"),
+                    candidate("尼", "ní", "nun"),
+                ),
         )
 
         // Tapping the definition rather than the character selects the same candidate.
@@ -305,19 +308,20 @@ class KeyboardTest {
         compose.setContent {
             PinyinDuckTheme {
                 PinyinDuckKeyboard(
-                    state = KeyboardUiState(
-                        loading = loading,
-                        dictionaryError = error,
-                        dictionaryEntries = entries,
-                        buffer = buffer,
-                        candidates = candidates,
-                        total = total,
-                        selectedIndex = selectedIndex,
-                        script = script,
-                        shift = shift,
-                        layout = layout,
-                        expanded = expanded,
-                    ),
+                    state =
+                        KeyboardUiState(
+                            loading = loading,
+                            dictionaryError = error,
+                            dictionaryEntries = entries,
+                            buffer = buffer,
+                            candidates = candidates,
+                            total = total,
+                            selectedIndex = selectedIndex,
+                            script = script,
+                            shift = shift,
+                            layout = layout,
+                            expanded = expanded,
+                        ),
                     callbacks = recorder.callbacks(),
                 )
             }
