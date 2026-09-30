@@ -20,8 +20,8 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
-import org.robolectric.annotation.Config
 import org.robolectric.android.controller.ServiceController
+import org.robolectric.annotation.Config
 
 /**
  * The input method service, driven end to end.
@@ -40,7 +40,6 @@ import org.robolectric.android.controller.ServiceController
 @RunWith(RobolectricTestRunner::class)
 @Config(qualifiers = "w411dp-h891dp")
 class PinyinDuckImeServiceTest {
-
     private lateinit var controller: ServiceController<PinyinDuckImeService>
     private var destroyed = false
     private val service get() = controller.get()
@@ -103,7 +102,12 @@ class PinyinDuckImeServiceTest {
         "nihao".forEach { press(letterKey(it), it) }
 
         assertEquals("nihao", service.uiState.buffer)
-        assertEquals("你好", service.uiState.candidates.first().hanzi)
+        assertEquals(
+            "你好",
+            service.uiState.candidates
+                .first()
+                .hanzi,
+        )
     }
 
     @Test
@@ -454,7 +458,10 @@ class PinyinDuckImeServiceTest {
     /** Types [text] one hardware letter at a time. */
     private fun type(text: String) = text.forEach { press(letterKey(it), it) }
 
-    private fun press(keyCode: Int, letter: Char) {
+    private fun press(
+        keyCode: Int,
+        letter: Char,
+    ) {
         assertTrue(
             "the keyboard refused to handle '$letter'",
             service.onKeyDown(keyCode, unowned(keyCode, letter)),
@@ -462,8 +469,7 @@ class PinyinDuckImeServiceTest {
     }
 
     /** The `KEYCODE_A`-style key code for a lowercase letter, e.g. `a` -> `KEYCODE_A`. */
-    private fun letterKey(letter: Char): Int =
-        KeyEvent.KEYCODE_A + (letter.lowercaseChar() - 'a')
+    private fun letterKey(letter: Char): Int = KeyEvent.KEYCODE_A + (letter.lowercaseChar() - 'a')
 
     /**
      * A key event carrying a specific character.
@@ -474,18 +480,22 @@ class PinyinDuckImeServiceTest {
      * event is subclassed to report the character the test means, which is exactly the part of
      * the event the keyboard reads.
      */
-    private fun unowned(keyCode: Int, unicode: Char = 0.toChar(), shift: Boolean = false) =
-        object : KeyEvent(
-            0L,
-            0L,
-            KeyEvent.ACTION_DOWN,
-            keyCode,
-            0,
-            if (shift) KeyEvent.META_SHIFT_ON else 0,
-        ) {
-            override fun getUnicodeChar(): Int = unicode.code
-            override fun getUnicodeChar(metaState: Int): Int = unicode.code
-        }
+    private fun unowned(
+        keyCode: Int,
+        unicode: Char = 0.toChar(),
+        shift: Boolean = false,
+    ) = object : KeyEvent(
+        0L,
+        0L,
+        KeyEvent.ACTION_DOWN,
+        keyCode,
+        0,
+        if (shift) KeyEvent.META_SHIFT_ON else 0,
+    ) {
+        override fun getUnicodeChar(): Int = unicode.code
+
+        override fun getUnicodeChar(metaState: Int): Int = unicode.code
+    }
 
     /**
      * Waits for the background dictionary load and drains the main looper.

@@ -13,7 +13,6 @@ import dev.pinyinduck.android.ui.KeyAction
  * directly instead of through a running service.
  */
 object KeyRouting {
-
     /**
      * The candidate-selection distance for a paging key press.
      *
@@ -25,13 +24,19 @@ object KeyRouting {
     /** What the keyboard should do about a key, or `null` to let the system have it. */
     sealed interface Outcome {
         /** Act on the composition. */
-        data class Act(val action: KeyAction) : Outcome
+        data class Act(
+            val action: KeyAction,
+        ) : Outcome
 
         /** Move the candidate selection by [delta] positions. */
-        data class Move(val delta: Int) : Outcome
+        data class Move(
+            val delta: Int,
+        ) : Outcome
 
         /** Move the candidate selection by [pages] pages. */
-        data class MoveByPage(val pages: Int) : Outcome
+        data class MoveByPage(
+            val pages: Int,
+        ) : Outcome
 
         /** Send the field's own action, or a raw Enter when it declares none. */
         data object Enter : Outcome
@@ -49,7 +54,11 @@ object KeyRouting {
      * [unicode] is `KeyEvent.getUnicodeChar()`; [shift] is that event's shift state, since a
      * shifted letter still types a pinyin letter.
      */
-    fun route(keyCode: Int, unicode: Char = 0.toChar(), shift: Boolean = false): Outcome? =
+    fun route(
+        keyCode: Int,
+        unicode: Char = 0.toChar(),
+        shift: Boolean = false,
+    ): Outcome? =
         when (keyCode) {
             KeyEvent.KEYCODE_SPACE -> Outcome.Act(KeyAction.Space)
             KeyEvent.KEYCODE_DEL -> Outcome.Act(KeyAction.Backspace)
@@ -69,16 +78,20 @@ object KeyRouting {
      * as digits rather than as letters: whether one is a tone number is a decision for the
      * session, which knows whether a composition is active.
      */
-    private fun unicodeAction(unicode: Char, shift: Boolean): Outcome? = when {
-        unicode == '\'' -> Outcome.Act(KeyAction.Letter('\''))
-        unicode in '0'..'9' -> Outcome.Act(KeyAction.Digit(unicode - '0'))
-        unicode in 'a'..'z' -> Outcome.Act(KeyAction.Letter(unicode))
-        // Shift changes nothing but the case of the letter, and the session lowercases the
-        // query before searching, so the key still carries a lower-case letter.
-        unicode in 'A'..'Z' && shift -> Outcome.Act(KeyAction.Letter(unicode.lowercaseChar()))
-        unicode in 'A'..'Z' -> Outcome.Act(KeyAction.Letter(unicode.lowercaseChar()))
-        else -> null
-    }
+    private fun unicodeAction(
+        unicode: Char,
+        shift: Boolean,
+    ): Outcome? =
+        when {
+            unicode == '\'' -> Outcome.Act(KeyAction.Letter('\''))
+            unicode in '0'..'9' -> Outcome.Act(KeyAction.Digit(unicode - '0'))
+            unicode in 'a'..'z' -> Outcome.Act(KeyAction.Letter(unicode))
+            // Shift changes nothing but the case of the letter, and the session lowercases the
+            // query before searching, so the key still carries a lower-case letter.
+            unicode in 'A'..'Z' && shift -> Outcome.Act(KeyAction.Letter(unicode.lowercaseChar()))
+            unicode in 'A'..'Z' -> Outcome.Act(KeyAction.Letter(unicode.lowercaseChar()))
+            else -> null
+        }
 
     /**
      * Whether Enter should perform the field's declared action rather than send a key event.
@@ -93,6 +106,5 @@ object KeyRouting {
     }
 
     /** The editor action to perform, or null when the field declares none. */
-    fun editorAction(imeOptions: Int?): Int? =
-        imeOptions?.let { it and EditorInfo.IME_MASK_ACTION }.takeIf { usesEditorAction(imeOptions) }
+    fun editorAction(imeOptions: Int?): Int? = imeOptions?.let { it and EditorInfo.IME_MASK_ACTION }.takeIf { usesEditorAction(imeOptions) }
 }

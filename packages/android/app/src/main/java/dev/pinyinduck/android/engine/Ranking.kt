@@ -6,9 +6,7 @@ package dev.pinyinduck.android.engine
  * A port of `packages/core/src/index/ranking.ts`. The constants are unchanged, so the
  * keyboard ranks exactly what the web app ranks: a shared formula is what stops the two
  * clients from disagreeing about which character is the better answer.
- */
-
-/**
+ *
  * How many prefix entries one query may consider before the scan stops.
  *
  * A one-letter query such as `n` prefixes more than ten thousand entries, so the scan
@@ -35,7 +33,11 @@ data class ScorableEntry(
  * contribution below is 20000, so a very common character can never outrank a better
  * match: typing `nihao` must offer 你好, not the far more frequent 你.
  */
-fun scoreEntry(entry: ScorableEntry, tonelessQuery: String, toneFilterNumbers: IntArray): Int {
+fun scoreEntry(
+    entry: ScorableEntry,
+    tonelessQuery: String,
+    toneFilterNumbers: IntArray,
+): Int {
     var score = 0
     val isExactPinyin = entry.pinyinClean == tonelessQuery
     val startsWithPinyin = entry.pinyinClean.startsWith(tonelessQuery)
@@ -92,11 +94,12 @@ fun entryToCandidate(
     tonelessQuery: String,
 ): Candidate {
     val hanzi = if (script == ScriptType.TRADITIONAL) traditional else entry.simplified
-    val remainingPinyin = if (tonelessQuery.startsWith(entry.pinyinClean)) {
-        tonelessQuery.substring(entry.pinyinClean.length)
-    } else {
-        ""
-    }
+    val remainingPinyin =
+        if (tonelessQuery.startsWith(entry.pinyinClean)) {
+            tonelessQuery.substring(entry.pinyinClean.length)
+        } else {
+            ""
+        }
 
     return Candidate(
         id = "${entry.simplified}-${entry.pinyinNumbers}",

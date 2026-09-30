@@ -15,7 +15,6 @@ import org.robolectric.RobolectricTestRunner
  */
 @RunWith(RobolectricTestRunner::class)
 class RobolectricSmokeTest {
-
     @Test
     fun theApplicationContextIsAvailable() {
         assertNotNull(ApplicationProvider.getApplicationContext())
@@ -24,10 +23,11 @@ class RobolectricSmokeTest {
     @Test
     fun theImeIsDeclaredToTheSystem() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val info = context.packageManager.getServiceInfo(
-            android.content.ComponentName(context, dev.pinyinduck.android.ime.PinyinDuckImeService::class.java),
-            android.content.pm.PackageManager.GET_META_DATA,
-        )
+        val info =
+            context.packageManager.getServiceInfo(
+                android.content.ComponentName(context, dev.pinyinduck.android.ime.PinyinDuckImeService::class.java),
+                android.content.pm.PackageManager.GET_META_DATA,
+            )
         // An input method is only reachable if it holds this permission; without it the
         // system will not list the keyboard at all.
         assertEqualsCompat(
@@ -47,7 +47,10 @@ class RobolectricSmokeTest {
         }
     }
 
-    private fun assertEqualsCompat(expected: String, actual: String?) {
+    private fun assertEqualsCompat(
+        expected: String,
+        actual: String?,
+    ) {
         org.junit.Assert.assertEquals(expected, actual)
     }
 }

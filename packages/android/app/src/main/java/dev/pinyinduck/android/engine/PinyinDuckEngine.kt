@@ -19,11 +19,13 @@ class PinyinDuckEngine(
     private val dictionary: BTreeDictionary,
     private val maxMatches: Int = DEFAULT_MAX_MATCHES,
 ) {
-
     /** Number of entries in the backing dictionary. */
     val entryCount: Int get() = dictionary.entryCount
 
-    fun search(query: String, options: SearchOptions = SearchOptions()): SearchResult {
+    fun search(
+        query: String,
+        options: SearchOptions = SearchOptions(),
+    ): SearchResult {
         val rawQuery = query.trim().lowercase()
         if (rawQuery.isEmpty()) return SearchResult(rawQuery, emptyList(), emptyList(), 0)
 
@@ -68,17 +70,22 @@ class PinyinDuckEngine(
         }
 
         val ranked = chosen.values.sortedWith(SCORED_ORDER)
-        val candidates = if (offset < ranked.size) {
-            ranked.subList(offset, minOf(offset + limit, ranked.size))
-                .map { it.entry.toCandidate(options.script, tonelessQuery) }
-        } else {
-            emptyList()
-        }
+        val candidates =
+            if (offset < ranked.size) {
+                ranked
+                    .subList(offset, minOf(offset + limit, ranked.size))
+                    .map { it.entry.toCandidate(options.script, tonelessQuery) }
+            } else {
+                emptyList()
+            }
 
         return SearchResult(rawQuery, segments, candidates, ranked.size)
     }
 
-    private class ScoredEntry(val entry: StoredEntry, val score: Int)
+    private class ScoredEntry(
+        val entry: StoredEntry,
+        val score: Int,
+    )
 
     private companion object {
         /**
@@ -98,17 +105,21 @@ class PinyinDuckEngine(
 }
 
 /** Projects a stored leaf entry into the fields scoring needs. */
-private fun StoredEntry.toScorable() = ScorableEntry(
-    simplified = simplified,
-    pinyinClean = key,
-    pinyinNumbers = pinyinNumbers,
-    frequency = frequency,
-    // 0 means "not on the HSK list", which the ranker treats as no bonus.
-    hskLevel = hskLevel.takeIf { it != 0 },
-)
+private fun StoredEntry.toScorable() =
+    ScorableEntry(
+        simplified = simplified,
+        pinyinClean = key,
+        pinyinNumbers = pinyinNumbers,
+        frequency = frequency,
+        // 0 means "not on the HSK list", which the ranker treats as no bonus.
+        hskLevel = hskLevel.takeIf { it != 0 },
+    )
 
 /** Projects a stored leaf entry into a rendered candidate. */
-private fun StoredEntry.toCandidate(script: ScriptType, tonelessQuery: String) = entryToCandidate(
+private fun StoredEntry.toCandidate(
+    script: ScriptType,
+    tonelessQuery: String,
+) = entryToCandidate(
     entry = toScorable(),
     traditional = traditional,
     pinyinMarks = pinyinNumbersToMarks(pinyinNumbers),

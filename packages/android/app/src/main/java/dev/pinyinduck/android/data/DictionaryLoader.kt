@@ -40,14 +40,16 @@ class OpenedDictionary(
  * what the paged format exists to avoid.
  */
 object DictionaryLoader {
-
     /**
      * Maps `dictionary.btree` out of the APK's assets.
      *
      * @throws IOException if the asset is missing or cannot be mapped.
      */
     @Throws(IOException::class)
-    fun openFromAssets(assets: AssetManager, assetName: String = DICTIONARY_ASSET): OpenedDictionary {
+    fun openFromAssets(
+        assets: AssetManager,
+        assetName: String = DICTIONARY_ASSET,
+    ): OpenedDictionary {
         val descriptor = assets.openFd(assetName)
         val stream = FileInputStream(descriptor.fileDescriptor)
         return try {

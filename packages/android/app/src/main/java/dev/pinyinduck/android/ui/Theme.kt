@@ -24,16 +24,17 @@ object DuckColors {
     val Divider = Color(0xFF2E2E38)
 }
 
-private val DuckColorScheme = darkColorScheme(
-    primary = DuckColors.Accent,
-    onPrimary = DuckColors.Background,
-    background = DuckColors.Background,
-    onBackground = DuckColors.PrimaryText,
-    surface = DuckColors.Background,
-    onSurface = DuckColors.PrimaryText,
-    surfaceVariant = DuckColors.Key,
-    onSurfaceVariant = DuckColors.SecondaryText,
-)
+private val DuckColorScheme =
+    darkColorScheme(
+        primary = DuckColors.Accent,
+        onPrimary = DuckColors.Background,
+        background = DuckColors.Background,
+        onBackground = DuckColors.PrimaryText,
+        surface = DuckColors.Background,
+        onSurface = DuckColors.PrimaryText,
+        surfaceVariant = DuckColors.Key,
+        onSurfaceVariant = DuckColors.SecondaryText,
+    )
 
 /**
  * Wraps the keyboard in a Material theme.

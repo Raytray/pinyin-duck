@@ -6,7 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.io.File
 
 /**
  * The page sources and the B-tree reader that sits on top of them.
@@ -17,7 +16,6 @@ import java.io.File
  * against an exact expected answer.
  */
 class PageSourceTest {
-
     @get:Rule
     val temporaryFolder = TemporaryFolder()
 
@@ -129,9 +127,10 @@ class PageSourceTest {
     @Test
     fun rejectsAPageThatIsNeitherALeafNorInternal() {
         val file = temporaryFolder.newFile("corrupt.btree")
-        val header = byteArrayOf('P'.code.toByte(), 'D'.code.toByte(), 'B'.code.toByte(), 'T'.code.toByte()) +
-            byteArrayOf(BTREE_FORMAT_VERSION.toByte(), 0, 0, 0) +
-            intBytes(1) + intBytes(1) + intBytes(0) + intBytes(24)
+        val header =
+            byteArrayOf('P'.code.toByte(), 'D'.code.toByte(), 'B'.code.toByte(), 'T'.code.toByte()) +
+                byteArrayOf(BTREE_FORMAT_VERSION.toByte(), 0, 0, 0) +
+                intBytes(1) + intBytes(1) + intBytes(0) + intBytes(24)
         // One directory entry pointing at a page whose kind byte is nonsense.
         val directory = intBytes(52) + intBytes(4)
         val page = byteArrayOf(0x7f, 0, 0, 0)
@@ -200,7 +199,10 @@ class PageSourceTest {
 
     private fun BTreeDictionary.scanKeys(prefix: String): List<String> {
         val keys = mutableListOf<String>()
-        scanPrefix(prefix) { keys.add(it.key); true }
+        scanPrefix(prefix) {
+            keys.add(it.key)
+            true
+        }
         return keys
     }
 
@@ -210,7 +212,10 @@ class PageSourceTest {
      * Each key is paired with a character derived from it, so a lookup that returns the
      * wrong entry is visible in the assertion rather than looking plausible.
      */
-    private fun withDictionary(keys: List<String>, block: (BTreeDictionary) -> Unit) {
+    private fun withDictionary(
+        keys: List<String>,
+        block: (BTreeDictionary) -> Unit,
+    ) {
         val entries = keys.map { it to it }
         val file = temporaryFolder.newFile("dict-${keys.hashCode()}-${keys.size}.btree")
         file.writeBytes(SyntheticDictionary.encode(entries))
@@ -219,10 +224,11 @@ class PageSourceTest {
         }
     }
 
-    private fun intBytes(value: Int) = byteArrayOf(
-        (value and 0xff).toByte(),
-        ((value ushr 8) and 0xff).toByte(),
-        ((value ushr 16) and 0xff).toByte(),
-        ((value ushr 24) and 0xff).toByte(),
-    )
+    private fun intBytes(value: Int) =
+        byteArrayOf(
+            (value and 0xff).toByte(),
+            ((value ushr 8) and 0xff).toByte(),
+            ((value ushr 16) and 0xff).toByte(),
+            ((value ushr 24) and 0xff).toByte(),
+        )
 }

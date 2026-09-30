@@ -42,8 +42,10 @@ import kotlinx.coroutines.withContext
  * wiring, and that is deliberate: the parts that are hard to get right are testable without
  * a device.
  */
-class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateRegistryOwner {
-
+class PinyinDuckImeService :
+    InputMethodService(),
+    LifecycleOwner,
+    SavedStateRegistryOwner {
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
 
@@ -105,16 +107,17 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
                 result
                     .onSuccess { opened ->
                         dictionary = opened
-                        session = PinyinDuckSession(opened.engine, editor, settings.defaultScript)
-                            .also { it.onChange = ::syncFromSession }
-                        uiState = uiState.copy(
-                            loading = false,
-                            dictionaryError = null,
-                            dictionaryEntries = opened.entryCount,
-                            script = settings.defaultScript,
-                        )
-                    }
-                    .onFailure { error ->
+                        session =
+                            PinyinDuckSession(opened.engine, editor, settings.defaultScript)
+                                .also { it.onChange = ::syncFromSession }
+                        uiState =
+                            uiState.copy(
+                                loading = false,
+                                dictionaryError = null,
+                                dictionaryEntries = opened.entryCount,
+                                script = settings.defaultScript,
+                            )
+                    }.onFailure { error ->
                         uiState = uiState.copy(loading = false, dictionaryError = describe(error))
                     }
             }
@@ -134,7 +137,10 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
         return view
     }
 
-    override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
+    override fun onStartInputView(
+        info: EditorInfo?,
+        restarting: Boolean,
+    ) {
         super.onStartInputView(info, restarting)
         lifecycleRegistry.currentState = Lifecycle.State.STARTED
     }
@@ -144,7 +150,10 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
         super.onFinishInputView(finishingInput)
     }
 
-    override fun onStartInput(info: EditorInfo?, restarting: Boolean) {
+    override fun onStartInput(
+        info: EditorInfo?,
+        restarting: Boolean,
+    ) {
         super.onStartInput(info, restarting)
         // A new field means a new composition. This only clears our own state; anything
         // already committed stays in the editor.
@@ -175,14 +184,18 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
      * never disagree about what a letter means. Arrow keys move the candidate selection,
      * which also makes the whole app testable over `adb shell input keyevent`.
      */
-    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+    override fun onKeyDown(
+        keyCode: Int,
+        event: KeyEvent,
+    ): Boolean {
         val session = session ?: return super.onKeyDown(keyCode, event)
 
-        val outcome = KeyRouting.route(
-            keyCode = keyCode,
-            unicode = event.unicodeChar.toChar(),
-            shift = event.isShiftPressed,
-        ) ?: return super.onKeyDown(keyCode, event)
+        val outcome =
+            KeyRouting.route(
+                keyCode = keyCode,
+                unicode = event.unicodeChar.toChar(),
+                shift = event.isShiftPressed,
+            ) ?: return super.onKeyDown(keyCode, event)
 
         when (outcome) {
             is KeyRouting.Outcome.Act -> handleKey(outcome.action)
@@ -201,13 +214,14 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
      * Exposed to the test so the same code path the taps take can be driven directly, rather
      * than by synthesising pointer events against the Compose tree.
      */
-    internal fun callbacks() = KeyboardCallbacks(
-        onKey = ::handleKey,
-        onSelectCandidate = { session?.selectCandidate(it) },
-        onToggleScript = { session?.toggleScript() },
-        onToggleExpanded = { uiState = uiState.copy(expanded = !uiState.expanded) },
-        onClear = { session?.cancelComposition() },
-    )
+    internal fun callbacks() =
+        KeyboardCallbacks(
+            onKey = ::handleKey,
+            onSelectCandidate = { session?.selectCandidate(it) },
+            onToggleScript = { session?.toggleScript() },
+            onToggleExpanded = { uiState = uiState.copy(expanded = !uiState.expanded) },
+            onClear = { session?.cancelComposition() },
+        )
 
     private fun handleKey(action: KeyAction) {
         val session = session ?: return
@@ -237,18 +251,18 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
 
     private fun syncFromSession() {
         val session = session ?: return
-        uiState = uiState.copy(
-            buffer = session.buffer,
-            candidates = session.candidates,
-            total = session.total,
-            selectedIndex = session.selectedIndex,
-            script = session.script,
-        )
+        uiState =
+            uiState.copy(
+                buffer = session.buffer,
+                candidates = session.candidates,
+                total = session.total,
+                selectedIndex = session.selectedIndex,
+                script = session.script,
+            )
     }
 
     /** The [TextSink] that writes to whatever field is currently focused. */
     private inner class EditorSink : TextSink {
-
         override fun setComposingText(text: String) {
             currentInputConnection?.setComposingText(text, 1)
         }
@@ -257,7 +271,10 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
             currentInputConnection?.commitText(text, 1)
         }
 
-        override fun deleteSurrounding(before: Int, after: Int) {
+        override fun deleteSurrounding(
+            before: Int,
+            after: Int,
+        ) {
             if (before == 0 && after == 0) return
             currentInputConnection?.deleteSurroundingText(before, after)
         }

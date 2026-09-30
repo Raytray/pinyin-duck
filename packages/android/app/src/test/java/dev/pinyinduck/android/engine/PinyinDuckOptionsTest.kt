@@ -15,15 +15,15 @@ import java.io.File
  * truncated scan budget, and the empty query.
  */
 class PinyinDuckOptionsTest {
-
     companion object {
         private lateinit var dictionary: BTreeDictionary
 
         @BeforeClass
         @JvmStatic
         fun openDictionary() {
-            val path = System.getProperty("pinyinduck.dictionary")
-                ?: error("The pinyinduck.dictionary system property is not set.")
+            val path =
+                System.getProperty("pinyinduck.dictionary")
+                    ?: error("The pinyinduck.dictionary system property is not set.")
             dictionary = DictionaryLoader.openFromFile(File(path)).dictionary
         }
     }

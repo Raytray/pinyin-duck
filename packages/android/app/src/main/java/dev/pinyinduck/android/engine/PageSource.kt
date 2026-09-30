@@ -17,12 +17,14 @@ import java.nio.channels.FileChannel
  * rather than the ~90MB object graph a full parse of the corpus needs.
  */
 interface PageSource : Closeable {
-
     /** Total size of the asset in bytes. */
     val size: Int
 
     /** Returns a read-only buffer over `[offset, offset + length)`, clamped to the end. */
-    fun read(offset: Int, length: Int): ByteBuffer
+    fun read(
+        offset: Int,
+        length: Int,
+    ): ByteBuffer
 }
 
 /**
@@ -36,10 +38,12 @@ class MappedPageSource private constructor(
     private val hold: List<Closeable>,
     private val map: ByteBuffer,
 ) : PageSource {
-
     override val size: Int get() = map.capacity()
 
-    override fun read(offset: Int, length: Int): ByteBuffer {
+    override fun read(
+        offset: Int,
+        length: Int,
+    ): ByteBuffer {
         if (offset < 0 || offset > size) {
             throw DictionaryFormatException("Read at $offset is outside the $size byte dictionary")
         }
@@ -70,7 +74,11 @@ class MappedPageSource private constructor(
          * is passed in rather than assumed.
          */
         @Throws(IOException::class)
-        fun open(stream: FileInputStream, startOffset: Long, length: Long): MappedPageSource {
+        fun open(
+            stream: FileInputStream,
+            startOffset: Long,
+            length: Long,
+        ): MappedPageSource {
             val channel: FileChannel = stream.channel
             val map = channel.map(FileChannel.MapMode.READ_ONLY, startOffset, length)
             return MappedPageSource(listOf(stream), map)
@@ -84,10 +92,15 @@ class MappedPageSource private constructor(
  * Only used by tests and by the fallback path for a dictionary that could not be mapped;
  * [read] copies, so it is not the runtime source.
  */
-class ByteArrayPageSource(private val bytes: ByteArray) : PageSource {
+class ByteArrayPageSource(
+    private val bytes: ByteArray,
+) : PageSource {
     override val size: Int get() = bytes.size
 
-    override fun read(offset: Int, length: Int): ByteBuffer {
+    override fun read(
+        offset: Int,
+        length: Int,
+    ): ByteBuffer {
         val start = offset.coerceIn(0, bytes.size)
         val end = minOf(offset + length, bytes.size).coerceAtLeast(start)
         return ByteBuffer.wrap(bytes, start, end - start).slice().asReadOnlyBuffer()

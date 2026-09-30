@@ -12,9 +12,10 @@ import org.junit.Test
  * offer, and shift that only ever changes a letter's case without moving it.
  */
 class KeysTest {
-
-    private fun actions(layout: KeyLayout, shift: Boolean = false): List<KeyAction> =
-        keyRows(layout, shift).flatten().map { it.action }
+    private fun actions(
+        layout: KeyLayout,
+        shift: Boolean = false,
+    ): List<KeyAction> = keyRows(layout, shift).flatten().map { it.action }
 
     @Test
     fun theNumberLayerOffersAWayBackToLetters() {
