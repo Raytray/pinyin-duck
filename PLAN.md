@@ -253,7 +253,7 @@ As the user types into the composition field:
       the case still runs, a failure is reported as a gap rather than a failure so the suite
       stays green, and a *pass* is reported as "now works, remove the knownGap" so the
       declaration cannot quietly outlive the thing it describes.
-    - `scripts/generated-dicts.test.ts` sweeps all 246,394 emitted rows through
+    - `scripts/generated-dicts.test.ts` sweeps all 245,421 emitted rows through
       `src/rime-format.ts` — an independent reader written against librime's
       `GetColumnIndex` and `LoadDictEntry` rather than against our own writer, so a mistake
       in the writer cannot make the reader agree with it — and asserts no duplicate
@@ -268,16 +268,17 @@ As the user types into the composition field:
     | :--- | :--- | :--- | :--- |
     | A | `speller/alphabet` had no digits, so **no code was reachable**: every query deployed cleanly and returned an empty menu, because the `4` in `shi4` was swallowed as a candidate-selection key. | `PREEDIT shi4 → shi`; `luna_pinyin` answers the same query through the same harness; `grep -c -P '\t[a-z]+[1-5]' luna_pinyin.dict.yaml` → 0 | Fixed |
     | B | The traditional scheme never loaded: `Include(pinyinduck.schema://)` names a *built* schema, and both schemes compile in the same pass. | `config_compiler.cc:437-438` — the form is `__include: filename[.yaml]:/path`. `pinyinduck.schema.yaml:/` → 0 errors, `pinyinduck:/` → 2 | Fixed |
-    | C | **The gloss cannot reach the candidate list.** | `RawDictEntry` is text/code/weight; `EntryCollector` never reads a comment column at 1.11.2, 1.12.0, 1.13.0, 1.13.1 or master. The only comment source is `script_translator.cc:455`, which sets it to the original spelling, and only when `cand.code().size() <= spelling_hints()` (default 0). With `spelling_hints: 10` the comment is `shi4` — identical for all five homophones | **Open — needs a decision** |
-    | D | 880 `Encode failure` lines in the log, and 157 unencodable readings of our own. | The 880 were librime seeding its user dictionary from its own `data/minimal/essay.txt`, whose rows are number readings (`二〇〇九`, `七〇`); the verifier now stages only `default.yaml` and `symbols.yaml` and passes a filtered shared directory. The 157 are ours — `coser`, `pua`, `a b zhi4`, `bai3ke4` — and are now rejected at build time | Fixed |
+    | C | **The gloss cannot reach the candidate list.** | `RawDictEntry` is text/code/weight; `EntryCollector` never reads a comment column at 1.11.2, 1.12.0, 1.13.0, 1.13.1 or master. The only comment source is `script_translator.cc:455`, which sets it to the original spelling, and only when `cand.code().size() <= spelling_hints()` (default 0). With `spelling_hints: 10` the comment is `shi` — identical for all five homophones | **Fixed** — a Lua filter reads a generated sidecar and attaches the definition |
+    | D | 880 `Encode failure` lines in the log, and 17 unencodable readings of our own. | The 880 were librime seeding its user dictionary from its own `data/minimal/essay.txt`, whose rows are number readings (`二〇〇九`, `七〇`); the verifier now stages only `default.yaml` and `symbols.yaml` and passes a filtered shared directory. The 17 are ours — `bai3ke4`, `11 qu1` — and are now rejected at build time | Fixed |
 
-    The alphabet fix alters the UX contract — a number typed while composing extends the
-    syllable rather than selecting a candidate, so selection is `-`/`=`/Tab/Return — and was
-    applied without waiting for sign-off, because without it *every* query returns nothing
-    and nothing else could be checked. It is called out here and in
-    `packages/windows/README.md` §"Why the digits are in the alphabet" rather than buried.
-    A user typing `nihao` gets nothing; `ni3hao3` works. `shi` and `sh` still work, because
-    completion is a prefix match — the digit is needed in the *code*, not in every keystroke.
+    The toneless codes alter the UX contract in the *opposite* direction from defect A: a
+    number typed while composing now **selects** a candidate rather than extending the
+    syllable, because the dictionary's codes carry no tone digits and `speller/alphabet` has
+    none either. That is the behaviour the rest of PinyinDuck already has. It is called out
+    here and in `packages/windows/README.md` §"Why the codes are toneless" rather than
+    buried. A user typing `shi` gets every tone, merged and ordered by frequency, and `2`
+    commits 十; `nihao` reaches 你好 because the code is `ni hao` and the space delimiter
+    never has to appear mid-word.
 
     Two smaller fixes fell out of the same work. A reading CC-CEDICT gives as
     `a, b, c` is now split into one row per reading, because a Rime code is a single
@@ -301,10 +302,10 @@ Re-measured on the `pinyin-typeduck-windows` branch after Step 11b:
 | --- | --- | --- |
 | Core unit tests | `npm test -w @pinyinduck/core` | 13 files, 248 tests passed |
 | Core coverage | `npm run test:coverage -w @pinyinduck/core` | gate passes (exit 0) |
-| Windows unit tests + corpus sweep | `npm test -w @pinyinduck/windows` | 6 files, 198 tests passed, including 246,394 emitted rows |
+| Windows unit tests + corpus sweep | `npm test -w @pinyinduck/windows` | 6 files, 212 tests passed, including 245,421 emitted rows |
 | Windows coverage | `npm run test:coverage -w @pinyinduck/windows` | 98.89% statements, 98.57% branches, 100% functions; gate passes (exit 0) |
-| Rime dictionary build | `npm run build:rime` | 123,203 rows simplified, 123,191 traditional (12 duplicate collapses), 157 unreadable readings rejected, ~1s |
-| Rime against a real engine | `npm run test:rime` | librime 1.13.1 built from source; 6 of 7 queries as pinned, 1 declared known gap, no `Encode failure` in the log |
+| Rime dictionary build | `npm run build:rime` | 122,687 rows simplified, 122,734 traditional (656 + 609 duplicate collapses), 17 unreadable readings rejected, ~1s |
+| Rime against a real engine | `npm run test:rime` | librime 1.13.1 built from source; 8 of 8 queries as pinned, no known gap, no `Encode failure` in the log |
 | End-to-end tests | `npm run test:e2e` | 72 tests passed |
 | Lint | `npm run lint` | 0 warnings, 0 errors |
 
@@ -351,9 +352,9 @@ Re-measured on the `pinyin-typeduck-windows` branch after Step 11b:
 >    real engine, so a difference between that table and the screen is a Windows-side
 >    fault — but the integration itself is only checkable on the host, which has no Rime
 >    installed.
-> 2. **The gloss (defect C above).** It needs a product decision, not more engineering:
->    a Lua filter over the emitted `comment` column, which Weasel can already load, or
->    dropping the definition from the Windows client. The `knownGap` in
->    `src/rime-verify.ts` is where the answer lands.
+> 2. **The gloss (defect C above).** Delivered by a Lua filter over a generated sidecar,
+>    which Weasel can already load. The `knownGap` mechanism in `src/rime-verify.ts` is
+>    retained for the next promise this build cannot keep, but the gloss gap itself is
+>    closed: the first candidate of `shi` carries its definition.
 
 

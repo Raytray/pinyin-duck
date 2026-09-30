@@ -11,8 +11,8 @@
 #
 # Everything lands under tools/.local/ and tools/librime/, both gitignored. Nothing is
 # installed, nothing is written outside the package, and no step needs sudo: cmake comes
-# from a PyPI wheel and Boost from .deb files fetched with `apt-get download` and
-# unpacked with `dpkg-deb -x`.
+# from a PyPI wheel and Boost and LuaJIT from .deb files fetched with `apt-get download`
+# and unpacked with `dpkg-deb -x`.
 #
 # Usage:
 #   npm run setup:rime        # from the repository root
@@ -38,6 +38,11 @@ LIBRIME_LIB="${LIBRIME_BUILD}/lib"
 HARNESS="${PREFIX}/bin/rime_smoke"
 DEB_DIR="${PREFIX}/debs"
 BOOST_DIR="${PREFIX}/boost"
+# LuaJIT and its pkg-config, unpacked from .deb files like Boost. The schema's
+# `lua_filter@pinyinduck_gloss_filter` needs librime's lua plugin, which links against
+# LuaJIT; this is what makes pkg-config find it.
+LUAJIT_DIR="${PREFIX}/luajit"
+LUAJIT_LIB="${LUAJIT_DIR}/usr/lib/x86_64-linux-gnu"
 
 # librime's own dependency build shells out to `cmake` by name, so the wheel's copy has
 # to be on PATH before it runs.
@@ -141,6 +146,56 @@ ensure_boost() {
 }
 
 # --------------------------------------------------------------------------------------
+# LuaJIT and pkg-config, from .deb files, for librime's lua plugin
+# --------------------------------------------------------------------------------------
+ensure_luajit() {
+  if [[ -f "${LUAJIT_LIB}/libluajit-5.1.so.2" && -x "${LUAJIT_DIR}/usr/bin/pkg-config" ]]; then
+    info "luajit + pkg-config: cached in ${LUAJIT_DIR}"
+    return
+  fi
+
+  step "Fetching LuaJIT and pkg-config"
+  mkdir -p "${DEB_DIR}" "${LUAJIT_DIR}"
+  (
+    cd "${DEB_DIR}"
+    # The runtime package supplies the real .so that the -dev package symlinks to; both
+    # are needed to link and then to load the harness.
+    apt-get download -q \
+      "luajit" \
+      "libluajit-5.1-2" \
+      "libluajit-5.1-dev" \
+      "pkg-config" \
+      || die "Could not download the LuaJIT and pkg-config packages."
+    for deb in ./*.deb; do dpkg-deb -x "${deb}" "${LUAJIT_DIR}"; done
+  )
+
+  # The .deb files record /usr as their install prefix; rewrite luajit.pc to the local one
+  # so pkg-config reports the headers and library under ${LUAJIT_DIR}.
+  local pc="${LUAJIT_LIB}/pkgconfig/luajit.pc"
+  [[ -f "${pc}" ]] || die "luajit.pc is missing from ${LUAJIT_DIR}."
+  sed -i "s|^prefix=.*|prefix=${LUAJIT_DIR}/usr|" "${pc}"
+  info "luajit: ${LUAJIT_LIB}"
+  info "pkg-config: ${LUAJIT_DIR}/usr/bin/pkg-config"
+}
+
+# --------------------------------------------------------------------------------------
+# librime's lua plugin, which is a separate repo and not part of its tree
+# --------------------------------------------------------------------------------------
+ensure_librime_lua() {
+  # The plugin is what makes the schema's `lua_filter@pinyinduck_gloss_filter`
+  # constructible. It is not a submodule of librime, so `--recursive` does not fetch it.
+  if [[ -d "${LIBRIME_DIR}/plugins/lua/src" ]]; then
+    info "librime-lua plugin: ${LIBRIME_DIR}/plugins/lua (cached)"
+    return
+  fi
+  step "Cloning the librime-lua plugin"
+  command -v git >/dev/null || die "git is required to fetch the lua plugin."
+  git clone --quiet --depth 1 \
+    https://github.com/hchunhui/librime-lua.git "${LIBRIME_DIR}/plugins/lua"
+  info "librime-lua plugin: ${LIBRIME_DIR}/plugins/lua"
+}
+
+# --------------------------------------------------------------------------------------
 # librime itself, at the tag Weasel bundles
 # --------------------------------------------------------------------------------------
 ensure_librime() {
@@ -199,6 +254,11 @@ build_librime() {
   step "Building librime ${RIME_TAG}"
   local boost_libdir
   boost_libdir="$(cat "${PREFIX}/boost-libdir")"
+  # The lua plugin's CMakeLists does `pkg_check_modules(LUA ...)`, trying `lua lua54 lua53
+  # lua52 luajit lua51` in turn. Point pkg-config at the unpacked LuaJIT so `luajit` resolves;
+  # without this the plugin silently skips building and the schema's lua_filter is absent.
+  export PKG_CONFIG_EXECUTABLE="${LUAJIT_DIR}/usr/bin/pkg-config"
+  export PKG_CONFIG_PATH="${LUAJIT_LIB}/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
   "${PREFIX}/bin/cmake" -S "${LIBRIME_DIR}" -B "${LIBRIME_BUILD}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=ON \
@@ -207,6 +267,7 @@ build_librime() {
     -DBUILD_STATIC=OFF \
     -DBUILD_MERGED_PLUGINS=ON \
     -DENABLE_LOGGING=ON \
+    -DPKG_CONFIG_EXECUTABLE="${PKG_CONFIG_EXECUTABLE}" \
     -DBOOST_ROOT="${BOOST_DIR}/usr" \
     -DBOOST_LIBRARYDIR="${boost_libdir}" \
     -DBoost_NO_SYSTEM_PATHS=ON \
@@ -240,14 +301,17 @@ build_harness() {
     -I "${LIBRIME_DIR}/src" \
     -L "${LIBRIME_LIB}" -lrime \
     -Wl,-rpath,"${LIBRIME_LIB}" \
-    -Wl,-rpath,"${boost_libdir}"
+    -Wl,-rpath,"${boost_libdir}" \
+    -Wl,-rpath,"${LUAJIT_LIB}"
   info "harness: ${HARNESS}"
 }
 
 step "Bootstrapping a headless librime ${RIME_TAG} (no sudo, nothing installed)"
 ensure_cmake
 ensure_boost
+ensure_luajit
 ensure_librime
+ensure_librime_lua
 build_librime_deps
 build_librime
 build_harness

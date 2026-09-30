@@ -42,11 +42,15 @@ function fakeLibrimeData(root: string): void {
 /** A stand-in for `packages/windows/rime`, with the two dictionaries present. */
 function fakeRimeDir(root: string): void {
   fs.mkdirSync(root, { recursive: true });
-  fs.writeFileSync(path.join(root, 'pinyinduck.dict.yaml'), '是\tshi4\t0\n', 'utf8');
-  fs.writeFileSync(path.join(root, 'pinyinduck_trad.dict.yaml'), '是\tshi4\t0\n', 'utf8');
+  fs.writeFileSync(path.join(root, 'pinyinduck.dict.yaml'), '是\tshi\t0\n', 'utf8');
+  fs.writeFileSync(path.join(root, 'pinyinduck_trad.dict.yaml'), '是\tshi\t0\n', 'utf8');
   fs.writeFileSync(path.join(root, 'pinyinduck.schema.yaml'), 'schema:\n', 'utf8');
   fs.writeFileSync(path.join(root, 'pinyinduck_trad.schema.yaml'), 'schema:\n', 'utf8');
   fs.writeFileSync(path.join(root, 'default.custom.yaml'), 'patch:\n', 'utf8');
+  // The Lua gloss filter and the sidecar it reads, which the schema's `lua_filter` needs.
+  fs.writeFileSync(path.join(root, 'rime.lua'), 'pinyinduck_gloss_filter = function() end\n', 'utf8');
+  fs.mkdirSync(path.join(root, 'lua'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'lua/pinyinduck_gloss.lua'), 'return {}\n', 'utf8');
   // A compiled build directory, which must never be staged.
   fs.mkdirSync(path.join(root, 'build'), { recursive: true });
   fs.writeFileSync(path.join(root, 'build/pinyinduck.table.bin'), 'binary', 'utf8');
@@ -78,10 +82,12 @@ describe('staging a Rime user directory', () => {
     expect(sortedNames(target)).toEqual([
       'default.custom.yaml',
       'default.yaml',
+      'lua',
       'pinyinduck.dict.yaml',
       'pinyinduck.schema.yaml',
       'pinyinduck_trad.dict.yaml',
       'pinyinduck_trad.schema.yaml',
+      'rime.lua',
       'symbols.yaml',
     ]);
   });
@@ -340,12 +346,21 @@ describe('a deploy that never finishes', () => {
  */
 function writeStubHarness(dir: string, opts: { breakFor?: string } = {}): string {
   const p = path.join(dir, 'stub-harness.js');
-  // `shi4` is queried twice, once for its candidate list and once for its gloss, and a
-  // real engine answers both occurrences identically. Keying by query and keeping the
-  // longest expectation models that: one menu, emitted as often as it is asked for.
-  const table: Record<string, string[]> = {};
+  // One entry per query: the candidates to emit, an optional comment on the first, an
+  // optional commit, and an optional preedit. A query ending in a digit selects and
+  // commits, so the stub emits the COMMITTED record the case pins; when the selection
+  // covers only part of the input, it emits the resulting preedit instead.
+  const table: Record<
+    string,
+    { candidates: string[]; comment?: string; commit?: string; preedit?: string }
+  > = {};
   for (const c of SMOKE_CASES) {
-    if (!table[c.query] || c.expect.length > table[c.query].length) table[c.query] = c.expect;
+    table[c.query] = {
+      candidates: c.expect ?? [],
+      comment: c.expectComment ? c.expectComment[0] : undefined,
+      commit: c.expectCommit,
+      preedit: c.expectPreedit,
+    };
   }
   fs.writeFileSync(
     p,
@@ -354,17 +369,18 @@ const [userDir, sharedDir, schema, ...queries] = process.argv.slice(2);
 const out = [];
 out.push(['SCHEMA_LIST', 'pinyinduck,pinyinduck_trad'].join('\\t'));
 out.push(['SCHEMA', schema, 'ok'].join('\\t'));
+const table = ${JSON.stringify(table)};
 for (const q of queries) {
-  out.push(['PREEDIT', q, q].join('\\t'));
+  const entry = table[q];
+  if (!entry) continue;
+  out.push(['PREEDIT', q, ${JSON.stringify(opts.breakFor ?? null)} === q ? q : (entry.preedit ?? q)].join('\\t'));
   if (${JSON.stringify(opts.breakFor ?? null)} === q) {
     out.push(['CANDIDATE', q, '0', '错', ''].join('\\t'));
     continue;
   }
-  const expected = ${JSON.stringify(table)}[q];
-  if (!expected) continue;
-  // The comment is always empty, which is the known gap: librime echoes the code, and the
-  // code says nothing an entry in this table would accept.
-  expected.forEach((text, i) => out.push(['CANDIDATE', q, String(i), text, ''].join('\\t')));
+  entry.candidates.forEach((text, i) =>
+    out.push(['CANDIDATE', q, String(i), text, i === 0 && entry.comment ? entry.comment : ''].join('\\t')));
+  if (entry.commit) out.push(['COMMITTED', q, entry.commit].join('\\t'));
 }
 process.stdout.write(out.join('\\n') + '\\n');
 if (process.env.STUB_STDERR) process.stderr.write(process.env.STUB_STDERR);
@@ -407,28 +423,27 @@ describe('verifyRime end to end, against a stub harness', () => {
 
     expect(result.ok).toBe(true);
     expect(result.skipped).toBe(false);
-    // A green run that only says "6 of 7 passed" is a green run nobody trusts, so the
+    // A green run that only says "8 of 8 passed" is a green run nobody trusts, so the
     // candidates themselves are printed.
-    expect(result.output).toMatch(/6 of 7 queries behaved as pinned/);
-    expect(result.output).toMatch(/是 试 事 室 式/);
-    expect(result.output).toMatch(/pinyinduck_trad\s+zhong1guo2\s+中國/);
+    expect(result.output).toMatch(/8 of 8 queries behaved as pinned/);
+    expect(result.output).toMatch(/是 十 使 试 诗/);
+    expect(result.output).toMatch(/pinyinduck_trad\s+zhongguo\s+中國/);
   });
 
-  it('reports the known gloss gap without failing the suite', () => {
-    // The gap lives in code next to the assertion rather than in a document, so it cannot
-    // quietly go stale: a run that still cannot show a gloss says so every time.
+  it('delivers the gloss, so the run reports no known gap', () => {
+    // The gloss was the last known gap: librime has no definition field, so the comment
+    // fell back to echoing the code. The Lua filter closes it, so a green run has no gap.
     const result = run(writeStubHarness(tmp));
     expect(result.ok).toBe(true);
-    expect(result.output).toMatch(/known gap/i);
-    expect(result.output).toMatch(/English definition/);
+    expect(result.output).not.toMatch(/known gap/i);
   });
 
   it('fails when a query returns the wrong candidates', () => {
     // This is the whole point of running a real engine: a candidate list that drifts from
     // what the dictionary says still compiles, and only a typed query can see it.
-    const result = run(writeStubHarness(tmp, { breakFor: 'lv4' }));
+    const result = run(writeStubHarness(tmp, { breakFor: 'lv' }));
     expect(result.ok).toBe(false);
-    expect(result.output).toMatch(/lv4/);
+    expect(result.output).toMatch(/lv/);
   });
 
   it('fails on an error librime logged, and quotes the line', () => {
@@ -571,7 +586,7 @@ describe('main', () => {
 
   it('sets a failing exit code when a query is wrong', async () => {
     await main([], {
-      harnessPath: writeStubHarness(tmp, { breakFor: 'lv4' }),
+      harnessPath: writeStubHarness(tmp, { breakFor: 'lv' }),
       sharedDataDir: librimeData,
       rimeDir,
     });

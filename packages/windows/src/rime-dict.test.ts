@@ -73,50 +73,58 @@ describe('sanitizeField', () => {
 });
 
 describe('rimeCodes', () => {
-  it('passes an ordinary reading through unchanged', () => {
-    expect(rimeCodes('ni3 hao3')).toEqual(['ni3 hao3']);
+  it('strips the tone digits, so a code is reachable by its plain spelling', () => {
+    // A tone digit in the code would make the digit a *spelling* key, so `shi2` would be the
+    // only way to reach 是 and a learner pressing `2` to pick the second candidate would be
+    // spelling a tone. Stripping them makes every code reachable by its plain spelling and
+    // turns the digit keys into candidate selectors.
+    expect(rimeCodes('ni3 hao3')).toEqual(['ni hao']);
+    expect(rimeCodes('shi4')).toEqual(['shi']);
   });
 
   it('accepts ü, which the dictionary spells and the schema rewrites back to v', () => {
-    expect(rimeCodes('lü4')).toEqual(['lü4']);
-    expect(rimeCodes('nüe4')).toEqual(['nüe4']);
+    expect(rimeCodes('lü4')).toEqual(['lü']);
+    expect(rimeCodes('nüe4')).toEqual(['nüe']);
   });
 
-  it('accepts the neutral tone', () => {
-    expect(rimeCodes('zi3 r5')).toEqual(['zi3 r5']);
+  it('accepts the neutral tone, so 儿化 words stay reachable', () => {
+    // `r5` → `r`: the web's cleanPinyin keeps it, so rejecting it here would make Windows
+    // less capable than the web for the same corpus.
+    expect(rimeCodes('zi3 r5')).toEqual(['zi r']);
+    expect(rimeCodes('ai1 bian1 r5')).toEqual(['ai bian r']);
   });
 
   it('splits an entry that carries two alternative readings', () => {
     // Both of these come out of the corpus verbatim. Passed through as one code, librime
     // reports `Encode failure` and the word is unreachable under either reading.
-    expect(rimeCodes('ai1 de2 hua2 · da2 la1 di4')).toEqual(['ai1 de2 hua2', 'da2 la1 di4']);
-    expect(rimeCodes('bei1 zhi1 , wu2 shen4')).toEqual(['bei1 zhi1', 'wu2 shen4']);
+    expect(rimeCodes('ai1 de2 hua2 · da2 la1 di4')).toEqual(['ai de hua', 'da la di']);
+    expect(rimeCodes('bei1 zhi1 , wu2 shen4')).toEqual(['bei zhi', 'wu shen']);
   });
 
   it('tolerates the spacing around a separator', () => {
-    expect(rimeCodes('ni3  ,  hao3')).toEqual(['ni3', 'hao3']);
-    expect(rimeCodes('ni3,hao3')).toEqual(['ni3', 'hao3']);
+    expect(rimeCodes('ni3  ,  hao3')).toEqual(['ni', 'hao']);
+    expect(rimeCodes('ni3,hao3')).toEqual(['ni', 'hao']);
   });
 
   it('collapses repeated separators instead of emitting an empty reading', () => {
-    expect(rimeCodes('ni3,,,hao3')).toEqual(['ni3', 'hao3']);
-    expect(rimeCodes(',ni3,')).toEqual(['ni3']);
+    expect(rimeCodes('ni3,,,hao3')).toEqual(['ni', 'hao']);
+    expect(rimeCodes(',ni3,')).toEqual(['ni']);
   });
 
-  it('rejects a reading whose syllable has no tone digit', () => {
-    // `a b zhi4` is how an entry with a bare initial ended up: "A" as a syllable is not a
-    // syllable, so the whole code is unreachable no matter how it is spelled.
-    expect(rimeCodes('a b zhi4')).toEqual([]);
-    expect(rimeCodes('a')).toEqual([]);
+  it('accepts a bare initial that is letters-only, matching the web', () => {
+    // `a b zhi4` and `a` are how entries with bare initials ended up. The web's cleanPinyin
+    // keeps any run of letters, so rejecting them here would break parity.
+    expect(rimeCodes('a b zhi4')).toEqual(['a b zhi']);
+    expect(rimeCodes('a')).toEqual(['a']);
   });
 
-  it('rejects romanised English that leaked into the pinyin column', () => {
-    // Real readings, quoted from the corpus. Each of these was an `Encode failure` in
-    // librime's log before rimeCodes existed.
-    expect(rimeCodes('coser')).toEqual([]);
-    expect(rimeCodes('t o n y')).toEqual([]);
-    expect(rimeCodes('w o r d jie3')).toEqual([]);
-    expect(rimeCodes('pua')).toEqual([]);
+  it('accepts romanised readings that are letters-only, since the web reaches them too', () => {
+    // These were `Encode failure` under the toned rule because they carried no tone digit.
+    // Toneless, they are ordinary letters-only codes, and the web indexes them the same way.
+    expect(rimeCodes('coser')).toEqual(['coser']);
+    expect(rimeCodes('t o n y')).toEqual(['t o n y']);
+    expect(rimeCodes('w o r d jie3')).toEqual(['w o r d jie']);
+    expect(rimeCodes('pua')).toEqual(['pua']);
   });
 
   it('rejects a syllable with a tone digit but no letter', () => {
@@ -131,21 +139,30 @@ describe('rimeCodes', () => {
   });
 
   it('rejects a code with more than one tone digit in a syllable', () => {
+    // `shi44` → `shi4`: the trailing digit strips, the internal one does not, and a digit
+    // is not a letter.
     expect(rimeCodes('shi44')).toEqual([]);
   });
 
+  it('rejects a squashed code with an internal digit', () => {
+    // `bai3ke4` is two syllables fused with no space; stripping the trailing digit leaves
+    // `bai3ke`, which is not letters. The web reaches it as the key `baike`, but a Rime code
+    // has to be syllable-aligned, and this one is not.
+    expect(rimeCodes('bai3ke4')).toEqual([]);
+  });
+
   it('deduplicates identical readings, so a repeated variant is not a duplicate row', () => {
-    expect(rimeCodes('ni3, ni3 ,ni3')).toEqual(['ni3']);
+    expect(rimeCodes('ni3, ni3 ,ni3')).toEqual(['ni']);
   });
 
   it('returns nothing rather than a partial code when one syllable is bad', () => {
     // Half a code is worse than none: it would look reachable in the corpus sweep while
     // failing to encode at deploy time.
-    expect(rimeCodes('ni3 xxx hao3')).toEqual([]);
+    expect(rimeCodes('ni3 bai3ke4 hao3')).toEqual([]);
   });
 
   it('keeps the good readings and drops the bad one', () => {
-    expect(rimeCodes('ai1 de2 hua2 · w o r d')).toEqual(['ai1 de2 hua2']);
+    expect(rimeCodes('ai1 de2 hua2 · bai3ke4')).toEqual(['ai de hua']);
   });
 });
 
@@ -291,14 +308,14 @@ describe('renderDictHeader', () => {
 
 describe('formatRow', () => {
   it('writes one tab-separated line in the declared column order', () => {
-    const line = formatRow({ text: '你好', code: 'ni3 hao3', comment: 'nǐ hǎo · hello', weight: 21000 });
-    expect(line.split(RIME_FIELD_SEPARATOR)).toEqual(['你好', 'ni3 hao3', 'nǐ hǎo · hello', '21000']);
+    const line = formatRow({ text: '你好', code: 'ni hao', comment: 'nǐ hǎo · hello', weight: 21000 });
+    expect(line.split(RIME_FIELD_SEPARATOR)).toEqual(['你好', 'ni hao', 'nǐ hǎo · hello', '21000']);
   });
 
   it('keeps the weight an integer, since nothing sorts on its scale', () => {
     // Rime stores log(weight) and only ever compares it, but a fractional weight would
     // reintroduce ties the entry ordering above exists to remove.
-    const line = formatRow({ text: '坱', code: 'wu3', comment: '', weight: rimeWeight(entry({ key: 'wu', pinyinNumbers: 'wu3' })) });
+    const line = formatRow({ text: '坱', code: 'wu', comment: '', weight: rimeWeight(entry({ key: 'wu', pinyinNumbers: 'wu3' })) });
     expect(line.endsWith('\t0')).toBe(true);
   });
 
@@ -329,8 +346,8 @@ describe('rowsForCode', () => {
     const qian = entry({ key: 'gan', simplified: '乾', traditional: '乾', pinyinNumbers: 'gan1', frequency: 500 });
     const { rows, duplicates } = rowsForCode(
       [
-        { entry: qian, code: 'gan1' },
-        { entry: gan, code: 'gan1' },
+        { entry: qian, code: 'gan' },
+        { entry: gan, code: 'gan' },
       ],
       'traditional'
     );
@@ -342,7 +359,7 @@ describe('rowsForCode', () => {
 
   it('skips an entry with no text for the script', () => {
     const { rows } = rowsForCode(
-      [{ entry: entry({ simplified: '', pinyinNumbers: 'ni3' }), code: 'ni3' }],
+      [{ entry: entry({ simplified: '', pinyinNumbers: 'ni3' }), code: 'ni' }],
       'simplified'
     );
     expect(rows).toEqual([]);
@@ -354,8 +371,8 @@ describe('rowsForCode', () => {
     const ni = entry({ simplified: '你', pinyinNumbers: 'ni3' });
     const { rows, duplicates } = rowsForCode(
       [
-        { entry: ni, code: 'ni3' },
-        { entry: ni, code: 'ni3' },
+        { entry: ni, code: 'ni' },
+        { entry: ni, code: 'ni' },
       ],
       'simplified'
     );
@@ -370,13 +387,13 @@ describe('RimeDictWriter', () => {
       entry({ key: 'ni', simplified: '你', pinyinNumbers: 'ni3', frequency: 100000 }),
       entry({ key: 'hao', simplified: '好', pinyinNumbers: 'hao3', frequency: 100000 }),
     ]);
-    expect(rows.map((row) => row.code)).toEqual(['ni3', 'hao3']);
+    expect(rows.map((row) => row.code)).toEqual(['ni', 'hao']);
   });
 
-  it('orders each code when one key block interleaves its tones', () => {
+  it('merges every tone of one spelling into a single menu, weight-ordered', () => {
     // The tree sorts a key by frequency, not by reading, so the tones of one key arrive
-    // interleaved. A Rime menu is per code, so each has to be sorted on its own or the
-    // rare homophones would keep the scan order Rime then preserves.
+    // interleaved. Toneless, they are all one code — one menu — so the whole block has to be
+    // weight-sorted together or the rare homophones would keep the scan order Rime preserves.
     const { rows } = collect([
       entry({ key: 'shi', simplified: '市', pinyinNumbers: 'shi4', frequency: 98290 }),
       entry({ key: 'shi', simplified: '史', pinyinNumbers: 'shi3', frequency: 90000 }),
@@ -385,13 +402,9 @@ describe('RimeDictWriter', () => {
       entry({ key: 'shi', simplified: '是', pinyinNumbers: 'shi4', frequency: 244325 }),
     ]);
 
-    // Codes are emitted in ascending order inside the block; each is weight-sorted.
-    expect(rows.map((row) => row.code)).toEqual(['shi1', 'shi3', 'shi4', 'shi4', 'shi4']);
-    expect(rows.filter((row) => row.code === 'shi4').map((row) => row.text)).toEqual([
-      '是',
-      '试',
-      '市',
-    ]);
+    // One code, five candidates, most frequent first — the digit keys now select among them.
+    expect(rows.map((row) => row.code)).toEqual(['shi', 'shi', 'shi', 'shi', 'shi']);
+    expect(rows.map((row) => row.text)).toEqual(['是', '试', '市', '史', '师']);
   });
 
   it('emits the highest weighted entry first within a code', () => {
@@ -430,7 +443,7 @@ describe('RimeDictWriter', () => {
         pinyinNumbers: 'ai1 de2 hua2 · da2 la1 di4',
       }),
     ]);
-    expect(rows.map((row) => row.code)).toEqual(['ai1 de2 hua2', 'da2 la1 di4']);
+    expect(rows.map((row) => row.code)).toEqual(['ai de hua', 'da la di']);
     expect(rows.map((row) => row.text)).toEqual(['爱', '爱']);
   });
 
@@ -440,7 +453,7 @@ describe('RimeDictWriter', () => {
       entry({ key: 'aidehua', simplified: '爱', pinyinNumbers: 'ai1 de2 · da2 la1' }),
       entry({ key: 'ni', simplified: '你', pinyinNumbers: 'ni3' }),
     ]);
-    expect(rows.map((row) => row.code).sort()).toEqual(['ai1 de2', 'da2 la1', 'ni3']);
+    expect(rows.map((row) => row.code).sort()).toEqual(['ai de', 'da la', 'ni']);
   });
 
   it('counts an unreadable reading separately from a missing text', () => {
@@ -448,7 +461,7 @@ describe('RimeDictWriter', () => {
     // entry that simply has no form in this script. Merging them would hide which.
     const { rows, writer } = collect([
       entry({ key: 'ni', simplified: '你', pinyinNumbers: 'ni3' }),
-      entry({ key: 'pua', simplified: '帅', pinyinNumbers: 'pua' }),
+      entry({ key: 'baike', simplified: '兡', pinyinNumbers: 'bai3ke4' }),
       entry({ key: 'ni', simplified: '', pinyinNumbers: 'ni3' }),
     ]);
     expect(writer.unencodableCount).toBe(1);
@@ -460,10 +473,10 @@ describe('RimeDictWriter', () => {
     // Dropping the whole entry would lose a good reading over a bad neighbour. Only the
     // reading that cannot be encoded is dropped.
     const { rows, writer } = collect([
-      entry({ key: 'aidehua', simplified: '爱', pinyinNumbers: 'ai1 de2 hua2 · w o r d' }),
+      entry({ key: 'aidehua', simplified: '爱', pinyinNumbers: 'ai1 de2 hua2 · bai3ke4' }),
     ]);
     expect(writer.unencodableCount).toBe(0);
-    expect(rows.map((row) => row.code)).toEqual(['ai1 de2 hua2']);
+    expect(rows.map((row) => row.code)).toEqual(['ai de hua']);
   });
 
   it('is safe to finish twice, so a caller cannot double the last group', () => {
@@ -539,7 +552,7 @@ describe('a whole dictionary', () => {
     const { rows } = await emitFromAsset(CORPUS);
     // 你好 outranks the rarer 拟好 on the same reading, while 你 sits in its own menu
     // because it is a different (shorter) code.
-    expect(rows.filter((row) => row.code === 'ni3 hao3').map((row) => row.text)).toEqual([
+    expect(rows.filter((row) => row.code === 'ni hao').map((row) => row.text)).toEqual([
       '你好',
       '拟好',
     ]);

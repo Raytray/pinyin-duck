@@ -6,10 +6,9 @@
 # guess.
 #
 # Two things about this schema are worth reading before changing either. One is that
-# `speller/alphabet` below contains the digits, and why. The other is that no candidate
-# carries an English definition, which is a limit of the Rime dictionary format rather
-# than a choice here — see the note on `always_show_comments` and ../README.md,
-# "What Rime cannot show".
+# `speller/alphabet` below has no digits, and why. The other is how the English definition
+# reaches the candidate list, which is a Lua filter rather than a dictionary field — see
+# the note on `filters` and ../README.md, "Where the definition comes from".
 #
 # The dictionary this schema reads is generated from @pinyinduck/core, not hand-written:
 #
@@ -58,29 +57,34 @@ engine:
     - reverse_lookup_translator
     - script_translator
   filters:
+    # The gloss filter puts the English definition on each candidate, looking it up in the
+    # generated lua/pinyinduck_gloss.lua by (text, code). It runs before the uniquifier so
+    # the definition survives deduplication. Without librime-lua, or without the sidecar,
+    # the filter is absent and candidates show their spelling instead — the schema still
+    # works, it just has no definitions.
+    - lua_filter@pinyinduck_gloss_filter
     - uniquifier
 
 speller:
-  # The digits are load-bearing, and were not in an earlier revision of this file.
+  # The alphabet has no digits, and that is the whole point.
   #
-  # The generated dictionary spells every reading with its tone digit (`shi4`, `ni3 hao3`),
-  # and a code is only reachable if every character in it is in the alphabet: the speller
-  # matches whole syllables, so with the digits excluded there is no input that can ever
-  # reach any row. Verified against librime 1.13.1 — with a digit-free alphabet this schema
-  # deploys cleanly and returns an *empty* candidate list for every query, because the `4`
-  # in `shi4` is swallowed as a candidate-selection key instead of being part of the code.
+  # The generated dictionary spells every reading without its tone digit (`shi`, `ni hao`),
+  # so a code is only reachable if every character in it is in the alphabet. A digit typed
+  # while composing is therefore not part of any code — it falls through to the selector,
+  # which is what makes a number select the candidate under it. That is the behaviour the
+  # rest of PinyinDuck already has, and it is why the codes are toneless in the first place.
   #
-  # The cost is real and deliberate: a number typed while composing extends the syllable
-  # instead of selecting a candidate, so selection is done with `-`/`=` or Tab/Return.
-  # That trade is only sound because a code Rime cannot reach is worth nothing at all.
+  # The cost of putting digits back would be real: a number typed while composing would
+  # extend the syllable instead of selecting a candidate, so `shi2` would spell a tone
+  # rather than pick the second candidate. With them absent, `shi` reaches every tone and
+  # the digit keys choose among them.
   #
-  # Note what it does *not* cost, because the two are easy to confuse. Completion below is
-  # a prefix match, so a tone is never required to start with: `shi` reaches `shi4` and
-  # offers every tone, and `sh` reaches the lot. What a missing digit does cost is
-  # multi-syllable words — `nihao` is not a prefix of `ni3 hao3`, because the space
-  # delimiter cannot appear inside a word, so the first syllable's tone is what makes
-  # `ni3hao3` reachable at all.
-  alphabet: zyxwvutsrqponmlkjihgfedcba0123456789
+  # Note what the digit-free alphabet does *not* cost. Completion below is a prefix match,
+  # so a tone is never required to start with: `shi` reaches `shi` and offers every tone,
+  # and `sh` reaches the lot. What it does cost is nothing — multi-syllable words work
+  # because the codes are toneless, so `nihao` is a prefix of `ni hao` and the space
+  # delimiter never has to appear inside a word.
+  alphabet: zyxwvutsrqponmlkjihgfedcba
   delimiter: " '"
   algebra:
     # The generated dictionary spells ü the standard way (lü4, nüe4); this is what lets
@@ -114,16 +118,21 @@ translator:
   # The longest run of pinyin treated as a single word. CC-CEDICT has a handful of
   # 10-syllable entries and nothing a learner types needs more.
   max_word_length: 10
-  # Show the spelling on every candidate rather than only on the selected one.
+  # How many characters of a candidate's code to echo as its comment. The gloss filter
+  # overwrites that comment with the definition, so this only decides what shows when the
+  # lookup misses — the spelling, which is the useful fallback. 10 covers every code the
+  # dictionary emits.
+  spelling_hints: 10
+  # Show a comment on every candidate rather than only on the selected one.
   #
-  # Note what this cannot do: librime's dictionary format has no field for a definition
+  # The comment is the English definition, put there by the `lua_filter` above from the
+  # generated sidecar. librime's dictionary format has no field for a definition
   # (`RawDictEntry` is text/code/weight, and `EntryCollector` never reads a comment column
-  # at any version, including master), so `always_show_comments` falls back to showing the
-  # candidate's own code back to the user — `shi4`, identical for all five of 是 试 事 室 式,
-  # and carrying none of the English gloss. `spelling_hints` is left at its default of 0,
-  # which is what makes that echo appear at all. The column is still written to the
-  # dictionary, so a librime that grows one will deliver it without a rebuild.
-  # See ../README.md, "What Rime cannot show".
+  # at any version, including master), so without that filter this would fall back to
+  # showing the candidate's own code back to the user — `shi`, identical for all five of
+  # 是 试 事 室 式, and carrying none of the English gloss. The column is still written to
+  # the dictionary, so a librime that grows a definition field will deliver it without a
+  # rebuild. See ../README.md, "Where the definition comes from".
   always_show_comments: true
   preedit_format:
     # Echo the standard spelling of what was typed as v.

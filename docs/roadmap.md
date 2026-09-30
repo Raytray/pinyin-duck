@@ -40,8 +40,8 @@ To give Mandarin learners feedback anywhere in Windows (Notepad, Word, Discord, 
 1. **Windows Text Services Framework (TSF)**:
    - Rather than authoring a COM C++ TSF driver from scratch, utilize the battle-tested **Rime (Weasel / 小狼毫)** framework.
 2. **Schema & Dictionary Generation**:
-   - `packages/windows/scripts/build-rime-dict.ts` walks the shared B+ tree and emits `pinyinduck.dict.yaml` (123,203 rows) and `pinyinduck_trad.dict.yaml` (123,191 rows), where the comment column of each entry carries its tone marks and concise CC-CEDICT English definition.
-   - `pinyinduck.schema.yaml` sets `always_show_comments: true`, and puts the digits **into** `speller/alphabet` — the opposite of the original design, and the reason is below.
+   - `packages/windows/scripts/build-rime-dict.ts` walks the shared B+ tree and emits `pinyinduck.dict.yaml` (122,687 rows), `pinyinduck_trad.dict.yaml` (122,734 rows) and `lua/pinyinduck_gloss.lua` (197,268 definitions), where the comment column of each entry carries its tone marks and concise CC-CEDICT English definition.
+   - `pinyinduck.schema.yaml` sets `always_show_comments: true`, keeps the digits **out of** `speller/alphabet`, and references a `lua_filter` that puts the definition on each candidate — see below.
    - The traditional scheme uses CC-CEDICT's own traditional column rather than converting with OpenCC at runtime, so 中国 is offered as 中國 because that is what the source says.
 3. **Why this won.** The Windows client is a real, registered IME, so the OS already handles activation, focus, composing strings and per-app compatibility. That leaves the work being the part that is PinyinDuck's: the dictionary and the ranking, both of which come from `@pinyinduck/core` unchanged. It also builds and is tested from this WSL checkout — Approach A cannot be compiled or verified here at all, because neither the WSL side nor the Windows host has a Rust toolchain or MSVC.
 
@@ -51,21 +51,20 @@ To give Mandarin learners feedback anywhere in Windows (Notepad, Word, Discord, 
 sudo, and `npm run test:rime` types into it. The first run of that check contradicted two
 things written above:
 
-- **The digits could not be left out of `speller/alphabet`.** The design assumed number
-  keys would keep selecting candidates. They cannot: the speller only reaches a code whose
-  every character is in the alphabet, the generated codes carry tone digits, and a digit
-  outside the alphabet is consumed as a selection key before the speller sees it. With the
-  digits excluded, every query deployed cleanly and returned an empty candidate list. The
-  digits are now in the alphabet and selection is done with `-`/`=`/Tab/Return. Completion
-  is a prefix match, so `shi` and `sh` still work; what a missing digit costs is
-  multi-syllable words — `nihao` returns nothing, `ni3hao3` works.
-- **The gloss cannot be shown, and this is a property of librime.** `RawDictEntry` is
-  `text`/`code`/`weight`; `EntryCollector` never reads a comment column, at any version
-  including master. `always_show_comments` therefore shows the candidate's own code —
-  `shi4`, identical for all five of 是 试 事 室 式. The column is still emitted, so a
-  librime that grows one will deliver it without a rebuild. **Deciding how to deliver it
-  on Windows is open**: a Lua filter over the emitted column, which Weasel can already
-  load, or dropping the definition from the Windows client.
+- **The digits are now out of `speller/alphabet`, and the codes are toneless.** The design
+  assumed number keys would keep selecting candidates. They can: the speller only reaches a
+  code whose every character is in the alphabet, so with toneless codes (`shi`, `ni hao`) and
+  a digit-free alphabet, a number typed while composing falls through to the selector and
+  picks the candidate under it. That is the behaviour the rest of PinyinDuck already has.
+  `shi` gives every tone, merged and ordered by frequency, and `2` commits 十; `nihao`
+  reaches 你好 because the code is `ni hao` and the space delimiter never has to appear
+  mid-word.
+- **The gloss is shown, by a Lua filter.** `RawDictEntry` is `text`/`code`/`weight` and
+  `EntryCollector` never reads a comment column, at any version including master, so
+  `always_show_comments` alone shows the candidate's own code — `shi`, identical for all
+  five homophones. The filter closes that: it reads a generated sidecar and attaches the
+  definition. Without librime-lua the schema still works and the comment falls back to the
+  spelling echo.
 
 The two full write-ups are `PLAN.md` §Step 11b and `packages/windows/README.md` §"What
 Rime cannot show".
@@ -140,20 +139,20 @@ Retained as a fallback for a future milestone if the Rime candidate window is ev
 #### Test Execution Metrics
 - **Test Runner**: Vitest v3.2.7
 - **Test Suites**: 6 passed
-- **Tests**: 198 passed, 0 failed (including a sweep of all 246,394 emitted rows)
+- **Tests**: 212 passed, 0 failed (including a sweep of all 245,421 emitted rows)
 - **Coverage**: 98.89% statements, 98.57% branches, 100% functions (gate: 95% on all four)
 - **Command**: `npm test -w @pinyinduck/windows`
 
 Separately, and not part of the unit run, `npm run test:rime` types into a real librime
-1.13.1 built from source by `npm run setup:rime`: **6 of 7 queries as pinned, 1 declared
-known gap** (the gloss), no `Encode failure` in the log.
+1.13.1 built from source by `npm run setup:rime`: **8 of 8 queries as pinned, no known
+gap**, no `Encode failure` in the log.
 
 | Suite | Tests | Covers |
 | :--- | :--- | :--- |
-| `src/rime-dict.test.ts` | 55 | Column order, the weight formula against `scoreEntry`, tie order against `compareScored`, multi-variant readings split into one row each, unreadable readings rejected, tone marks and gloss formatting, duplicate collapsing, and a whole dictionary built and read back through a real B+ tree |
+| `src/rime-dict.test.ts` | 56 | Column order, the weight formula against `scoreEntry`, tie order against `compareScored`, toneless codes, multi-variant readings split into one row each, unreadable readings rejected, tone marks and gloss formatting, duplicate collapsing, and a whole dictionary built and read back through a real B+ tree |
 | `src/rime-format.test.ts` | 40 | An independent reader for the emitted format, written against librime's `GetColumnIndex` and `LoadDictEntry` rather than against our own writer |
-| `src/rime-verify.test.ts` | 43 | The harness transcript parser, smoke-case evaluation, the `knownGap` mechanism, and the report format |
-| `scripts/build-rime-dict-io.test.ts` | 15 | Flag handling, both output files, header and body shape, a missing asset, a corrupt asset, the `unencodable` statistic, and the CLI output |
+| `src/rime-verify.test.ts` | 52 | The harness transcript parser, smoke-case evaluation (candidate order, commit, preedit, gloss), and the report format |
+| `scripts/build-rime-dict-io.test.ts` | 19 | Flag handling, both output files and the sidecar, header and body shape, a missing asset, a corrupt asset, the `unencodable` statistic, and the CLI output |
 | `scripts/generated-dicts.test.ts` | 11 | The whole corpus: no duplicate text/code pair, no whitespace in a candidate, no weight librime would demote, every menu in descending weight, a candidate for every typeable code, and a byte-for-byte rebuild against a second run of the writer |
 | `scripts/verify-rime-io.test.ts` | 34 | Staging (including the `essay.txt` filter that keeps 880 warnings out of the log), the harness protocol, timeout detection, and the CLI's four exit paths against a stub harness |
 
@@ -180,11 +179,10 @@ the engine. See `packages/windows/README.md`.
 > [!NOTE]
 > The tone-number cases above exercise the **engine API directly**. They are not reachable
 > from the Web IME keyboard, where digits are reserved as candidate-pick shortcuts for the
-> duration of a composition (see `PLAN.md` &sect;3.2). The Windows schema has to do the
-> opposite, and the reason is the opposite one: Rime's speller only reaches a code whose
-> every character is in `speller/alphabet`, so leaving the digits out makes *every* query
-> return an empty menu. `shi4`, not `shi`, is what the Windows user types; `shi` still
-> works, because completion is a prefix match.
+> duration of a composition (see `PLAN.md` &sect;3.2). The Windows schema now does the same
+> thing: its codes are toneless and its alphabet has no digits, so a number typed while
+> composing selects the candidate under it. `shi` gives every tone, merged, and `2` commits
+> 十.
 
 > [!NOTE]
 > Two of these expectations changed when Milestone 2 compared the Windows client against
@@ -195,9 +193,9 @@ the engine. See `packages/windows/README.md`.
 > (typing `bian3` offered **彼岸** above 扁). A tone filter now only constrains as many
 > syllables as the query has tones. Pinned by `packages/core/src/index/ranking.test.ts`.
 >
-> The `✅ PASS` marks in that table are the *web and core* results. The Windows client does
-> not show an English definition at all, and running the real engine established why — see
-> "What running the real engine changed" above.
+> The `✅ PASS` marks in that table are the *web and core* results. The Windows client now
+> also shows an English definition on every candidate, delivered by a Lua filter over a
+> generated sidecar — see "What running the real engine changed" above.
 
 ### Cross-Client Parity (`packages/windows` → Rime)
 

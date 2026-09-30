@@ -31,13 +31,17 @@ $RimeDir = Join-Path $env:APPDATA 'Rime'
 
 # Both dictionaries and both schemas have to be present together: a schema naming a
 # dictionary that is missing fails to compile, and Weasel then silently falls back to
-# its own default scheme, which looks like the install did nothing.
+# its own default scheme, which looks like the install did nothing. The Lua gloss filter
+# and its sidecar are required too: without them the schema still works but shows no
+# definitions.
 $RequiredFiles = @(
   'pinyinduck.schema.yaml',
   'pinyinduck_trad.schema.yaml',
   'default.custom.yaml',
   'pinyinduck.dict.yaml',
-  'pinyinduck_trad.dict.yaml'
+  'pinyinduck_trad.dict.yaml',
+  'rime.lua',
+  'lua\pinyinduck_gloss.lua'
 )
 
 function Format-Size([long]$Bytes) {
@@ -53,11 +57,12 @@ foreach ($name in $RequiredFiles) {
 }
 
 if ($missing.Count -gt 0) {
-  # The dictionaries are the only generated files, so this is almost always the cause.
-  $dictMissing = $missing | Where-Object { $_ -like '*.dict.yaml' }
-  if ($dictMissing.Count -gt 0) {
+  # The dictionaries and the Lua sidecar are generated together, so this is almost always
+  # the cause.
+  $generatedMissing = $missing | Where-Object { $_ -like '*.dict.yaml' -or $_ -like 'lua\*' }
+  if ($generatedMissing.Count -gt 0) {
     Write-Error @"
-The generated dictionaries are missing from $SourceDir.
+The generated files are missing from $SourceDir.
 
 Run this from the repository root first:
 
@@ -75,6 +80,12 @@ Write-Host ''
 if (-not (Test-Path $RimeDir)) {
   New-Item -ItemType Directory -Path $RimeDir -Force | Out-Null
   Write-Host '  created the Rime user folder (Weasel may not be installed yet)'
+}
+
+# The Lua gloss sidecar lives in a subdirectory, which has to exist before it is copied.
+$luaDir = Join-Path $RimeDir 'lua'
+if (-not (Test-Path $luaDir)) {
+  New-Item -ItemType Directory -Path $luaDir -Force | Out-Null
 }
 
 foreach ($name in $RequiredFiles) {

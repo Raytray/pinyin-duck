@@ -9,21 +9,22 @@ Candidates are ranked by corpus frequency rather than by sentence probability, s
 wrong homophone is never a guess:
 
 ```text
-shi4  →  是  试  事  室  式
-lv4   →  绿  律  率  氯  卛
+shi   →  是  十  使  试 诗        (then 2 commits 十)
+lv    →  绿  驴  旅  律 率        preedit reads lü
 ```
 
 Three things about that line are not what the web app does, and all three are load-bearing:
 
-- **A syllable can be typed with or without its tone digit.** `shi` gives 是 十 使 试 诗 —
-  every tone, merged, ordered by frequency. `shi4` narrows it to the fourth. What does
-  not work is a *multi-syllable* word typed tone-lessly: `nihao` returns nothing, because
-  the code is `ni3 hao3` and a tone-less `nihao` is not a prefix of it. `ni3hao3` works.
-- **No candidate carries a definition.** librime's dictionary format has nowhere to put
-  one. See [What Rime cannot show](#what-rime-cannot-show) — this is a known, verified
-  gap with a decision attached, not a bug to be filed.
+- **A syllable is typed without its tone digit, and the digit keys select candidates.**
+  `shi` gives 是 十 使 试 诗 — every tone, merged, ordered by frequency — and pressing `2`
+  commits 十. The dictionary's codes are toneless and `speller/alphabet` has no digits, so a
+  number typed while composing is a candidate selector, not a spelling key. That is the
+  behaviour the rest of PinyinDuck already has.
+- **Every candidate carries its English definition.** librime's dictionary format has
+  nowhere to put one, so a Lua filter reads a generated sidecar and attaches it. See
+  [Where the definition comes from](#where-the-definition-comes-from).
 - **`v` stands in for `ü`, but `u:` does not.** `@pinyinduck/core` normalizes both;
-  Rime's `xlit/ü/v/` covers only the first. `lv4` gives 绿, `lu:4` gives nothing.
+  Rime's `xlit/ü/v/` covers only the first. `lv` gives 绿, `lu:` gives nothing.
 
 ## How it works
 
@@ -36,34 +37,37 @@ packages/web/public/dictionary.btree        the shared paged CC-CEDICT asset
         ▼
 packages/windows/scripts/build-rime-dict.ts
         ▼
-packages/windows/rime/pinyinduck.dict.yaml       123,203 rows, ~9.6 MB
-packages/windows/rime/pinyinduck_trad.dict.yaml  123,191 rows, traditional forms
+packages/windows/rime/pinyinduck.dict.yaml       122,687 rows, ~9.6 MB
+packages/windows/rime/pinyinduck_trad.dict.yaml  122,734 rows, traditional forms
+packages/windows/rime/lua/pinyinduck_gloss.lua   197,268 definitions, for the filter
         │  copied by scripts/install.ps1
         ▼
 %APPDATA%\Rime\  ── deployed by Weasel ──▶  the PinyinDuck input method
 ```
 
-123,203 rows from a 122,746-entry source: CC-CEDICT gives some words more than one
+122,687 rows from a 122,746-entry source: CC-CEDICT gives some words more than one
 reading, and each reading gets its own row, because a Rime code is a single reading and a
 row with two would be two words under one key.
 
 The candidate ranking and the pinyin parser are the shared `@pinyinduck/core` code. The
-only Windows-specific parts are the dictionary emitter (`src/rime-dict.ts`) and the two
-schemas in `rime/`.
+Windows-specific parts are the dictionary emitter (`src/rime-dict.ts`), the two schemas in
+`rime/`, and the Lua gloss filter (`rime/rime.lua` + the generated sidecar).
 
 | Path | What it is |
 | :--- | :--- |
 | `src/rime-dict.ts` | Formats entries into Rime's `.dict.yaml`. No `fs`, no CLI. |
 | `src/rime-format.ts` | Reads a `.dict.yaml` back the way librime does. Used by the sweep. |
-| `scripts/build-rime-dict.ts` | Walks the B+ tree and writes both dictionaries. |
+| `scripts/build-rime-dict.ts` | Walks the B+ tree and writes both dictionaries and the sidecar. |
 | `scripts/verify-rime.ts` | Types into a real librime and checks what comes back. |
-| `scripts/generated-dicts.test.ts` | Sweeps all 246k emitted rows for format faults. |
-| `tools/bootstrap-rime.sh` | Builds librime 1.13.1 locally, without sudo. |
+| `scripts/generated-dicts.test.ts` | Sweeps all 245k emitted rows for format faults. |
+| `tools/bootstrap-rime.sh` | Builds librime 1.13.1 + LuaJIT locally, without sudo. |
 | `tools/rime_smoke.cc` | The harness that drives a real session. |
-| `scripts/install.ps1` | Copies the schemas and dictionaries into `%APPDATA%\Rime`. |
+| `scripts/install.ps1` | Copies the schemas, dictionaries and sidecar into `%APPDATA%\Rime`. |
 | `rime/*.schema.yaml` | The Rime schema: engine, speller, switches. Hand-written. |
+| `rime/rime.lua` | The gloss filter. Hand-written, committed. |
 | `rime/default.custom.yaml` | Adds both schemes to the Rime scheme switcher. |
 | `rime/*.dict.yaml` | **Generated.** ~9.6 MB each, not committed. |
+| `rime/lua/pinyinduck_gloss.lua` | **Generated.** ~15 MB, the definitions the filter reads. |
 
 ### Why Rime rather than a global keyboard hook
 
@@ -92,15 +96,18 @@ committed — all three are derived data — so a fresh clone needs `build:dict`
 
 ```
   source  .../packages/web/public/dictionary.btree (122746 entries)
-  wrote   .../rime/pinyinduck.dict.yaml (123203 rows, 0 duplicates dropped, 157 unreadable readings, 0 missing text)
-  wrote   .../rime/pinyinduck_trad.dict.yaml (123191 rows, 12 duplicates dropped, 157 unreadable readings, 0 missing text)
+  wrote   .../rime/pinyinduck.dict.yaml (122687 rows, 656 duplicates dropped, 17 unreadable readings, 0 missing text)
+  wrote   .../rime/pinyinduck_trad.dict.yaml (122734 rows, 609 duplicates dropped, 17 unreadable readings, 0 missing text)
+  wrote   .../rime/lua/pinyinduck_gloss.lua (197268 definitions)
 ```
 
-`157 unreadable readings` is a real count, not noise. CC-CEDICT's pinyin column contains
-rows like `pua` (romanised English), `a b zhi4` and `bai3ke4`, which are not typeable
-pinyin; librime would drop every one of them with an `Encode failure` in the log. They are
-rejected at build time instead, so that string in the log stays a signal rather than
-background.
+`17 unreadable readings` is a real count, not noise. CC-CEDICT's pinyin column contains
+rows like `bai3ke4` (two syllables fused with no space) and `11 qu1` (a bare number), which
+are not syllable-aligned codes; librime would drop every one of them with an `Encode
+failure` in the log. They are rejected at build time instead, so that string in the log
+stays a signal rather than background. The validation is deliberately lenient — letters
+only — because the web app's `cleanPinyin` keeps any run of letters, so a stricter rule
+here would drop 儿化 words (`ai1 bian1 r5`), `AA制` and `ACG` that the web reaches.
 
 Nothing is materialized: the tree is walked in key order and each homophone cluster is
 emitted as soon as the scan leaves it.
@@ -126,33 +133,34 @@ npm run test:rime      # types into it and checks the answers
 ```
 
 `setup:rime` clones librime at the tag Weasel 0.17.0 bundles (1.13.1) into
-`tools/librime/`, fetches cmake and Boost without root, and builds `liblibrime.so` plus
-the small C++ harness in `tools/rime_smoke.cc`. It takes a few minutes and then never
+`tools/librime/`, fetches cmake, Boost and LuaJIT without root, and builds `liblibrime.so`
+plus the small C++ harness in `tools/rime_smoke.cc`. It takes a few minutes and then never
 runs again — the harness is rebuilt only when the library is newer.
 
 `test:rime` deploys the real schemas against the real 9.6 MB dictionaries in a temporary
-user directory, types seven queries, and compares the candidate lists:
+user directory, types eight queries, and compares the candidate lists:
 
 ```
   typed into librime
-    pinyinduck       shi4         是 试 事 室 式
-    pinyinduck       an1          安 氨 鞍 媕 庵
-    pinyinduck       lv4          绿 律 率 氯 卛
-    pinyinduck       nv3          女 籹 钕
-    pinyinduck       ni3hao3      你好 你 祢 拟 伱
-    pinyinduck       shi4         是 试 事 室 式   [known gap]
-    pinyinduck_trad  zhong1guo2   中國 鍾 中 終 忠
+    pinyinduck       shi          是 十 使 试 诗
+    pinyinduck       shi2         (no candidates)
+    pinyinduck       an           暗 岸 按 安 案
+    pinyinduck       lv           绿 驴 旅 律 率
+    pinyinduck       nv           女 衄 籹 恧 钕
+    pinyinduck       nihao        你好 你 呢 尼 妮
+    pinyinduck       nihao2       好 号 浩 豪 嚎
+    pinyinduck_trad  zhongguo     中國 中古 種 重 鍾
 
-  6 of 7 queries behaved as pinned.
+  8 of 8 queries behaved as pinned.
 ```
 
 It also fails on anything librime logged, which is how a schema that does not compile, a
 dictionary with a malformed row, or an unencodable code is caught without a Windows host.
-The seventh entry is the known gap, declared in `src/rime-verify.ts` next to the
-assertion it fails; if it ever starts passing, the run says so and tells you to delete the
-declaration.
+The `shi2` and `nihao2` rows pin digit selection: `shi2` commits 十, and `nihao2` selects the
+single-syllable 你 and leaves `hao` composing. The first candidate of `shi` carries its
+English definition, which is the gloss the Lua filter puts there.
 
-`npm test -w @pinyinduck/windows` additionally sweeps all 246,394 emitted rows for the
+`npm test -w @pinyinduck/windows` additionally sweeps all 245,421 emitted rows for the
 invariants a real engine would only reveal one crash at a time: a duplicate
 text/code pair, a weight librime would demote, a menu out of descending weight order, a
 candidate that carries whitespace, and a byte-for-byte rebuild of the file against a
@@ -185,12 +193,13 @@ Weasel is installed. Install Weasel, then re-run the script and deploy.
 
 ## Using it
 
-Type pinyin. The tone digit is optional for one syllable and required for the first of
-several: `shi` or `shi4`, but `ni3hao3`.
+Type pinyin. The tone digit is optional: `shi` gives every tone, merged and ordered by
+frequency, and the digit keys select among them.
 
 | Key | Action |
 | :--- | :--- |
 | `Space` | Commit the selected candidate |
+| `1`–`9`, `0` | Select the candidate at that position |
 | `-` / `=` (or `,` / `.`) | Previous / next page |
 | `Up` / `Down` | Move the selection |
 | `Tab` / `Shift+Tab` | Next / previous candidate |
@@ -201,28 +210,25 @@ several: `shi` or `shi4`, but `ni3hao3`.
 | `Ctrl+.` | Toggle Chinese / Western punctuation |
 | `F4` or ``Ctrl+` `` | Switch between 拼音鸭·简 and 拼音鸭·繁 |
 
-**Digits extend the syllable, they do not pick a candidate.** `4` in `shi4` is the fourth
-tone and has to reach the speller, so a number typed while composing extends the word
-rather than selecting from the menu. Selection is done with the paging and navigation
-keys. This is the sharpest usability cost of the design — see
-[Why the digits are in the alphabet](#why-the-digits-are-in-the-alphabet).
+**A number typed while composing selects the candidate under it.** The dictionary's codes
+are toneless and `speller/alphabet` has no digits, so `shi` reaches every tone and `2` commits
+十. That is the behaviour the rest of PinyinDuck already has — see
+[Why the codes are toneless](#why-the-codes-are-toneless).
 
 What the speller accepts, measured against librime 1.13.1 with the shipped schema:
 
 | Type | Candidates | Note |
 | :--- | :--- | :--- |
-| `shi` | 是 十 使 试 诗 | Completion across tones, ordered by frequency. |
-| `shi4` | 是 试 事 室 式 | The tone narrows the menu. |
+| `shi` | 是 十 使 试 诗 | Every tone, merged, ordered by frequency. |
+| `shi2` | commits 十 | A digit selects the candidate. |
 | `sh` | 是 上 谁 水 书 | The syllable need not be finished. |
-| `lv` | 绿 驴 旅 律 略 | `v` for `ü`; the preedit reads `lü`. |
-| `lv4` | 绿 律 率 氯 卛 | Preedit reads `lü4`. |
-| `ta1` | 他 她 它 塌 祂 | |
-| `shi4r` | 事儿 世人 示弱 释然 是日 | Completion crosses the syllable delimiter. |
-| `ni3hao3` | 你好 你 祢 拟 伱 | The delimiter is optional. |
-| `ni3'hao3` | 你好 你 祢 拟 伱 | Or the apostrophe. |
-| `nihao` | *nothing* | Not a prefix of `ni3 hao3`. |
-| `nihao3` | *nothing* | Still not. |
-| `lu:4` | *nothing* | The colon is not in the alphabet and no rule maps it. |
+| `lv` | 绿 驴 旅 律 率 | `v` for `ü`; the preedit reads `lü`. |
+| `ta` | 他 她 它 塌 祂 | |
+| `shi'r` | 事儿 世人 示弱 释然 是日 | Completion crosses the syllable delimiter. |
+| `nihao` | 你好 你 呢 尼 妮 | The delimiter is optional; the full word wins. |
+| `ni hao` | 你好 你 呢 尼 妮 | Or the space. |
+| `nihao2` | 你hao | Selects 你 for the first syllable; `hao` keeps composing. |
+| `lu:` | *nothing* | The colon is not in the alphabet and no rule maps it. |
 
 Things that are deliberately configured:
 
@@ -232,88 +238,79 @@ Things that are deliberately configured:
 - **No user dictionary.** `enable_user_dict: false`. The dictionary already ranks by
   corpus frequency and HSK level; letting your own words rewrite that order is how a
   learner types their own bad habits back.
-- **Partial matches.** `enable_completion: true`, so `sh` and `shi4r` both work.
+- **Partial matches.** `enable_completion: true`, so `sh` and `shi'r` both work.
 - **`ü` is typed as `v`.** `speller/algebra` has `xlit/ü/v/`, matching
   `@pinyinduck/core`, which normalizes `v` *and* `u:` to `ü`. Only the first half of
   that is reproduced here; see the table above.
-- **Tone marks shown on the preedit.** `preedit_format` rewrites the buffered text so
-  `lv4` reads `lü4` while you type, and `always_show_comments: true` shows the selected
-  candidate's spelling beside it. Neither is the English definition — see
-  [What Rime cannot show](#what-rime-cannot-show).
+- **Tone marks and the definition on every candidate.** `preedit_format` rewrites the
+  buffered text so `lv` reads `lü` while you type, and the Lua filter puts each
+  candidate's English definition beside it. See
+  [Where the definition comes from](#where-the-definition-comes-from).
 
-### Why the digits are in the alphabet
+### Why the codes are toneless
 
 This is the one change in the schema that looks like a mistake and is not, so it is worth
 stating plainly.
 
 The speller only reaches a code whose every character is in `speller/alphabet`. The
-generated dictionary spells every reading with its tone digit — `shi4`, `ni3 hao3`,
-`zhong1 guo2`. With a digit-free alphabet, that schema deploys cleanly, reports no
-errors, and returns an **empty candidate list for every query**, because the `4` in
-`shi4` is swallowed as a candidate-selection key before the speller ever sees it.
+generated dictionary spells every reading **without** its tone digit — `shi`, `ni hao`,
+`zhong guo` — and the alphabet has no digits either. A digit typed while composing is
+therefore not part of any code: it falls through to the selector, which is what makes a
+number select the candidate under it. That is the behaviour the rest of PinyinDuck already
+has.
 
-Verified against librime 1.13.1 — the digit-free schema types `shi4` into a preedit
-reading `shi` and returns nothing:
+Verified against librime 1.13.1 — the toneless schema types `shi` into a preedit reading
+`shi` and offers every tone:
 
-| Query | Digit-free alphabet | With digits |
+| Query | Toneless code | With tone digits |
 | :--- | :--- | :--- |
-| `shi4` | preedit `shi`, no candidates | 是 试 事 室 式 |
-| `lv4` | — | 绿 律 率 氯 卛, preedit `lü4` |
-| `an1` | — | 安 氨 鞍 媕 庵 |
-| `ni3hao3` | — | 你好 你 祢 拟 伱 |
+| `shi` | 是 十 使 试 诗 | — |
+| `shi2` | commits 十 | — |
+| `lv` | 绿 驴 旅 律 率, preedit `lü` | — |
+| `nihao` | 你好 你 呢 尼 妮 | — |
 
-Completion means a tone digit is not *typed* at every keystroke — `shi` still works,
-because `shi` is a prefix of `shi4`. What the digit is for is being *in* the code, and
-`nihao` shows the cost: a two-syllable word whose first syllable lacks its tone is not a
-prefix of anything, because the space delimiter cannot appear mid-word.
+Completion means a tone is never *required* — `sh` reaches the lot, because `sh` is a prefix
+of `shi`. And multi-syllable words work because the codes are toneless: `nihao` is a prefix
+of `ni hao`, so the space delimiter never has to appear mid-word.
 
-The alternative — emitting toneless codes — would let digits select candidates again, and
-would throw away the tone, which is most of what a learner's dictionary has to teach. A
-code Rime cannot reach is worth nothing; a code that omits the tone is a worse answer than
-the web app's. So the digits stay, and the menu is navigated with the keys above.
+The cost of putting tone digits back would be real: a number typed while composing would
+extend the syllable instead of selecting a candidate, so `shi2` would spell a tone rather
+than pick the second candidate. The tone is preserved in the definition the Lua filter
+shows — `shi` offers 是 十 使 试 诗, each labelled with its own tone marks and gloss — so
+the learner still sees which tone each candidate is.
 
-If this trade turns out to be wrong in practice, the fix is not a different `alphabet` but
-a different dictionary: toneless codes, tone filtering in a Lua filter, and the gloss
-rendered by the same filter. That is a larger change and it is written down under the open
-question below rather than made here.
+### Where the definition comes from
 
-### What Rime cannot show
-
-**The English definition is not in the candidate list, and cannot be made to be.** This is
-a property of librime, not of this package, and it was checked against the source rather
-than inferred from behaviour:
+**The English definition is on every candidate, delivered by a Lua filter.** This is a
+property of librime's dictionary format, checked against the source rather than inferred
+from behaviour:
 
 - `RawDictEntry` is `text` / `code` / `weight`. There is no comment field.
 - `EntryCollector` (`src/rime/dict/entry_collector.cc`) reads those three and nothing
   else, at 1.11.2, 1.12.0, 1.13.0, 1.13.1 and master.
 - Rime's only comment source is `script_translator.cc`, which sets the comment to the
   candidate's **original spelling** — and only when `cand.code().size() <=
-  spelling_hints()`, which defaults to 0.
+  spelling_hints()`.
 
-So `always_show_comments: true` shows `shi4` back to you: identical for all five of
-是 试 事 室 式, and carrying none of the definition. Turning `spelling_hints` up to 10 does
-not help — it produces the same string, just for more candidates.
+So the dictionary's `comment` column, where the emitter writes the gloss, is discarded at
+compile time. The filter is what carries it to the screen:
 
-The emitter still writes the gloss, into a declared `comment` column, and
-`src/rime-dict.ts` still formats it correctly. That is deliberate: the file is the
-artifact, and the artifact should be right even where the consumer cannot use it yet. It
-also means the fix, when there is one, is not a regeneration.
+1. `scripts/build-rime-dict.ts` emits `rime/lua/pinyinduck_gloss.lua` from that comment
+   column — a table of `text → code → definition`, keyed by code because one text can
+   carry several readings (`绿` is both `lü` and `lu`).
+2. `rime/rime.lua` (hand-written, committed) defines `pinyinduck_gloss_filter`, which the
+   schema references as `lua_filter@pinyinduck_gloss_filter`. It loads the sidecar and
+   overwrites each candidate's comment with the matching definition.
 
-Delivering the definition on Windows needs a decision, not a tweak. The two candidates:
+The sidecar is emitted as one delimited string rather than a table literal because a Lua
+function can hold at most 65536 constants and the corpus has far more definitions than
+that; the string is a single constant and the table is built from it at load time.
 
-1. **A Lua filter.** Weasel bundles `librime-lua` and `librime-octagram`. A filter can read
-   the emitted `comment` column out of the dictionary and attach it to the candidate as it
-   reaches the menu — which is the only hook in the pipeline that has both the data and
-   the candidate. Cost: a `lua` filter in the schema, a plugin dependency Weasel happens
-   to ship, and the gloss column stops being decorative.
-2. **Drop the gloss from the Windows client** and deliver only the tone marks, through
-   `preedit_format` and `always_show_comments`, which already work. Cost: the Windows
-   build is then a different product from the web one, and the `columns:` premise
-   throughout this package has to go.
-
-The `knownGap` in `src/rime-verify.ts` is where this decision gets its answer: the check
-asserts the first candidate's comment contains `to be`, and reports the gap on every run
-until it passes. Whichever way it goes, that gap entry is the thing to delete.
+**Without librime-lua the schema still works.** The filter is absent, candidates still
+appear, digits still select, and the comment falls back to the spelling echo — verified
+against a build with no lua plugin. The degradation is graceful by design: the sidecar is
+optional, and `rime.lua` loads it through a `pcall` so a missing file costs the
+definitions and nothing else.
 
 
 ### Simplified and traditional
@@ -330,7 +327,7 @@ There are three layers, and they answer three different questions.
 | Layer | Question | Needs a toolchain? |
 | :--- | :--- | :--- |
 | Unit tests | Does the emitter produce the format, and are the rules still true? | No |
-| Corpus sweep | Is every one of the 246,394 emitted rows well-formed? | No |
+| Corpus sweep | Is every one of the 245,421 emitted rows well-formed? | No |
 | Real librime | Does the engine accept the file and return the right candidates? | Yes, once |
 
 ```bash
@@ -372,7 +369,7 @@ The cases worth knowing about, because they pin a format rule rather than our co
   the clamp never engages, so a bad `hskLevel` in the asset is reported rather than
   absorbed;
 - a reading that is not typeable pinyin is dropped at build time, for the same reason —
-  157 rows of `pua` and `a b zhi4` would otherwise be 157 `Encode failure` lines, and a
+  17 rows of `bai3ke4` and `11 qu1` would otherwise be 17 `Encode failure` lines, and a
   log that has to be read past is a log that stops being read.
 
 Run everything:
@@ -394,17 +391,16 @@ confirmed, so a difference between this table and what appears is a Windows-side
 
 | Type | Expect | Why it is the interesting case |
 | :--- | :--- | :--- |
-| `shi4` → `Space` | 是 | Four homophones, ordered by corpus frequency. |
-| `shi` | 是, 十, 使, 试, 诗 | Completion across tones. If this is empty, the digits are not in the alphabet. |
-| `ni3hao3` → `Space` | 你好 | The multi-character word must beat the far more frequent 你. |
-| `an1` | 安, 氨, 鞍, 媕, 庵 | 安 outranks the astral-plane CC-CEDICT characters sharing `an1`. |
-| `lv4` → `Space` | 绿, preedit reading `lü4` | `v` is accepted for `ü`, and the preedit shows the real spelling. |
-| `nv3` | 女, 籹, 钕 | `nüe`, the other `ü` syllable after a nasal. |
-| `F4`, then `zhong1guo2` | 中國, 鍾, 中, 終, 忠 | The traditional scheme, and `F4` switching at all. |
-| `shi4r`, then `Down` `Down` `Down` `Down`, `Space` | 是日 | Completion crosses the syllable delimiter; fifth, not first. |
+| `shi` → `Space` | 是 | Five homophones, ordered by corpus frequency. |
+| `shi2` | 十 | A digit selects the candidate. If this spells a tone instead, the digits are back in the alphabet. |
+| `nihao` → `Space` | 你好 | The multi-character word must beat the far more frequent 你. |
+| `an` | 暗, 岸, 按, 安, 案 | The toneless code merges every tone, weight-ordered. |
+| `lv` → `Space` | 绿, preedit reading `lü` | `v` is accepted for `ü`, and the preedit shows the real spelling. |
+| `nv` | 女, 衄, 籹, 恧, 钕 | `nüe`, the other `ü` syllable after a nasal. |
+| `F4`, then `zhongguo` | 中國, 中古, 種, 重, 鍾 | The traditional scheme, and `F4` switching at all. |
+| `shi'r`, then `Down` `Down` `Down` `Down`, `Space` | 是日 | Completion crosses the syllable delimiter; fifth, not first. |
 | `` ` `` after 你好 | 你好 in the lookup window | Reverse lookup uses the same dictionary. |
 | `` ` `` after 你好, then `F4` | 繁體字 in the lookup | Reverse lookup against the traditional dictionary. |
-| `nihao` | *nothing*, and the preedit still reads `nihao` | Expected. Not a prefix of `ni3 hao3`. |
 
 Also check the two things only Windows can show: the tray icon's right-click menu lists
 拼音鸭·简 and 拼音鸭·繁, and `Win+Space` reaches them. Everything else in this table is
@@ -428,10 +424,11 @@ carry no frequency. The web engine treats a two-symbol abbreviation as a two-cha
 word and ranks it above the real character; the Rime file ranks the character first.
 That difference is the Rime file behaving as intended.
 
-The web app is not affected by the tone-digit decision: `@pinyinduck/core` filters by tone
-directly, and a caller that types `shi` gets every `shi` in the corpus. Only the Rime
-speller, which matches whole syllables against a fixed alphabet, forces the digit to be
-part of the input.
+The web app is not affected by the toneless decision: `@pinyinduck/core` filters by tone
+directly, and a caller that types `shi` gets every `shi` in the corpus. The Rime speller
+matches whole syllables against a fixed alphabet, so its codes are toneless and the digit
+keys select candidates — which is the same trade the web app makes when it lets a caller
+type `shi` and get every tone.
 
 ## Troubleshooting
 
@@ -447,7 +444,7 @@ you copied the files by hand, delete it yourself, then deploy again.
 dictionary from its own `data/minimal/essay.txt`, whose 880 rows are number readings
 (`二〇〇九`, `七〇`) that no pinyin encoder can turn into a syllable. It is not our
 dictionary, and it does not affect what is typed. `scripts/verify-rime.ts` filters that
-file out precisely so the string stays meaningful — 157 of them *would* have been ours,
+file out precisely so the string stays meaningful — 17 of them *would* have been ours,
 and the build now rejects those instead.
 
 **`Every candidate is empty` and `%APPDATA%\Rime\rime.weasel.log.txt` mentions an invalid
@@ -465,19 +462,20 @@ both schemes are compiled in the same pass.
 
 ## Notes
 
-- The generated dictionaries contain the whole CC-CEDICT corpus: 123,203 rows in ~9.6 MB
+- The generated dictionaries contain the whole CC-CEDICT corpus: 122,687 rows in ~9.6 MB
   from 122,746 source entries, the difference being words with more than one reading.
   Rime compiles them once; lookups are then served from the compiled `.table.bin`.
 - Candidate ranking is the shared `scoreEntry`. This milestone fixed two defects in it
   that the real corpus exposed: `String.length` counted UTF-16 units, so the 205
   single characters outside the BMP were treated as multi-character words and given the
-  word boost (typing `an1` offered 𩽾 above 安); and one typed tone number awarded the
-  full tone bonus to any longer word whose *first* syllable matched (typing `bian3`
+  word boost (typing `an` used to offer 𩽾 above 安); and one typed tone number awarded
+  the full tone bonus to any longer word whose *first* syllable matched (typing `bian3`
   offered 彼岸 above 扁). Both are pinned by `packages/core/src/index/ranking.test.ts`.
 - Running the real engine found four defects that no amount of reading the format spec
   would have: a digit-free `alphabet` that made every code unreachable, a traditional
-  schema whose `Include` never resolved, the 157 unencodable readings, and the gloss
-  column that librime discards. Three are fixed; the fourth is written down above.
+  schema whose `Include` never resolved, the unencodable readings, and the gloss column
+  that librime discards. The first two are fixed; the third is now a build-time rejection
+  of 17 genuinely untypeable readings; the fourth is delivered by the Lua filter.
 - Milestone 3 (Android) reuses the same B+ tree and the same ranking through
   `MemoryPageSource`, so nothing here is desktop-specific.
 
