@@ -92,6 +92,7 @@ const nodeDeps: RimeBuildDeps = {
 export interface RimeScriptStats {
   rows: number;
   skipped: number;
+  unencodable: number;
   duplicates: number;
 }
 
@@ -169,6 +170,7 @@ export async function buildRimeDictionaries(
     scripts[script] = {
       rows: writers[script].rowCount,
       skipped: writers[script].skippedCount,
+      unencodable: writers[script].unencodableCount,
       duplicates: writers[script].duplicateCount,
     };
   }
@@ -201,10 +203,11 @@ export async function main(args: string[], deps: RimeBuildDeps = nodeDeps): Prom
 
   console.log(`  source  ${btreePath} (${stats.entryCount} entries)`);
   for (const script of RIME_SCRIPTS) {
-    const { rows, skipped, duplicates } = stats.scripts[script];
+    const { rows, skipped, unencodable, duplicates } = stats.scripts[script];
     console.log(
       `  wrote   ${stats.files[script]} ` +
-        `(${rows} rows, ${duplicates} duplicates dropped, ${skipped} unusable)`
+        `(${rows} rows, ${duplicates} duplicates dropped, ` +
+        `${unencodable} unreadable readings, ${skipped} missing text)`
     );
   }
   console.log('\nNext: run scripts/install.ps1 to copy these into %APPDATA%\\Rime.');

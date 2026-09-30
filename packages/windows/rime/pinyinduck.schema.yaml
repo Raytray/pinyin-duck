@@ -1,13 +1,20 @@
 # Rime schema — PinyinDuck (Simplified)
 # encoding: utf-8
 #
-# PinyinDuck is a pinyin input method for Mandarin learners. Every candidate carries its
-# tone marks and a short English definition, and candidates are ordered by corpus
-# frequency instead of by sentence probability, so the wrong homophone is never a guess.
+# PinyinDuck is a pinyin input method for Mandarin learners. Candidates are ordered by
+# corpus frequency instead of by sentence probability, so the wrong homophone is never a
+# guess.
+#
+# Two things about this schema are worth reading before changing either. One is that
+# `speller/alphabet` below contains the digits, and why. The other is that no candidate
+# carries an English definition, which is a limit of the Rime dictionary format rather
+# than a choice here — see the note on `always_show_comments` and ../README.md,
+# "What Rime cannot show".
 #
 # The dictionary this schema reads is generated from @pinyinduck/core, not hand-written:
 #
 #     npm run build:rime        # writes rime/pinyinduck.dict.yaml
+#     npm run test:rime         # types into a real librime and checks the answers
 #     powershell -File scripts/install.ps1
 #
 # See ../README.md for the full install and verification steps.
@@ -19,8 +26,8 @@ schema:
   author:
     - PinyinDuck
   description: |
-    拼音输入，每个候选词都带声调和英文释义，按语料词频排序。
-    Pinyin input where every candidate shows tone marks and an English definition.
+    拼音输入，按语料词频排序，可选拼音鸭·繁。
+    Pinyin input ranked by corpus frequency, with a traditional variant on F4.
 
 switches:
   - name: ascii_mode
@@ -54,7 +61,26 @@ engine:
     - uniquifier
 
 speller:
-  alphabet: zyxwvutsrqponmlkjihgfedcba
+  # The digits are load-bearing, and were not in an earlier revision of this file.
+  #
+  # The generated dictionary spells every reading with its tone digit (`shi4`, `ni3 hao3`),
+  # and a code is only reachable if every character in it is in the alphabet: the speller
+  # matches whole syllables, so with the digits excluded there is no input that can ever
+  # reach any row. Verified against librime 1.13.1 — with a digit-free alphabet this schema
+  # deploys cleanly and returns an *empty* candidate list for every query, because the `4`
+  # in `shi4` is swallowed as a candidate-selection key instead of being part of the code.
+  #
+  # The cost is real and deliberate: a number typed while composing extends the syllable
+  # instead of selecting a candidate, so selection is done with `-`/`=` or Tab/Return.
+  # That trade is only sound because a code Rime cannot reach is worth nothing at all.
+  #
+  # Note what it does *not* cost, because the two are easy to confuse. Completion below is
+  # a prefix match, so a tone is never required to start with: `shi` reaches `shi4` and
+  # offers every tone, and `sh` reaches the lot. What a missing digit does cost is
+  # multi-syllable words — `nihao` is not a prefix of `ni3 hao3`, because the space
+  # delimiter cannot appear inside a word, so the first syllable's tone is what makes
+  # `ni3hao3` reachable at all.
+  alphabet: zyxwvutsrqponmlkjihgfedcba0123456789
   delimiter: " '"
   algebra:
     # The generated dictionary spells ü the standard way (lü4, nüe4); this is what lets
@@ -88,8 +114,16 @@ translator:
   # The longest run of pinyin treated as a single word. CC-CEDICT has a handful of
   # 10-syllable entries and nothing a learner types needs more.
   max_word_length: 10
-  # Show the gloss on every candidate, not just the selected one: the definition is the
-  # reason to choose between homophones, so hiding it behind a highlight defeats it.
+  # Show the spelling on every candidate rather than only on the selected one.
+  #
+  # Note what this cannot do: librime's dictionary format has no field for a definition
+  # (`RawDictEntry` is text/code/weight, and `EntryCollector` never reads a comment column
+  # at any version, including master), so `always_show_comments` falls back to showing the
+  # candidate's own code back to the user — `shi4`, identical for all five of 是 试 事 室 式,
+  # and carrying none of the English gloss. `spelling_hints` is left at its default of 0,
+  # which is what makes that echo appear at all. The column is still written to the
+  # dictionary, so a librime that grows one will deliver it without a rebuild.
+  # See ../README.md, "What Rime cannot show".
   always_show_comments: true
   preedit_format:
     # Echo the standard spelling of what was typed as v.

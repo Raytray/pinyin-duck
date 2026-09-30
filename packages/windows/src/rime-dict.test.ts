@@ -23,6 +23,7 @@ import {
   formatRow,
   hskBonus,
   renderDictHeader,
+  rimeCodes,
   rimeComment,
   rimeToneMarks,
   rimeWeight,
@@ -71,6 +72,83 @@ describe('sanitizeField', () => {
   });
 });
 
+describe('rimeCodes', () => {
+  it('passes an ordinary reading through unchanged', () => {
+    expect(rimeCodes('ni3 hao3')).toEqual(['ni3 hao3']);
+  });
+
+  it('accepts ü, which the dictionary spells and the schema rewrites back to v', () => {
+    expect(rimeCodes('lü4')).toEqual(['lü4']);
+    expect(rimeCodes('nüe4')).toEqual(['nüe4']);
+  });
+
+  it('accepts the neutral tone', () => {
+    expect(rimeCodes('zi3 r5')).toEqual(['zi3 r5']);
+  });
+
+  it('splits an entry that carries two alternative readings', () => {
+    // Both of these come out of the corpus verbatim. Passed through as one code, librime
+    // reports `Encode failure` and the word is unreachable under either reading.
+    expect(rimeCodes('ai1 de2 hua2 · da2 la1 di4')).toEqual(['ai1 de2 hua2', 'da2 la1 di4']);
+    expect(rimeCodes('bei1 zhi1 , wu2 shen4')).toEqual(['bei1 zhi1', 'wu2 shen4']);
+  });
+
+  it('tolerates the spacing around a separator', () => {
+    expect(rimeCodes('ni3  ,  hao3')).toEqual(['ni3', 'hao3']);
+    expect(rimeCodes('ni3,hao3')).toEqual(['ni3', 'hao3']);
+  });
+
+  it('collapses repeated separators instead of emitting an empty reading', () => {
+    expect(rimeCodes('ni3,,,hao3')).toEqual(['ni3', 'hao3']);
+    expect(rimeCodes(',ni3,')).toEqual(['ni3']);
+  });
+
+  it('rejects a reading whose syllable has no tone digit', () => {
+    // `a b zhi4` is how an entry with a bare initial ended up: "A" as a syllable is not a
+    // syllable, so the whole code is unreachable no matter how it is spelled.
+    expect(rimeCodes('a b zhi4')).toEqual([]);
+    expect(rimeCodes('a')).toEqual([]);
+  });
+
+  it('rejects romanised English that leaked into the pinyin column', () => {
+    // Real readings, quoted from the corpus. Each of these was an `Encode failure` in
+    // librime's log before rimeCodes existed.
+    expect(rimeCodes('coser')).toEqual([]);
+    expect(rimeCodes('t o n y')).toEqual([]);
+    expect(rimeCodes('w o r d jie3')).toEqual([]);
+    expect(rimeCodes('pua')).toEqual([]);
+  });
+
+  it('rejects a syllable with a tone digit but no letter', () => {
+    expect(rimeCodes('11 qu1')).toEqual([]);
+    expect(rimeCodes('shuang1 11')).toEqual([]);
+  });
+
+  it('rejects an empty or punctuation-only reading', () => {
+    expect(rimeCodes('')).toEqual([]);
+    expect(rimeCodes('   ')).toEqual([]);
+    expect(rimeCodes(', ·')).toEqual([]);
+  });
+
+  it('rejects a code with more than one tone digit in a syllable', () => {
+    expect(rimeCodes('shi44')).toEqual([]);
+  });
+
+  it('deduplicates identical readings, so a repeated variant is not a duplicate row', () => {
+    expect(rimeCodes('ni3, ni3 ,ni3')).toEqual(['ni3']);
+  });
+
+  it('returns nothing rather than a partial code when one syllable is bad', () => {
+    // Half a code is worse than none: it would look reachable in the corpus sweep while
+    // failing to encode at deploy time.
+    expect(rimeCodes('ni3 xxx hao3')).toEqual([]);
+  });
+
+  it('keeps the good readings and drops the bad one', () => {
+    expect(rimeCodes('ai1 de2 hua2 · w o r d')).toEqual(['ai1 de2 hua2']);
+  });
+});
+
 describe('rimeWeight', () => {
   it('scales popularity the same way scoreEntry does', () => {
     expect(rimeWeight(entry({ frequency: 100000 }))).toBe(20000);
@@ -114,6 +192,22 @@ describe('rimeWeight', () => {
     expect(compareEntriesForMenu(a, entry({ ...a, traditional: '妳' }))).toBeLessThan(0);
     expect(compareEntriesForMenu(entry({ ...a, traditional: '妳' }), a)).toBeGreaterThan(0);
     expect(compareEntriesForMenu(a, entry({ ...a }))).toBe(0);
+  });
+
+  it('is a total order, so the emitted order never depends on the input order', () => {
+    // Every field this compares is derived from the entry, and two entries that agree on
+    // all of them are the same entry. But `Array.prototype.sort` is only stable by spec
+    // from ES2019 onward, and the tree hands entries over in key order, which interleaves
+    // readings. A comparator that returned 0 for genuinely different entries would let
+    // the input order decide the menu — the one thing the emitted order exists to fix.
+    // So the last field is compared even though, within a single menu, the code is
+    // shared and this is unreachable in practice. It is the guarantee, not a case.
+    const a = entry({ simplified: '你', traditional: '你', pinyinNumbers: 'ni2' });
+    const b = entry({ simplified: '你', traditional: '你', pinyinNumbers: 'ni3' });
+    expect(compareEntriesForMenu(a, b)).toBeLessThan(0);
+    expect(compareEntriesForMenu(b, a)).toBeGreaterThan(0);
+    // And the reverse of a negative is positive, for the pair that decides it.
+    expect(Math.sign(compareEntriesForMenu(b, a))).toBe(-Math.sign(compareEntriesForMenu(a, b)));
   });
 
   it('falls back to frequency when two entries land on the same weight', () => {
@@ -207,6 +301,24 @@ describe('formatRow', () => {
     const line = formatRow({ text: '坱', code: 'wu3', comment: '', weight: rimeWeight(entry({ key: 'wu', pinyinNumbers: 'wu3' })) });
     expect(line.endsWith('\t0')).toBe(true);
   });
+
+  it('never emits a weight librime would demote, whatever the asset holds', () => {
+    // `hskLevel` is a `u8` in the asset and the field is documented as HSK 1-6, but nothing
+    // enforces that at the byte level. A level of 9 makes the bonus negative, and librime
+    // turns a non-positive weight into log(DBL_EPSILON) — a permanent last place, reported
+    // nowhere. The file must not contain one even if the data does.
+    expect(rimeWeight(entry({ key: 'wu', frequency: 100, hskLevel: 9 }))).toBe(0);
+    expect(rimeWeight(entry({ key: 'wu', frequency: 100, hskLevel: 255 }))).toBe(0);
+  });
+
+  it('still rewards a real HSK level, so the clamp costs nothing in practice', () => {
+    // The clamp must not be a blanket discount: an HSK 1 word is the most frequent one for
+    // a learner, and that ordering is the product.
+    const easy = rimeWeight(entry({ key: 'a', frequency: 0, hskLevel: 1 }));
+    const hard = rimeWeight(entry({ key: 'a', frequency: 0, hskLevel: 6 }));
+    expect(easy).toBeGreaterThan(hard);
+    expect(hard).toBe(5000);
+  });
 });
 
 describe('rowsForCode', () => {
@@ -215,19 +327,40 @@ describe('rowsForCode', () => {
     // form; librime would drop the second itself, with a warning.
     const gan = entry({ key: 'gan', simplified: '干', traditional: '乾', pinyinNumbers: 'gan1', frequency: 1000 });
     const qian = entry({ key: 'gan', simplified: '乾', traditional: '乾', pinyinNumbers: 'gan1', frequency: 500 });
-    const { rows, duplicates } = rowsForCode([qian, gan], 'traditional');
+    const { rows, duplicates } = rowsForCode(
+      [
+        { entry: qian, code: 'gan1' },
+        { entry: gan, code: 'gan1' },
+      ],
+      'traditional'
+    );
 
     expect(rows).toHaveLength(1);
     expect(rows[0].text).toBe('乾');
     expect(duplicates).toBe(1);
   });
 
-  it('skips entries with no text or no code', () => {
+  it('skips an entry with no text for the script', () => {
     const { rows } = rowsForCode(
-      [entry({ simplified: '', pinyinNumbers: 'ni3' }), entry({ pinyinNumbers: '' })],
+      [{ entry: entry({ simplified: '', pinyinNumbers: 'ni3' }), code: 'ni3' }],
       'simplified'
     );
     expect(rows).toEqual([]);
+  });
+
+  it('counts an entry repeated under the same code as a duplicate', () => {
+    // The same word and reading arriving twice is what the traditional script produces, and
+    // dropping it is the whole reason this function exists.
+    const ni = entry({ simplified: '你', pinyinNumbers: 'ni3' });
+    const { rows, duplicates } = rowsForCode(
+      [
+        { entry: ni, code: 'ni3' },
+        { entry: ni, code: 'ni3' },
+      ],
+      'simplified'
+    );
+    expect(rows).toHaveLength(1);
+    expect(duplicates).toBe(1);
   });
 });
 
@@ -277,7 +410,7 @@ describe('RimeDictWriter', () => {
     expect(rows[0].text).toBe('中國');
   });
 
-  it('counts unusable entries without dropping the group they interrupted', () => {
+  it('counts entries with no text without dropping the group they interrupted', () => {
     const { rows, writer } = collect([
       entry({ key: 'ni', simplified: '你', pinyinNumbers: 'ni3', frequency: 90000 }),
       entry({ key: 'ni', simplified: '', pinyinNumbers: 'ni3' }),
@@ -285,6 +418,52 @@ describe('RimeDictWriter', () => {
     ]);
     expect(writer.skippedCount).toBe(1);
     expect(rows.map((row) => row.text)).toEqual(['你', '妳']);
+  });
+
+  it('writes one row per reading when a source entry carries two', () => {
+    // The word is one word; the readings are two. Emitting the pair as a single code would
+    // give librime something it cannot encode, and it would drop the entry entirely.
+    const { rows } = collect([
+      entry({
+        key: 'aidehua',
+        simplified: '爱',
+        pinyinNumbers: 'ai1 de2 hua2 · da2 la1 di4',
+      }),
+    ]);
+    expect(rows.map((row) => row.code)).toEqual(['ai1 de2 hua2', 'da2 la1 di4']);
+    expect(rows.map((row) => row.text)).toEqual(['爱', '爱']);
+  });
+
+  it('keeps a two-reading entry in the right group when a key changes after it', () => {
+    // Both readings have to survive the flush, and the next key's rows must not join them.
+    const { rows } = collect([
+      entry({ key: 'aidehua', simplified: '爱', pinyinNumbers: 'ai1 de2 · da2 la1' }),
+      entry({ key: 'ni', simplified: '你', pinyinNumbers: 'ni3' }),
+    ]);
+    expect(rows.map((row) => row.code).sort()).toEqual(['ai1 de2', 'da2 la1', 'ni3']);
+  });
+
+  it('counts an unreadable reading separately from a missing text', () => {
+    // They are different failures: one is a data problem in the source, the other is an
+    // entry that simply has no form in this script. Merging them would hide which.
+    const { rows, writer } = collect([
+      entry({ key: 'ni', simplified: '你', pinyinNumbers: 'ni3' }),
+      entry({ key: 'pua', simplified: '帅', pinyinNumbers: 'pua' }),
+      entry({ key: 'ni', simplified: '', pinyinNumbers: 'ni3' }),
+    ]);
+    expect(writer.unencodableCount).toBe(1);
+    expect(writer.skippedCount).toBe(1);
+    expect(rows.map((row) => row.text)).toEqual(['你']);
+  });
+
+  it('keeps a multi-reading entry whose second reading is unreadable', () => {
+    // Dropping the whole entry would lose a good reading over a bad neighbour. Only the
+    // reading that cannot be encoded is dropped.
+    const { rows, writer } = collect([
+      entry({ key: 'aidehua', simplified: '爱', pinyinNumbers: 'ai1 de2 hua2 · w o r d' }),
+    ]);
+    expect(writer.unencodableCount).toBe(0);
+    expect(rows.map((row) => row.code)).toEqual(['ai1 de2 hua2']);
   });
 
   it('is safe to finish twice, so a caller cannot double the last group', () => {

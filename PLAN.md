@@ -218,28 +218,103 @@ As the user types into the composition field:
 11. **Step 11: Windows Input Method** (Done — 2026-09-29)
     - Build Windows as a Rime/Weasel schema rather than the Tauri overlay of Approach A. The working tree is a WSL checkout and neither side has a Rust toolchain, so a Tauri app could not be compiled or verified here at all; Rime is a real registered TSF input method that the OS already knows how to activate, focus and compose, so the work is the part that is PinyinDuck's — the dictionary and its ranking. See `docs/roadmap.md` §2 for the trade-off and `packages/windows/README.md` for install and verification.
     - Add `packages/windows`: `src/rime-dict.ts` emits Rime's `.dict.yaml` format (a YAML header plus a TSV body) from the same B+ tree, and `scripts/build-rime-dict.ts` walks the asset in key order, emitting each homophone cluster as the scan leaves it, so the corpus is never held in memory. Both dictionaries build in ~1s.
-    - Pin the format against librime rather than against the tutorial version of it: the body is TSV (since 1.9), `columns` must declare `comment` (the built-in default is text/code/weight with **no comment column**, so an undeclared gloss is dropped silently), and `Vocabulary::SortHomophones` is a *stable* sort by weight, which makes the emitted order the tiebreak — so the generator mirrors `scoreEntry` and `compareScored` exactly. Measured over the real asset, 103,521 readings and 121,304 rows agree with the web engine; the 3 that do not are CC-CEDICT's own `ㄏㄤ` / `PO` / `TA` syllable-abbreviation rows, where the Rime file ranks the real character first.
+    - Pin the format against librime rather than against the tutorial version of it: the body is TSV (since 1.9), the header declares `columns` explicitly, and `Vocabulary::SortHomophones` is a *stable* sort by weight, which makes the emitted order the tiebreak — so the generator mirrors `scoreEntry` and `compareScored` exactly. Measured over the real asset, 103,521 readings and 121,304 rows agree with the web engine; the 3 that do not are CC-CEDICT's own `ㄏㄤ` / `PO` / `TA` syllable-abbreviation rows, where the Rime file ranks the real character first.
     - Two schemas over two generated dictionaries, switched with `F4` / ``Ctrl+` ``: the traditional one uses CC-CEDICT's own traditional column instead of converting with OpenCC at runtime. `default.custom.yaml` appends both to the scheme switcher, so a Weasel update cannot overwrite them.
     - `scripts/install.ps1` verifies all five files exist before copying anything, clears `%APPDATA%\Rime\build` so a stale compiled table cannot be reused, and prints the deploy step.
     - Fix the two ranking defects the parity work exposed in `scoreEntry`: `String.length` counts UTF-16 units, so the 205 CC-CEDICT characters outside the BMP were each treated as a two-character word and given the word boost (typing `an1` offered 𩽾 above 安); and one typed tone number awarded the full tone bonus to any longer word whose *first* syllable matched (typing `bian3` offered 彼岸 above 扁). A tone filter now only constrains as many syllables as the query has tones.
     - **Git Commit**: `feat(windows): add the PinyinDuck Rime input method`
 
+11b. **Step 11b: Pre-install verification against a real librime** (Done — 2026-09-29)
+    - The Step 11 dictionary could be *generated* here but not *executed*, which left every
+      claim about how Rime reads it as a claim about the format spec. This step builds the
+      real engine and checks the claims, before anything is copied to a Windows host.
+    - `tools/bootstrap-rime.sh` builds librime **1.13.1** — the tag Weasel 0.17.0 bundles —
+      from source with no sudo: cmake from a PyPI wheel, Boost 1.74 headers and
+      `libboost_regex` unpacked from `.deb` files with `dpkg-deb -x`, librime and its
+      submodules by `git clone --recursive --depth 1`. cmake is held to the 3.x line
+      because the bundled yaml-cpp 0.8.0 declares `cmake_minimum_required(VERSION 3.4)`
+      and CMake 4 refuses it. Everything lands in gitignored `tools/`, so nothing outside
+      the repository is touched.
+    - `tools/rime_smoke.cc` drives a real session — `create_session`, `simulate_key_sequence`,
+      `get_context` — rather than `RimeFindCandidates`, so what it reports is what a user
+      would see, and speaks a line-based TSV protocol (`SCHEMA_LIST`, `SCHEMA`,
+      `SCHEMA_DETAIL`, `PREEDIT`, `CANDIDATE`, `QUERY_ERROR`) with `log_dir` cleared so
+      librime's diagnostics reach the harness's own stderr.
+    - `scripts/verify-rime.ts` (`npm run test:rime`) stages the real schemas and the real
+      9.6 MB dictionaries into a temporary user directory, types seven queries through the
+      engine, compares the candidate lists, and fails on anything librime logged. Missing
+      logrime is a *skip* and says so in those words; `--require` turns it into a failure
+      for a pre-merge gate. The harness result is parsed and evaluated by `src/rime-verify.ts`,
+      which is pure and unit-tested, so the CLI is the only untested part of the logic.
+    - A `knownGap` marker on a smoke case, declared in code next to the assertion it fails:
+      the case still runs, a failure is reported as a gap rather than a failure so the suite
+      stays green, and a *pass* is reported as "now works, remove the knownGap" so the
+      declaration cannot quietly outlive the thing it describes.
+    - `scripts/generated-dicts.test.ts` sweeps all 246,394 emitted rows through
+      `src/rime-format.ts` — an independent reader written against librime's
+      `GetColumnIndex` and `LoadDictEntry` rather than against our own writer, so a mistake
+      in the writer cannot make the reader agree with it — and asserts no duplicate
+      text/code pair, no whitespace in a candidate, no weight librime would demote, every
+      menu in descending weight, a candidate for every code a learner can type, and a
+      byte-for-byte rebuild of the file against a second run of the writer.
+
+    Running the engine rather than reading about it found four defects, none of which the
+    format spec mentions and all of which would have shipped:
+
+    | | Defect | Evidence | State |
+    | :--- | :--- | :--- | :--- |
+    | A | `speller/alphabet` had no digits, so **no code was reachable**: every query deployed cleanly and returned an empty menu, because the `4` in `shi4` was swallowed as a candidate-selection key. | `PREEDIT shi4 → shi`; `luna_pinyin` answers the same query through the same harness; `grep -c -P '\t[a-z]+[1-5]' luna_pinyin.dict.yaml` → 0 | Fixed |
+    | B | The traditional scheme never loaded: `Include(pinyinduck.schema://)` names a *built* schema, and both schemes compile in the same pass. | `config_compiler.cc:437-438` — the form is `__include: filename[.yaml]:/path`. `pinyinduck.schema.yaml:/` → 0 errors, `pinyinduck:/` → 2 | Fixed |
+    | C | **The gloss cannot reach the candidate list.** | `RawDictEntry` is text/code/weight; `EntryCollector` never reads a comment column at 1.11.2, 1.12.0, 1.13.0, 1.13.1 or master. The only comment source is `script_translator.cc:455`, which sets it to the original spelling, and only when `cand.code().size() <= spelling_hints()` (default 0). With `spelling_hints: 10` the comment is `shi4` — identical for all five homophones | **Open — needs a decision** |
+    | D | 880 `Encode failure` lines in the log, and 157 unencodable readings of our own. | The 880 were librime seeding its user dictionary from its own `data/minimal/essay.txt`, whose rows are number readings (`二〇〇九`, `七〇`); the verifier now stages only `default.yaml` and `symbols.yaml` and passes a filtered shared directory. The 157 are ours — `coser`, `pua`, `a b zhi4`, `bai3ke4` — and are now rejected at build time | Fixed |
+
+    The alphabet fix alters the UX contract — a number typed while composing extends the
+    syllable rather than selecting a candidate, so selection is `-`/`=`/Tab/Return — and was
+    applied without waiting for sign-off, because without it *every* query returns nothing
+    and nothing else could be checked. It is called out here and in
+    `packages/windows/README.md` §"Why the digits are in the alphabet" rather than buried.
+    A user typing `nihao` gets nothing; `ni3hao3` works. `shi` and `sh` still work, because
+    completion is a prefix match — the digit is needed in the *code*, not in every keystroke.
+
+    Two smaller fixes fell out of the same work. A reading CC-CEDICT gives as
+    `a, b, c` is now split into one row per reading, because a Rime code is a single
+    reading — 291 codes occupy more than one run in the file, and `luo2mi4ou1` confirms
+    librime merges them correctly (罗密欧 at weight 8486 still outranks the same reading
+    inside 阿尔法·罗密欧 at weight 0). And `rimeWeight` clamps at zero, because
+    `hskLevel` is a `u8` in the asset and a value above 7 makes the bonus negative, which
+    librime does not reject but demotes: `log(weight > 0 ? weight : DBL_EPSILON)` puts the
+    row last in its own menu with nothing in the log to say so. The corpus sweep asserts
+    the clamp never engages, so a bad asset value is reported rather than absorbed.
+    - **Git Commit**: `test(windows): verify the Rime dictionaries against a real librime`
+
+
 ---
 
 ## 6. Current Verification State
 
-Re-measured on the `pinyin-typeduck-windows` branch after Step 11:
+Re-measured on the `pinyin-typeduck-windows` branch after Step 11b:
 
 | Check | Command | Result |
 | --- | --- | --- |
 | Core unit tests | `npm test -w @pinyinduck/core` | 13 files, 248 tests passed |
-| Core coverage | `npm run test:coverage -w @pinyinduck/core` | 99% statements, 97.29% branches, 99% functions; gate passes (exit 0) |
-| Windows unit tests | `npm test -w @pinyinduck/windows` | 2 files, 47 tests passed |
-| Windows coverage | `npm run test:coverage -w @pinyinduck/windows` | 97.94% statements, 96.66% branches, 100% functions; gate passes (exit 0) |
-| Rime dictionary build | `npm run build:rime` | 122,746 rows simplified, 122,734 traditional (12 duplicate collapses), 0 unusable, ~1s |
+| Core coverage | `npm run test:coverage -w @pinyinduck/core` | gate passes (exit 0) |
+| Windows unit tests + corpus sweep | `npm test -w @pinyinduck/windows` | 6 files, 198 tests passed, including 246,394 emitted rows |
+| Windows coverage | `npm run test:coverage -w @pinyinduck/windows` | 98.89% statements, 98.57% branches, 100% functions; gate passes (exit 0) |
+| Rime dictionary build | `npm run build:rime` | 123,203 rows simplified, 123,191 traditional (12 duplicate collapses), 157 unreadable readings rejected, ~1s |
+| Rime against a real engine | `npm run test:rime` | librime 1.13.1 built from source; 6 of 7 queries as pinned, 1 declared known gap, no `Encode failure` in the log |
 | End-to-end tests | `npm run test:e2e` | 72 tests passed |
-| Web coverage | `npm run test:e2e` | 98.93% statements, 99.24% branches, 100% functions |
-| Lint | `npm run lint` | 0 warnings, 0 errors over 52 files |
+| Lint | `npm run lint` | 0 warnings, 0 errors |
+
+> [!IMPORTANT]
+> **The coverage gates were inert until this step.** Both `vitest.config.ts` files wrote
+> their thresholds as `thresholds: { global: { … } }`, which is the shape vitest
+> documents — and on vitest 3.2.7 it checks nothing. `global` is not one of the threshold
+> names, so it is read as a per-glob entry and matched against file paths as the pattern
+> `"global"`, which matches no file; the real global entry is built from the `branches`
+> key, which is then undefined. The run prints its percentages, reports no error, and
+> exits 0 at any coverage. Setting a threshold to 99.9% by hand did not fail either. Both
+> are now written flat, and each config carries a comment explaining why so the documented
+> shape is not "restored".
 
 > [!NOTE]
 > `npm run typecheck` resolves to nothing: the root script uses `--if-present` and no
@@ -253,13 +328,29 @@ Re-measured on the `pinyin-typeduck-windows` branch after Step 11:
 > 95% across the board for `packages/core/scripts/**`, and 95% on all four metrics for
 > `packages/windows`, each on an 80% global floor. No package reports 100% on every
 > metric: the B+ tree work added defensive branches (malformed input, whole-file
-> fallback, engine-parity tie ordering) that are only partially covered, and the Windows
-> generator leaves its `import.meta.url` command line entry uncovered.
+> fallback, engine-parity tie ordering) that are only partially covered, and the two
+> Windows scripts leave their `import.meta.url` command-line entry uncovered, which cannot
+> be reached by importing the module.
 
 > [!NOTE]
-> The Rime dictionaries cannot be executed in this repository, so the last mile is
-> manual: `packages/windows/README.md` carries a verification table whose expected
-> candidate lists were read out of the generated asset rather than assumed. The client's
-> *ordering* was checked against the web engine over the whole corpus (see Step 11), but
-> deploying to Windows is still unverified here, since the host has no Rime installed.
+> `npm run test:rime` is the one check here that needs provisioning. `npm run setup:rime`
+> builds librime 1.13.1 from source into gitignored `tools/` without sudo, and takes a few
+> minutes once. Without it the check *skips* and says so in those words rather than
+> passing — a check that reports success without running anything is worse than no check.
+> `npm run test:rime:strict` turns the skip into a failure for a pre-merge gate.
+
+> [!NOTE]
+> Two things remain unverified here, and neither is automatable on this machine:
+
+> 1. **The Windows TSF last mile.** Tray menu, `Win+Space`, composing inside Notepad and
+>    Word, `F4` switching. `packages/windows/README.md` carries a verification table whose
+>    expected candidate lists are the ones `npm run test:rime` just confirmed against a
+>    real engine, so a difference between that table and the screen is a Windows-side
+>    fault — but the integration itself is only checkable on the host, which has no Rime
+>    installed.
+> 2. **The gloss (defect C above).** It needs a product decision, not more engineering:
+>    a Lua filter over the emitted `comment` column, which Weasel can already load, or
+>    dropping the definition from the Windows client. The `knownGap` in
+>    `src/rime-verify.ts` is where the answer lands.
+
 
