@@ -17,19 +17,42 @@ import org.junit.Test
  */
 class PinyinDuckSessionTest {
 
-    /** A stand-in editor: a text buffer with the cursor at the end, plus an Enter count. */
+    /**
+     * A stand-in editor that models the composing region separately from committed text.
+     *
+     * The real editor keeps the two apart: `setComposingText` sets the underlined,
+     * in-progress region, and `commitText` finalises it. A fake that only has one buffer
+     * cannot tell the difference between "the pinyin is being composed" and "the pinyin
+     * has been committed as text", which is the distinction the whole change turns on.
+     */
     private class FakeEditor : TextSink {
-        val text = StringBuilder()
+        internal val committed = StringBuilder()
+        internal var composing = ""
         var enterCount = 0
 
+        /** What the user actually sees: committed text followed by the composing region. */
+        val text: String get() = committed.toString() + composing
+
+        override fun setComposingText(text: String) {
+            composing = text
+        }
+
         override fun commitText(text: String) {
-            this.text.append(text)
+            // Committing finalises any composing region and appends the new text.
+            committed.append(text)
+            composing = ""
         }
 
         override fun deleteSurrounding(before: Int, after: Int) {
-            val start = (text.length - before).coerceAtLeast(0)
-            text.delete(start, text.length)
-            if (after > 0) text.delete(text.length - after, text.length)
+            // The cursor sits at the end of the composing region, so a delete takes from
+            // there first and only then from committed text.
+            val fromComposing = if (before < composing.length) before else composing.length
+            composing = composing.dropLast(fromComposing)
+            val remaining = before - fromComposing
+            if (remaining > 0) {
+                val start = (committed.length - remaining).coerceAtLeast(0)
+                committed.delete(start, committed.length)
+            }
         }
 
         override fun sendEnter() {
@@ -226,11 +249,33 @@ class PinyinDuckSessionTest {
     @Test
     fun aDigitThatIsNotAToneNumberIsPlainTextEvenWhileComposing() {
         type("shi")
-        // 0 is never a tone, so it is inserted as text rather than joining the pinyin.
+        // 0 is never a tone, so it cannot continue the pinyin. The composition ends and
+        // the digit is inserted alongside the committed text.
         session.typeDigit(0)
 
         assertEquals("shi0", editor.text.toString())
-        assertEquals("the composition must not absorb it", "shi", session.buffer)
+        assertEquals("the composition must not absorb it", "", session.buffer)
+    }
+
+    @Test
+    fun thePinyinIsHeldInTheComposingRegionNotCommitted() {
+        // The whole point of the composing region: the editor is told the pinyin is in
+        // progress, so it underlines it and leaves it alone. Committing it as plain text
+        // would let autocorrect "fix" `nihao` into something else.
+        type("nihao")
+
+        assertEquals("nothing should be committed while composing", "", editor.committed.toString())
+        assertEquals("nihao", editor.composing)
+        assertEquals("nihao", editor.text.toString())
+    }
+
+    @Test
+    fun committingFinalisesTheComposingRegion() {
+        type("nihao")
+        session.space()
+
+        assertEquals("你好", editor.committed.toString())
+        assertEquals("the composing region should be empty after committing", "", editor.composing)
     }
 
     @Test

@@ -249,6 +249,10 @@ class PinyinDuckImeService : InputMethodService(), LifecycleOwner, SavedStateReg
     /** The [TextSink] that writes to whatever field is currently focused. */
     private inner class EditorSink : TextSink {
 
+        override fun setComposingText(text: String) {
+            currentInputConnection?.setComposingText(text, 1)
+        }
+
         override fun commitText(text: String) {
             currentInputConnection?.commitText(text, 1)
         }

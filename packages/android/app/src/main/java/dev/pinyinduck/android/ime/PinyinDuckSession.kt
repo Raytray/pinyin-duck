@@ -13,10 +13,11 @@ import dev.pinyinduck.android.engine.SearchOptions
  * every decision here is a pure function of the buffer, so the rules can be tested
  * directly instead of through a keyboard.
  *
- * The pinyin being composed is written into the editor as it is typed, the way a phone
- * keyboard shows `nihao` and then replaces it with 你好. That keeps what the user sees
- * identical to what [buffer] holds, so the two never drift and no extra "displayed length"
- * bookkeeping is needed.
+ * The pinyin being composed is held in the editor's *composing region* via
+ * [TextSink.setComposingText], the way a phone keyboard shows `nihao` underlined and then
+ * replaces it with 你好. That keeps what the user sees identical to what [buffer] holds,
+ * and it tells the editor the text is in progress — so autocorrect leaves it alone and the
+ * standard underline is shown. Committing finalises the region.
  */
 class PinyinDuckSession(
     private val engine: PinyinDuckEngine,
@@ -76,7 +77,7 @@ class PinyinDuckSession(
             if (buffer.length >= MAX_BUFFER_LENGTH) return
         }
         buffer += letter
-        sink.commitText(letter.toString())
+        sink.setComposingText(buffer)
         refresh(resetSelection = true)
     }
 
@@ -91,12 +92,23 @@ class PinyinDuckSession(
      */
     fun typeDigit(digit: Int) {
         if (!isComposing || digit !in 1..5) {
-            sink.commitText(digit.toString())
+            if (isComposing) {
+                // A non-tone digit cannot continue the pinyin, so the composition ends:
+                // the pinyin is committed as text and the digit inserted alongside it.
+                // The old code appended the digit to the editor while leaving the buffer
+                // untouched, which meant the editor held `shi0` against a buffer of `shi` —
+                // the exact drift the composing region exists to prevent.
+                sink.commitText(buffer + digit.toString())
+                buffer = ""
+                refresh(resetSelection = true)
+            } else {
+                sink.commitText(digit.toString())
+            }
             return
         }
         if (buffer.length >= MAX_BUFFER_LENGTH) return
         buffer += digit.toString()
-        sink.commitText(digit.toString())
+        sink.setComposingText(buffer)
         refresh(resetSelection = true)
     }
 
@@ -127,15 +139,9 @@ class PinyinDuckSession(
             sink.deleteSurrounding(1)
             return
         }
-        if (buffer.length > 1) {
-            buffer = buffer.dropLast(1)
-            sink.deleteSurrounding(1)
-            refresh(resetSelection = true)
-        } else {
-            buffer = ""
-            sink.deleteSurrounding(1)
-            refresh(resetSelection = true)
-        }
+        buffer = buffer.dropLast(1)
+        sink.setComposingText(buffer)
+        refresh(resetSelection = true)
     }
 
     /**
@@ -148,7 +154,10 @@ class PinyinDuckSession(
     /** Abandons the composition and removes the pinyin from the editor. */
     fun cancelComposition() {
         if (!isComposing) return
-        sink.deleteSurrounding(buffer.length)
+        // Committing an empty string clears the composing region. Deleting the surrounding
+        // text instead would also remove anything the user had already committed before the
+        // composition started.
+        sink.commitText("")
         buffer = ""
         refresh(resetSelection = true)
     }
@@ -195,23 +204,23 @@ class PinyinDuckSession(
 
     private fun commitCandidate(index: Int) {
         val candidate = candidates[index]
-        // Replace the pinyin already in the editor with the chosen characters.
-        sink.deleteSurrounding(buffer.length)
+        // Committing replaces the composing region with the chosen characters.
         sink.commitText(candidate.hanzi)
 
         // Partial-match chaining: selecting 你 from `nihao` leaves `hao` buffered so the
         // rest of the phrase can be finished without retyping.
         val remaining = candidate.remainingPinyin
         buffer = remaining
-        if (remaining.isNotEmpty()) sink.commitText(remaining)
+        if (remaining.isNotEmpty()) sink.setComposingText(remaining)
 
         refresh(resetSelection = true)
     }
 
     private fun keepBufferAsText() {
-        // The pinyin is already in the editor, so ending the composition without touching
-        // it *is* committing it as raw text. This is the only way out of an input the
-        // dictionary cannot resolve, such as `qqq`.
+        // The pinyin is in the composing region; committing it finalises it as ordinary
+        // text. This is the only way out of an input the dictionary cannot resolve, such
+        // as `qqq`.
+        sink.commitText(buffer)
         buffer = ""
         refresh(resetSelection = true)
     }

@@ -9,7 +9,16 @@ package dev.pinyinduck.android.ime
  */
 interface TextSink {
 
-    /** Inserts text at the cursor. */
+    /**
+     * Replaces the composing region with [text].
+     *
+     * The editor shows this with an underline and does not run autocorrect over it, which
+     * is what keeps `nihao` from being "corrected" into something else while it is still
+     * being typed. Committing ([commitText]) finalises the region.
+     */
+    fun setComposingText(text: String)
+
+    /** Inserts text at the cursor, finalising any composing region. */
     fun commitText(text: String)
 
     /** Deletes [before] characters behind the cursor and [after] in front of it. */
