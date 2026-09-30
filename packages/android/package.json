@@ -1,0 +1,22 @@
+{
+  "name": "@pinyinduck/android",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Gradle wrapper for the PinyinDuck Android input method",
+  "comment": [
+    "This package is a Gradle project. Gradle is the build system; this file exists only to",
+    "make `packages/android` a recognisable member of the npm workspace, so `npm install` at",
+    "the repository root does not try to treat it as an application.",
+    "",
+    "There are no npm scripts here on purpose. Build, test and lint are Gradle tasks:",
+    "",
+    "  cd packages/android",
+    "  ./gradlew assembleDebug          # the debug APK",
+    "  ./gradlew testDebugUnitTest      # unit tests",
+    "  ./gradlew jacocoTestReport       # coverage HTML + XML",
+    "  ./gradlew check                  # tests plus the coverage gate",
+    "",
+    "See packages/android/README.md."
+  ]
+}

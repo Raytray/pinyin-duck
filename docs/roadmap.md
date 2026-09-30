@@ -57,23 +57,66 @@ To give Mandarin learners real-time English definitions anywhere in Windows (Not
 
 ---
 
-## 3. Milestone 3: Android Input Architecture
+## 3. Milestone 3: Android Input Architecture — as built
 
-### Native Keyboard via `InputMethodService`
-1. **Android IME Lifecycle**:
-   - Inherits `android.inputmethodservice.InputMethodService`.
-   - Inflates an onscreen keyboard layout using Jetpack Compose.
-   - Overrides `onKey`, `onText`, and interacts with `InputConnection.commitText()` and `setComposingText()`.
+Shipped as `packages/android`. The design below is what this section originally proposed; the
+outcome and the one place it changed are recorded underneath it.
+
+### As originally proposed
+
+1. **Android IME Lifecycle**: Inherit `android.inputmethodservice.InputMethodService`, inflate
+   an on-screen keyboard built with Jetpack Compose, and drive the editor through
+   `InputConnection.commitText()` and `deleteSurroundingText()`.
 2. **Core Engine Bridge**:
-   - **Option 1 (Embedded JS Engine)**: Pack `@pinyinduck/core` into a single lightweight JS bundle and execute via Hermes or QuickJS Android NDK wrapper.
-   - **Option 2 (Rust JNI Port)**: Port Trie lookup to a small Rust crate and generate Kotlin bindings via `uniffi-rs` for zero-overhead, sub-millisecond lookups.
-3. **Dictionary: mmap the B+ tree, do not parse it**:
-   - Ship `dictionary.btree` in the APK's assets and `mmap` it. `MemoryPageSource` reads byte ranges straight off the mapping, so a lookup costs a few page touches and no allocation, and the kernel can page the file out under memory pressure instead of the process holding it.
-   - This is why the asset is paged rather than a JSON blob: the full corpus is 9.12MB on disk but the resident cost is the 256KB page cache plus the few pages a query touches. Loading the whole dictionary into a JS or Kotlin object graph would cost far more than the file and is what a keyboard process cannot afford.
-   - On a cold cache the first query per prefix pays a page read; the web app already range-fetches the same way, so the paging and cache behaviour is testable before any Android code exists.
-3. **Candidate Strip UI**:
-   - Primary candidate strip displays top 3 suggestions with compact Hanzi + tone mark.
-   - Tapping an expand button displays a floating dialog with full candidate cards and English definitions.
+   - *Option 1 (Embedded JS engine)*: bundle `@pinyinduck/core` and run it on Hermes or QuickJS.
+   - *Option 2 (Rust JNI port)*: port the lookup to a native crate for sub-millisecond results.
+3. **Dictionary: mmap the B+ tree, do not parse it.** Ship `dictionary.btree` in the APK's
+   assets and read byte ranges straight off the mapping, so resident cost is the page cache
+   rather than the corpus.
+4. **Candidate Strip UI**: a primary strip of suggestions with compact Hanzi and tone marks,
+   plus an expand affordance showing full candidate cards with English definitions.
+
+### As built
+
+Everything in point 3 is unchanged: the APK stores `dictionary.btree` **uncompressed** so a
+file descriptor can be opened, the service maps it on a background thread, and each lookup
+descends the tree behind a 256KB LRU page cache. The committed asset is the same file the
+web app serves, and the Android build copies it rather than duplicating it in the repo.
+
+Points 1 and 4 are as proposed: an `InputMethodService` with a Compose keyboard, a paged
+candidate strip, and an expanded list of candidate cards showing Hanzi, tone-marked pinyin,
+HSK level and the English gloss. The strip pages rather than showing only the top three,
+because a syllable like `ta` has 1,476 candidates and a three-slot strip would need a page
+of arrows.
+
+**Point 2 took Option 2's shape rather than Option 1's, in Kotlin rather than Rust.** The
+deciding factor is that the engine is *synchronous* here: with the asset mmapped, a page read
+is a pointer offset, so `onKeyDown` ranks candidates and commits in the same call. Routing
+every keystroke through a JS engine would add a bridge hop and a promise microtask queue per
+keypress, and the engine's async `search()` could then resolve out of order relative to the
+keystrokes that produced it — the exact hazard the web client had to solve with a commit
+queue and refs.
+
+The Hermes option also turned out not to be available as originally hoped: the standalone
+`com.facebook.hermes.Hermes` eval API is an artifact of older React Native releases, and the
+current `hermes-android` AAR ships only `BuildConfig` and Intl classes. A standalone build
+would have needed a third-party QuickJS or JSC binding.
+
+The cost of a port is that the two engines can drift, so that is covered rather than
+assumed: `packages/core/scripts/generate-android-parity.ts` runs the real TypeScript engine
+over the real dictionary for 26 pinned queries and writes a golden file, and
+`PinyinEngineParityTest` asserts the Kotlin engine reproduces it exactly — same ordering,
+same tone marks, same glosses, same totals. `npm run build:parity` regenerates it whenever
+the ranking rules or the dictionary change.
+
+### Divergence worth recording
+
+On the web, digits select candidates for the whole duration of a composition, which makes
+tone-number input unreachable (see `PLAN.md` §3.2). On Android the candidates are picked
+by tapping, so the number row is free to carry tone numbers instead: `shi` then `4` narrows
+the strip to shì. This is the behaviour `README.md` had already anticipated when it said
+tone filtering was for “the planned Windows and Android clients, where the digit key is not
+competing for the same role.”
 
 ---
 

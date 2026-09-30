@@ -1,0 +1,355 @@
+package dev.pinyinduck.android.ime
+
+import dev.pinyinduck.android.engine.ScriptType
+import dev.pinyinduck.android.engine.TestDictionary
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * The composition rules, exercised against a fake editor.
+ *
+ * Every assertion is on the *editor's* text, not just the session's buffer, because the
+ * keyboard writes pinyin into the field as it is typed and then replaces it. Buffer and
+ * editor drifting apart is the failure that produces the classic "the cursor ate my
+ * character" bug, and it is invisible if a test only inspects the session's own state.
+ */
+class PinyinDuckSessionTest {
+
+    /** A stand-in editor: a text buffer with the cursor at the end, plus an Enter count. */
+    private class FakeEditor : TextSink {
+        val text = StringBuilder()
+        var enterCount = 0
+
+        override fun commitText(text: String) {
+            this.text.append(text)
+        }
+
+        override fun deleteSurrounding(before: Int, after: Int) {
+            val start = (text.length - before).coerceAtLeast(0)
+            text.delete(start, text.length)
+            if (after > 0) text.delete(text.length - after, text.length)
+        }
+
+        override fun sendEnter() {
+            enterCount++
+        }
+    }
+
+    private val editor = FakeEditor()
+    private val session = PinyinDuckSession(
+        // The same real dictionary the engine tests use; it is only read.
+        engine = TestDictionary.engine,
+        sink = editor,
+    )
+
+    private fun type(text: String) = text.forEach { session.typeLetter(it) }
+
+    @Test
+    fun typedLettersAppearInTheEditorAndTheBuffer() {
+        type("nihao")
+
+        assertEquals("nihao", editor.text.toString())
+        assertEquals("nihao", session.buffer)
+        assertTrue(session.isComposing)
+        assertTrue("expected candidates for nihao", session.hasCandidates)
+    }
+
+    @Test
+    fun spaceCommitsTheTopCandidate() {
+        type("nihao")
+        session.space()
+
+        assertEquals("你好", editor.text.toString())
+        assertFalse(session.isComposing)
+    }
+
+    @Test
+    fun selectingAPartialMatchKeepsTheLeftoverPinyinBuffered() {
+        type("nihao")
+        // 你 sits below 你好 and consumes only "ni", leaving "hao" to finish the phrase.
+        val ni = session.candidates.indexOfFirst { it.hanzi == "你" }
+        session.selectCandidate(ni)
+
+        assertEquals("你hao", editor.text.toString())
+        assertEquals("hao", session.buffer)
+        assertTrue(session.isComposing)
+
+        session.space()
+        assertEquals("你好", editor.text.toString())
+        assertFalse(session.isComposing)
+    }
+
+    @Test
+    fun backspaceRemovesOneBufferedCharacter() {
+        type("nih")
+        session.backspace()
+
+        assertEquals("ni", editor.text.toString())
+        assertEquals("ni", session.buffer)
+    }
+
+    @Test
+    fun backspaceClearsTheCompositionWithoutEatingEditorText() {
+        type("n")
+        session.backspace()
+
+        assertEquals("", editor.text.toString())
+        assertEquals("", session.buffer)
+    }
+
+    @Test
+    fun backspaceWithNoCompositionDeletesBeforeTheCursor() {
+        session.typeLetter('h')
+        session.typeLetter('i')
+        session.backspace()
+
+        assertEquals("h", editor.text.toString())
+    }
+
+    @Test
+    fun spaceWithNothingComposingInsertsASpace() {
+        // A digit starts no composition, so this is plain text followed by a space.
+        session.typeDigit(4)
+        session.space()
+
+        assertEquals("4 ", editor.text.toString())
+    }
+
+    @Test
+    fun unresolvableInputCommitsAsRawPinyin() {
+        type("qqq")
+        assertFalse("qqq should match nothing", session.hasCandidates)
+
+        session.space()
+        assertEquals("qqq", editor.text.toString())
+        assertFalse(session.isComposing)
+    }
+
+    @Test
+    fun cancellingRemovesThePinyinFromTheEditor() {
+        type("nihao")
+        session.cancelComposition()
+
+        assertEquals("", editor.text.toString())
+        assertEquals("", session.buffer)
+    }
+
+    @Test
+    fun enterSendsThePlatformKeyEvenMidComposition() {
+        // Space is what commits a candidate; Enter stays "done", as Android users expect.
+        type("nihao")
+        session.enter()
+
+        assertEquals(1, editor.enterCount)
+        assertTrue("the composition is left alone", session.isComposing)
+    }
+
+    @Test
+    fun aDigitDuringCompositionIsAToneNumber() {
+        type("shi")
+        session.typeDigit(4)
+
+        assertEquals("shi4", session.buffer)
+        assertEquals("shi4", editor.text.toString())
+        assertEquals("是", session.candidates.first().hanzi)
+    }
+
+    @Test
+    fun aDigitWithNoCompositionIsOrdinaryText() {
+        session.typeDigit(4)
+
+        assertEquals("4", editor.text.toString())
+        assertFalse(session.isComposing)
+    }
+
+    @Test
+    fun switchingScriptKeepsTheComposition() {
+        type("zhongguo")
+        assertEquals("中国", session.candidates.first().hanzi)
+
+        session.toggleScript()
+        assertEquals(ScriptType.TRADITIONAL, session.script)
+        assertEquals("中國", session.candidates.first().hanzi)
+        assertEquals("zhongguo", session.buffer)
+
+        session.space()
+        assertEquals("中國", editor.text.toString())
+    }
+
+    @Test
+    fun movingTheSelectionIsBoundedByTheCandidateList() {
+        type("ta")
+        session.moveSelection(1)
+        assertEquals(1, session.selectedIndex)
+
+        session.moveSelection(-1)
+        assertEquals(0, session.selectedIndex)
+
+        session.moveSelection(-5)
+        assertEquals("selection stops at the first candidate", 0, session.selectedIndex)
+
+        session.moveSelection(Int.MAX_VALUE)
+        assertEquals(session.candidates.lastIndex, session.selectedIndex)
+    }
+
+    @Test
+    fun pagingMovesTheSelectionByAWholePage() {
+        type("ta")
+        session.moveSelectionByPage(1, pageSize = 5)
+        assertEquals(5, session.selectedIndex)
+    }
+
+    @Test
+    fun theSelectionIsResetWhenTheBufferChanges() {
+        type("shi")
+        session.moveSelection(3)
+        assertEquals(3, session.selectedIndex)
+
+        session.typeLetter('i')
+        assertEquals("a new buffer restarts at the top candidate", 0, session.selectedIndex)
+    }
+
+    @Test
+    fun aNonPinyinKeyWithNoCompositionInsertsItDirectly() {
+        // Punctuation and digits must not start a composition they cannot contribute to.
+        session.typeDigit(0)
+        session.typeDigit(7)
+        session.typeDigit(9)
+
+        assertEquals("079", editor.text.toString())
+        assertFalse(session.isComposing)
+        assertEquals("", session.buffer)
+    }
+
+    @Test
+    fun aDigitThatIsNotAToneNumberIsPlainTextEvenWhileComposing() {
+        type("shi")
+        // 0 is never a tone, so it is inserted as text rather than joining the pinyin.
+        session.typeDigit(0)
+
+        assertEquals("shi0", editor.text.toString())
+        assertEquals("the composition must not absorb it", "shi", session.buffer)
+    }
+
+    @Test
+    fun aLongRunOfLettersForceCommitsRatherThanGrowingForever() {
+        // A letter run longer than any syllable must not be allowed to scan without bound.
+        repeat(PinyinDuckSession.MAX_BUFFER_LENGTH + 10) { session.typeLetter('a') }
+
+        assertTrue(
+            "the buffer must stay bounded, was ${session.buffer.length}",
+            session.buffer.length <= PinyinDuckSession.MAX_BUFFER_LENGTH,
+        )
+        assertTrue("the editor must still hold the committed text", editor.text.length > 1)
+    }
+
+    @Test
+    fun aLongToneRunIsRefusedRatherThanGrowingTheBuffer() {
+        type("shi")
+        repeat(PinyinDuckSession.MAX_BUFFER_LENGTH + 5) { session.typeDigit(3) }
+
+        assertEquals(
+            PinyinDuckSession.MAX_BUFFER_LENGTH,
+            session.buffer.length,
+        )
+    }
+
+    @Test
+    fun cancellingWithNothingComposingDoesNothing() {
+        session.typeDigit(4)
+        session.cancelComposition()
+
+        assertEquals("4", editor.text.toString())
+    }
+
+    @Test
+    fun cancellingClearsAnyHighlight() {
+        type("ta")
+        session.moveSelection(5)
+        session.cancelComposition()
+
+        assertEquals(-1, session.selectedIndex)
+        assertFalse(session.hasCandidates)
+    }
+
+    @Test
+    fun movingTheSelectionWithNoCandidatesIsHarmless() {
+        session.moveSelection(1)
+        session.moveSelectionByPage(1, pageSize = 9)
+        assertEquals(-1, session.selectedIndex)
+    }
+
+    @Test
+    fun selectingAnIndexThatIsNotThereDoesNothing() {
+        type("nihao")
+        val before = editor.text.toString()
+
+        session.selectCandidate(-1)
+        session.selectCandidate(9999)
+
+        assertEquals(before, editor.text.toString())
+        assertEquals("nihao", session.buffer)
+    }
+
+    @Test
+    fun committingTheTopCandidateWithNothingComposingKeepsTheRawText() {
+        session.typeDigit(4)
+        session.commitTopCandidate()
+
+        assertEquals("4", editor.text.toString())
+        assertFalse(session.isComposing)
+    }
+
+    @Test
+    fun committingRawTextWithNothingComposingIsHarmless() {
+        session.typeDigit(4)
+        session.commitRawText()
+
+        assertEquals("4", editor.text.toString())
+        assertFalse(session.isComposing)
+    }
+
+    @Test
+    fun theScriptSetterWithNoChangeDoesNotRefresh() {
+        type("nihao")
+        var changes = 0
+        session.onChange = { changes++ }
+
+        session.script = session.script
+        assertEquals(0, changes)
+
+        session.script = session.script.toggled()
+        assertEquals(1, changes)
+    }
+
+    @Test
+    fun theCandidatesAreCappedAtTheScanBudget() {
+        // `s` is the widest prefix in the corpus, so this is the query that would hit the
+        // cap. The list is bounded but `total` still reports the true count.
+        type("s")
+        assertTrue(session.total > session.candidates.size)
+        assertEquals(PinyinDuckSession.FETCH_LIMIT, session.candidates.size)
+    }
+
+    @Test
+    fun aBroadSyllablePagesThroughManyCandidates() {
+        type("ta")
+
+        assertTrue("expected a large candidate list", session.total > 100)
+        // Paging must not disturb the composition.
+        session.moveSelectionByPage(1, pageSize = 9)
+        assertEquals(9, session.selectedIndex)
+        assertEquals("ta", session.buffer)
+    }
+
+    @Test
+    fun resettingLeavesTheEditorAlone() {
+        type("nihao")
+        session.reset()
+
+        assertEquals("", session.buffer)
+        assertEquals("nihao", editor.text.toString())
+    }
+}

@@ -6,8 +6,8 @@ A TypeDuck-inspired Mandarin Pinyin input method designed for learners. As you t
 
 - **`packages/core`**: Pinyin syllable segmenter, CC-CEDICT asset generator and loader, Trie-based candidate search engine, and ranking algorithm.
 - **`packages/web`**: Web application featuring an interactive IME composition playground with inline candidate definition cards.
-- **`packages/windows`**: (Planned Milestone 2) Windows desktop integration.
-- **`packages/android`**: (Planned Milestone 3) Android input method integration.
+- **`packages/android`**: Android input method (Milestone 3). An `InputMethodService` with a Jetpack Compose keyboard over the same mmap'd `dictionary.btree`. Build, install and usage: [`packages/android/README.md`](packages/android/README.md).
+- **`packages/windows`**: (Planned) Windows desktop integration.
 
 ## Getting Started
 
@@ -113,20 +113,48 @@ selects candidate #4 rather than filtering to the fourth tone, and out-of-range 
 does the same predictable thing, instead of changing meaning depending on how many
 candidates happen to be on screen.
 
-Tone-number filtering still exists in `@pinyinduck/core` for direct callers — including
-the planned Windows and Android clients — and is covered by the unit tests. Once no
-composition is active, number keys are ordinary text input again.
+Tone-number filtering still exists in `@pinyinduck/core` for direct callers — and is used by
+the Android keyboard, where candidates are picked by tapping so the digit row is free to
+carry tone numbers (`shi` then `4` narrows to shì) — and is covered by the unit tests. Once
+no composition is active, number keys are ordinary text input again.
+
+## Android
+
+`packages/android` is a real Android input method, not a wrapper around the web app. It
+inherits `InputMethodService`, draws a Jetpack Compose keyboard, and maps the same
+`dictionary.btree` the web app serves straight out of the APK, so it works offline and
+needs no network permission.
+
+```bash
+export ANDROID_HOME="$HOME/Android/Sdk"
+npm install
+npm run build:android      # packages/android/app/build/outputs/apk/debug/app-debug.apk
+npm run test:android       # JVM tests, including the engine parity test
+adb install -r packages/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Then enable it under **Settings → System → Languages & input → On-screen keyboard**.
+Full instructions, key bindings and troubleshooting are in
+[`packages/android/README.md`](packages/android/README.md).
+
+The engine is a Kotlin port of `@pinyinduck/core` rather than a bundled copy of it, so that
+a lookup is a synchronous call and `onKeyDown` can rank and commit in one pass with no
+bridge and no promise-ordering hazard. The seam that creates is guarded by a parity test:
+`npm run build:parity` regenerates a golden file from the TypeScript engine, and
+`PinyinEngineParityTest` asserts the Kotlin engine reproduces it exactly.
 
 ## Testing
 
-The repository has two test layers:
+The repository has two test layers, plus a third for the Android client:
 
 | Layer | Command | Covers |
 | --- | --- | --- |
 | Unit (`packages/core`) | `npm test` | Pinyin parsing, syllable segmentation, tone-mark conversion, trie search, ranking, dictionary generation and loading |
 | End-to-end (Playwright) | `npm run test:e2e` | The full IME loop in a real browser: composition, candidate ranking, paging, keyboard shortcuts, text editing, script toggle, dictionary loading |
+| Android (`packages/android`) | `npm run test:android` | The Kotlin engine against the real dictionary, its parity with the TypeScript engine, and the composition rules against a fake editor |
 
-Run both with `npm run test:all`.
+Run the browser and unit suites with `npm run test:all`. The Android tests need the SDK
+(see [`packages/android/README.md`](packages/android/README.md)).
 
 The Playwright suite lives in `e2e/` and is configured by `playwright.config.ts` at the
 repo root. It starts the Vite dev server automatically, so no server needs to be running

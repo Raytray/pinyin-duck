@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PinyinDuck</string>
+    <string name="ime_name">PinyinDuck</string>
+    <string name="ime_subtype">Pinyin (Mandarin)</string>
+    <string name="settings_title">PinyinDuck settings</string>
+
+    <string name="settings_script_heading">Characters</string>
+    <string name="settings_script_simplified">Simplified</string>
+    <string name="settings_script_traditional">Traditional</string>
+    <string name="settings_script_summary">Which script candidates are shown in. You can also switch at any time with the 简/繁 button on the keyboard.</string>
+
+    <string name="settings_candidates_heading">Candidates</string>
+    <string name="settings_page_size">Candidates per row</string>
+
+    <string name="settings_dictionary_heading">Dictionary</string>
+    <string name="settings_dictionary_loading">Loading…</string>
+    <string name="settings_dictionary_missing">Not loaded. Reinstall the app after running \"npm run build:dict\" at the repository root.</string>
+
+    <string name="settings_enable_hint">Choose PinyinDuck under Settings → System → Languages &amp; input → On-screen keyboard.</string>
+
+    <string name="cd_expand_candidates">Show all candidates</string>
+    <string name="cd_script_toggle">Switch between Simplified and Traditional</string>
+    <string name="cd_clear_composition">Clear composition</string>
+</resources>
