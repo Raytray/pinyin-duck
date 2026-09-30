@@ -7,7 +7,7 @@ A TypeDuck-inspired Mandarin Pinyin input method designed for learners. As you t
 - **`packages/core`**: Pinyin syllable segmenter, CC-CEDICT asset generator and loader, Trie-based candidate search engine, and ranking algorithm.
 - **`packages/web`**: Web application featuring an interactive IME composition playground with inline candidate definition cards.
 - **`packages/android`**: Android input method (Milestone 3). An `InputMethodService` with a Jetpack Compose keyboard over the same mmap'd `dictionary.btree`. Build, install and usage: [`packages/android/README.md`](packages/android/README.md).
-- **`packages/windows`**: (Planned) Windows desktop integration.
+- **`packages/windows`**: Windows input method, delivered as a Rime/Weasel schema generated from the same engine. See [packages/windows/README.md](packages/windows/README.md).
 
 ## Getting Started
 
@@ -49,23 +49,45 @@ Two scoping decisions are worth knowing about:
 
 Candidate data comes from the full [CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict)
 corpus, joined with an OpenSubtitles frequency list and the HSK 2012 word list. The
-generated asset is committed at `packages/web/public/dictionary.btree`, so the app works
-straight after `npm install`. (The legacy JSON asset is gitignored; regenerate it with
-`--format json` if you need it.) To rebuild the B-tree from source:
+generated asset is **not committed** — it is 9.12MB of data derived from three upstream
+downloads, and a commit carrying one is a 9MB diff that changes whenever an upstream
+source does. Build it once per clone:
 
 ```bash
-npm run build:dict                       # regenerates the asset
+npm run build:dict                       # writes packages/web/public/dictionary.btree
 npm run build:dict -w @pinyinduck/core -- --no-cache   # re-downloads the sources
 npm run build:dict -w @pinyinduck/core -- --format json # whole dictionary as JSON tuples
 ```
 
-Only `dictionary.btree` is committed. Pass `--` before the flags when running the
-workspace script directly, or npm will read them as its own.
+Pass `--` before the flags when running the workspace script directly, or npm will read
+them as its own.
 
-`npm run build` runs this automatically. Downloads are cached in `packages/core/.cache/`.
+`npm run build` runs this automatically. Downloads are cached in `packages/core/.cache/`,
+so it is a one-time cost per clone. `npm run dev` and `npm run test:e2e` check for the
+asset first and name it if it is missing, rather than leaving the app on "failed to load"
+or timing out 40 Playwright tests on a file nobody mentioned.
 
 Current output: 125,132 lines parsed into 122,746 unique word/reading pairs
 (26,811 with frequency data, 5,247 on the HSK list), 9.12MB raw and 4.27MB gzipped.
+
+> The builder downloads from live URLs rather than pinning revisions, so a rebuild can
+> legitimately produce a slightly different asset than the one a given clone was last
+> built against — CC-CEDICT and the frequency list both move. The output is deterministic
+> given the same three inputs, but the inputs are not pinned, so a row count in a test and
+> a row count on disk can disagree by a handful. Anything asserting an exact corpus size
+> should say so, or assert a relationship instead.
+
+The same asset also feeds the Windows input method:
+
+```bash
+npm run build:rime                   # regenerates packages/windows/rime/*.dict.yaml
+npm run build:rime -- --out /tmp/rime   # writes the dictionaries somewhere else
+npm run build:rime -- --btree <path>    # reads a different asset
+```
+
+The Rime dictionaries are ~9.3MB each and gitignored, so `npm run build` regenerates
+them. Installing them on Windows is one PowerShell script; see
+[packages/windows/README.md](packages/windows/README.md).
 
 **The asset is a paged B+ tree, not a blob.** It is keyed on toneless pinyin and split
 into ~1,200 byte-ranged pages, so a client opens it by reading only the 24-byte header
@@ -148,11 +170,12 @@ bridge and no promise-ordering hazard. The seam that creates is guarded by a par
 
 ## Testing
 
-The repository has two test layers, plus a third for the Android client:
+The repository has three test layers:
 
 | Layer | Command | Covers |
 | --- | --- | --- |
 | Unit (`packages/core`) | `npm test` | Pinyin parsing, syllable segmentation, tone-mark conversion, trie search, ranking, dictionary generation and loading |
+| Unit (`packages/windows`) | `npm test` | The Rime dictionary emitter: column order, weights, candidate ordering, duplicate collapsing, and the file writing |
 | End-to-end (Playwright) | `npm run test:e2e` | The full IME loop in a real browser: composition, candidate ranking, paging, keyboard shortcuts, text editing, script toggle, dictionary loading |
 | Android (`packages/android`) | `./gradlew test` | The Kotlin engine against the real dictionary, its parity with the TypeScript engine, and the composition rules against a fake editor |
 
@@ -206,6 +229,7 @@ forces headed, for environments where the default is not what you want.
 | `@pinyinduck/core` | `npm run test:coverage` | `packages/core/coverage/` | 100% statements, 100% branches, 100% functions |
 | `@pinyinduck/web` | `npm run test:e2e` | `coverage/web/` | 99.8% statements, 99% branches, 100% functions |
 | `packages/android` | `cd packages/android && ./gradlew check` | `app/build/reports/jacoco/jacocoTestReport/html/` | 92% instructions, 186 tests |
+| `@pinyinduck/windows` | `npm run test:coverage -w @pinyinduck/windows` | `packages/windows/coverage/` | 97.94% statements, 96.66% branches, 100% functions |
 
 Run the first two with `npm run test:coverage:all`; the Android one is Gradle and needs no npm.
 
@@ -226,6 +250,12 @@ The dictionary builder's download, cache and file-writing paths are covered in
 so the build script is held to the same threshold as the runtime engine rather than
 being exempt as a build-time tool.
 
+`packages/windows` is held to a 95% floor on all four metrics, for the same reason: a
+drift in the Rime dictionary format still compiles and still deploys, and silently drops
+every definition or reorders the candidate list. Its file writing is exercised twice —
+once against injected fakes and once against a real temporary directory, so the real
+`fs` adapter's row buffering is covered too.
+
 The web package has no unit tests: its behaviour is verified through the browser, so its
 coverage is measured from the Playwright run instead of duplicating that suite as unit
 tests. A fixture starts Chromium's V8 profiler for the duration of each test, and
@@ -243,4 +273,3 @@ it to test.
 
 The number-while-composing behavior documented in [Number Keys Select Candidates](#number-keys-select-candidates)
 is pinned by `e2e/number-keys.spec.ts`.
-
