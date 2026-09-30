@@ -49,7 +49,7 @@ const SPOT_CHECKS: SpotCheck[] = [
   {
     script: 'simplified',
     text: '你好',
-    code: 'ni3 hao3',
+    code: 'ni hao',
     comment: 'nǐ hǎo · hello; hi',
     weight: 14262,
     why: 'the flagship entry, and a two-syllable code with a space in it',
@@ -57,7 +57,7 @@ const SPOT_CHECKS: SpotCheck[] = [
   {
     script: 'simplified',
     text: '是',
-    code: 'shi4',
+    code: 'shi',
     comment: 'shì · to be (followed by substantives only) / correct; right; true / (…',
     weight: 48865,
     why: 'the candidate the README leads with',
@@ -65,7 +65,7 @@ const SPOT_CHECKS: SpotCheck[] = [
   {
     script: 'simplified',
     text: '中国',
-    code: 'zhong1 guo2',
+    code: 'zhong guo',
     comment: 'zhōng guó · China',
     weight: 41694,
     why: 'tone marks in the gloss, with both syllables marked',
@@ -73,15 +73,15 @@ const SPOT_CHECKS: SpotCheck[] = [
   {
     script: 'simplified',
     text: '安',
-    code: 'an1',
+    code: 'an',
     comment: 'ān · surname An',
     weight: 10978,
-    why: 'must outrank the 205 astral-plane CC-CEDICT characters sharing an1',
+    why: 'must outrank the 205 astral-plane CC-CEDICT characters sharing an',
   },
   {
     script: 'simplified',
     text: '𩽾',
-    code: 'an1',
+    code: 'an',
     comment: 'ān · used in 鮟鱇|𩽾𩾌 / Taiwan pr.',
     weight: 0,
     why: 'a zero weight is legal but sorts last, which is what the astral fix relies on',
@@ -89,7 +89,7 @@ const SPOT_CHECKS: SpotCheck[] = [
   {
     script: 'simplified',
     text: '绿',
-    code: 'lü4',
+    code: 'lü',
     comment: "lǜ · green / (slang) (derived from 綠帽子|绿帽子) to cheat on (one's spouse…",
     weight: 28772,
     why: 'the ü the schema xlit rule exists to let a user type as v',
@@ -97,15 +97,15 @@ const SPOT_CHECKS: SpotCheck[] = [
   {
     script: 'simplified',
     text: '绿',
-    code: 'lu4',
+    code: 'lu',
     comment: 'lù · used in names',
     weight: 28772,
-    why: 'the same word read lu4, which is why lü4 needs no OpenCC conversion at runtime',
+    why: 'the same word read lu, which is why lü needs no OpenCC conversion at runtime',
   },
   {
     script: 'traditional',
     text: '中國',
-    code: 'zhong1 guo2',
+    code: 'zhong guo',
     comment: 'zhōng guó · China',
     weight: 41694,
     why: 'the traditional script comes from CC-CEDICT, not from a conversion step',
@@ -114,19 +114,19 @@ const SPOT_CHECKS: SpotCheck[] = [
 
 /** Every code that has to be typeable, with one entry to look for. */
 const REQUIRED_CODES: Array<[code: string, text: string]> = [
-  ['ni3', '你'],
-  ['shi4', '是'],
-  ['zhong1 guo2', '中国'],
-  ['an1', '安'],
-  ['lü4', '绿'],
-  // Spelled with ü, not v. The schema's `xlit/ü/v/` is what lets a user *type* it as `nv3`;
+  ['ni', '你'],
+  ['shi', '是'],
+  ['zhong guo', '中国'],
+  ['an', '安'],
+  ['lü', '绿'],
+  // Spelled with ü, not v. The schema's `xlit/ü/v/` is what lets a user *type* it as `nv`;
   // the dictionary itself never contains a `v`, which is why OpenCC is not involved.
-  ['nü3', '女'],
-  // 想 is third tone and 的 is neutral. Both are spelled with the digit the dictionary uses,
-  // which is also the only spelling a user can type — see SMOKE_CASES for why the digits are
-  // in speller/alphabet at all.
-  ['xiang3', '想'],
-  ['de5', '的'],
+  ['nü', '女'],
+  // 想 and 的 are the most common word and the most common grammatical particle. Both are
+  // spelled the only way a user can type them now that the codes are toneless — see
+  // SMOKE_CASES for why the digits are out of speller/alphabet.
+  ['xiang', '想'],
+  ['de', '的'],
 ];
 
 /** What one pass over a dictionary established. */

@@ -25,6 +25,7 @@ export type SmokeRecord =
   | { kind: 'schema'; schema: string; status: 'ok' | 'fail' }
   | { kind: 'preedit'; query: string; preedit: string }
   | { kind: 'candidate'; query: string; index: number; text: string; comment: string }
+  | { kind: 'committed'; query: string; text: string }
   | { kind: 'query-error'; query: string; detail: string }
   | { kind: 'schema-detail'; schema: string; detail: string };
 
@@ -39,10 +40,30 @@ export interface SmokeCase {
    * Short is deliberate. The point is to pin the top of the menu, which is what a learner
    * acts on; pinning all nine candidates Weasel shows would turn a frequency reordering
    * into a test failure without telling anyone anything a top-five pin would not.
+   *
+   * Optional because a case that pins only a commit or a preedit has no candidate order to
+   * assert — and a digit that selects a partial candidate leaves the rest composing, so the
+   * candidate list is not the interesting result.
    */
-  expect: string[];
+  expect?: string[];
   /** Fragments the first candidate's comment must contain. */
   expectComment?: string[];
+  /**
+   * The text this query must commit, if it commits at all.
+   *
+   * A digit typed while composing selects the candidate under it, so a query ending in a
+   * digit both narrows the menu and commits the selection. This pins the committed text so
+   * the behaviour is asserted rather than merely allowed.
+   */
+  expectCommit?: string;
+  /**
+   * The preedit this query must end on.
+   *
+   * Needed when a digit selects a candidate that covers only part of the input — selecting
+   * the single-syllable 你 from the `nihao` menu commits it for the `ni` part and leaves
+   * `hao` composing, so there is no single commit to assert but there is a resulting preedit.
+   */
+  expectPreedit?: string;
   /**
    * A promise this deployment cannot keep yet, and why.
    *
@@ -81,60 +102,65 @@ export interface SmokeReport {
  * checked against the ranking the shared engine produces for the same reading, so a
  * divergence means the two clients disagree rather than that a number was typed in wrong.
  *
- * Note that every query spells out its tone digits. That is not a stylistic choice: the
- * generated dictionary's codes carry them, and a code is unreachable unless every character
- * in it is in `speller/alphabet`. It is the sharpest remaining usability cost of the design.
+ * The queries are toneless on purpose. The dictionary's codes carry no tone digits and
+ * `speller/alphabet` has none either, so a code is reachable by its plain spelling and a
+ * digit typed while composing selects the candidate under it. A query ending in a digit
+ * therefore both narrows the menu and commits the selection — see `expectCommit`.
  */
 export const SMOKE_CASES: SmokeCase[] = [
   {
-    query: 'shi4',
+    query: 'shi',
     schema: SCHEMA_IDS.simplified,
-    expect: ['是', '试', '事', '室', '式'],
-    why: 'the candidate list the README leads with, in the order corpus frequency implies',
+    expect: ['是', '十', '使', '试', '诗'],
+    expectComment: ['to be'],
+    why: 'every tone of shi merges into one menu, weight-ordered, and the first candidate ' +
+      'carries its English definition — the gloss the Lua filter puts there',
   },
   {
-    query: 'an1',
+    query: 'shi2',
     schema: SCHEMA_IDS.simplified,
-    expect: ['安', '氨', '鞍', '媕', '庵'],
-    why: '安 must outrank the astral-plane CC-CEDICT characters that share an1; before the ' +
-      'code-point counting fix, 𩽾 was offered first because String.length called it two characters',
+    expectCommit: '十',
+    why: 'a digit typed while composing selects the candidate under it, which is what ' +
+      'taking the digits out of the alphabet bought back',
   },
   {
-    query: 'lv4',
+    query: 'an',
     schema: SCHEMA_IDS.simplified,
-    expect: ['绿', '律', '率', '氯', '卛'],
+    expect: ['暗', '岸', '按', '安', '案'],
+    why: 'the toneless code merges every tone of an into one menu, weight-ordered — 安 sits ' +
+      'below the more frequent 暗 岸 按, which is the order corpus frequency implies',
+  },
+  {
+    query: 'lv',
+    schema: SCHEMA_IDS.simplified,
+    expect: ['绿', '驴', '旅', '律', '率'],
     why: 'proves speller/algebra xlit/ü/v/ points the right way: a learner types v, the ' +
-      'engine finds the lü4 code, and nothing reaches for OpenCC to convert it',
+      'engine finds the lü code, and nothing reaches for OpenCC to convert it',
   },
   {
-    query: 'nv3',
+    query: 'nv',
     schema: SCHEMA_IDS.simplified,
-    expect: ['女', '籹', '钕'],
+    expect: ['女', '衄', '籹', '恧', '钕'],
     why: 'nüe spelled nv, the other half of the same xlit rule',
   },
   {
-    query: 'ni3hao3',
+    query: 'nihao',
     schema: SCHEMA_IDS.simplified,
-    expect: ['你好', '你', '祢', '拟', '伱'],
+    expect: ['你好', '你', '呢', '尼', '妮'],
     why: 'a two-syllable code with the delimiter omitted, which is how a learner types it; ' +
-      'if the emitter ever emitted syllables in the wrong order this is what catches it',
+      'the full word 你好 outranks the single-syllable candidates that share its first syllable',
   },
   {
-    query: 'shi4',
+    query: 'nihao2',
     schema: SCHEMA_IDS.simplified,
-    expect: ['是', '试'],
-    expectComment: ['to be'],
-    knownGap:
-      'librime has no field for a definition. RawDictEntry is text/code/weight and ' +
-      'EntryCollector never reads a comment column, at any version including master, so ' +
-      'the emitted gloss column is discarded at compile time and always_show_comments ' +
-      'falls back to echoing the code. Delivering the gloss needs a decision, not a tweak.',
-    why: 'the English definition is the product, and it is the one thing Rime cannot show',
+    expectPreedit: '你hao',
+    why: 'digit selection on a multi-syllable word: the second candidate 你 covers only the ' +
+      'first syllable, so it is committed for that part and the rest keeps composing',
   },
   {
-    query: 'zhong1guo2',
+    query: 'zhongguo',
     schema: SCHEMA_IDS.traditional,
-    expect: ['中國', '鍾', '中', '終', '忠'],
+    expect: ['中國', '中古', '種', '重', '鍾'],
     why: 'proves the traditional dictionary and the __include of the simplified schema; ' +
       'before the include was fixed to filename:/, this scheme failed to build entirely',
   },
@@ -229,6 +255,9 @@ export function parseSmokeOutput(stdout: string): SmokeRecord[] {
           comment: fields[4] ?? '',
         });
         break;
+      case 'COMMITTED':
+        records.push({ kind: 'committed', query: fields[1] ?? '', text: fields[2] ?? '' });
+        break;
       case 'QUERY_ERROR':
         records.push({ kind: 'query-error', query: fields[1] ?? '', detail: fields[2] ?? '' });
         break;
@@ -258,6 +287,28 @@ export function commentByQuery(records: SmokeRecord[]): Map<string, string> {
   for (const record of records) {
     if (record.kind === 'candidate' && record.index === 0 && !byQuery.has(record.query)) {
       byQuery.set(record.query, record.comment);
+    }
+  }
+  return byQuery;
+}
+
+/** The text each query committed, keyed by query. Absent when the query did not commit. */
+export function committedByQuery(records: SmokeRecord[]): Map<string, string> {
+  const byQuery = new Map<string, string>();
+  for (const record of records) {
+    if (record.kind === 'committed' && !byQuery.has(record.query)) {
+      byQuery.set(record.query, record.text);
+    }
+  }
+  return byQuery;
+}
+
+/** The preedit each query ended on, keyed by query. */
+export function preeditByQuery(records: SmokeRecord[]): Map<string, string> {
+  const byQuery = new Map<string, string>();
+  for (const record of records) {
+    if (record.kind === 'preedit' && !byQuery.has(record.query)) {
+      byQuery.set(record.query, record.preedit);
     }
   }
   return byQuery;
@@ -333,28 +384,31 @@ export function evaluateSmoke(
 
   const byQuery = candidatesByQuery(records);
   const comments = commentByQuery(records);
+  const committed = committedByQuery(records);
+  const preedit = preeditByQuery(records);
   for (const testCase of cases) {
     const actual = byQuery.get(testCase.query) ?? [];
     observed[testCase.query] = actual;
 
-    // Each case is judged entirely on its own merits, which is why the gloss case below
-    // is a separate entry that reuses the `shi4` query: the ungated `shi4` case still
-    // pins the candidate order, so a known gap on the comment column cannot be the reason
-    // an ordering regression stays green.
+    // Each case is judged entirely on its own merits: a case with an expectCommit and no
+    // expect pins only the committed text, so a candidate-ordering regression cannot be the
+    // reason a digit-selection case stays green, and vice versa.
     const problems: SmokeFailure[] = [];
     const subject = `${testCase.schema} / ${testCase.query}`;
 
-    if (actual.length === 0) {
-      problems.push({
-        subject,
-        message:
-          `${testCase.query} produced no candidates at all — ${testCase.why}. An empty ` +
-          'list usually means nothing in the dictionary is reachable: check the code ' +
-          'format against speller/alphabet.',
-      });
-    } else {
-      const mismatch = listMismatch(testCase.expect, actual.slice(0, testCase.expect.length));
-      if (mismatch) problems.push({ subject, message: `${mismatch} — ${testCase.why}` });
+    if (testCase.expect) {
+      if (actual.length === 0) {
+        problems.push({
+          subject,
+          message:
+            `${testCase.query} produced no candidates at all — ${testCase.why}. An empty ` +
+            'list usually means nothing in the dictionary is reachable: check the code ' +
+            'format against speller/alphabet.',
+        });
+      } else {
+        const mismatch = listMismatch(testCase.expect, actual.slice(0, testCase.expect.length));
+        if (mismatch) problems.push({ subject, message: `${mismatch} — ${testCase.why}` });
+      }
     }
 
     for (const fragment of testCase.expectComment ?? []) {
@@ -365,6 +419,30 @@ export function evaluateSmoke(
           message:
             `the first candidate's comment ${JSON.stringify(comment)} does not contain ` +
             `${JSON.stringify(fragment)} — ${testCase.why}`,
+        });
+      }
+    }
+
+    if (testCase.expectCommit !== undefined) {
+      const got = committed.get(testCase.query);
+      if (got !== testCase.expectCommit) {
+        problems.push({
+          subject,
+          message:
+            `${testCase.query} committed ${JSON.stringify(got ?? null)} but the case pins ` +
+            `${JSON.stringify(testCase.expectCommit)} — ${testCase.why}`,
+        });
+      }
+    }
+
+    if (testCase.expectPreedit !== undefined) {
+      const got = preedit.get(testCase.query) ?? '';
+      if (got !== testCase.expectPreedit) {
+        problems.push({
+          subject,
+          message:
+            `${testCase.query} ended on the preedit ${JSON.stringify(got)} but the case pins ` +
+            `${JSON.stringify(testCase.expectPreedit)} — ${testCase.why}`,
         });
       }
     }

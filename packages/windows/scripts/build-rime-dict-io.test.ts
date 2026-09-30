@@ -17,6 +17,7 @@ import {
   buildRimeDictionaries,
   main,
   parseArgs,
+  renderGlossSidecar,
   type RimeBuildDeps,
   type RimeFileSink,
 } from './build-rime-dict';
@@ -116,7 +117,11 @@ describe('buildRimeDictionaries', () => {
     );
 
     expect(fsState.dirs.has(OUT_DIR)).toBe(true);
-    expect(fsState.closed.sort()).toEqual([stats.files.simplified, stats.files.traditional].sort());
+    // Two dictionaries plus the Lua gloss sidecar, which lives in its own subdirectory.
+    expect(fsState.dirs.has(path.join(OUT_DIR, 'lua'))).toBe(true);
+    expect(fsState.closed.sort()).toEqual(
+      [stats.files.simplified, stats.files.traditional, stats.glossFile].sort()
+    );
   });
 
   it('starts each file with a header the writer can consume', async () => {
@@ -143,7 +148,27 @@ describe('buildRimeDictionaries', () => {
     for (const line of body) {
       expect(line.split('\t')).toHaveLength(4);
     }
-    expect(body.find((line) => line.startsWith('你好'))).toContain('ni3 hao3');
+    expect(body.find((line) => line.startsWith('你好'))).toContain('ni hao');
+  });
+
+  it('writes the Lua gloss sidecar the schema filter reads', async () => {
+    const stats = await buildRimeDictionaries(
+      { btreePath: '/asset.btree', outDir: OUT_DIR },
+      fsState.deps
+    );
+    const sidecar = fsState.files.get(stats.glossFile);
+    if (sidecar === undefined) throw new Error('missing sidecar');
+
+    // The shape the filter's `require` returns: one delimited string, a parse loop, a table.
+    // A table literal would exceed Lua's 65536-constant limit at corpus scale.
+    expect(sidecar).toContain('local data = "');
+    expect(sidecar).toContain('for text, code, def in data:gmatch');
+    expect(sidecar.trimEnd().endsWith('return gloss')).toBe(true);
+    // 你好 carries its definition, keyed by the toneless code.
+    expect(sidecar).toContain('你好\\tni hao\\tnǐ hǎo · hello / how are you\\n');
+    // Every definition came from a dictionary row, so the sidecar is never larger than the
+    // rows that carry a gloss.
+    expect(stats.glossEntries).toBeGreaterThan(0);
   });
 
   it('deduplicates the traditional dictionary, which CC-CEDICT collapses', async () => {
@@ -184,14 +209,14 @@ describe('buildRimeDictionaries', () => {
 
   it('counts an unreadable reading separately from a missing text', async () => {
     // The two are reported apart because they are different problems: one is junk in the
-    // source that librime would drop with an `Encode failure`, the other is an entry that has
+    // source that cannot be encoded as a syllable-aligned code, the other is an entry that has
     // no form in the script being written. A single "unusable" number hides which.
     //
-    // `pua` is romanised English that leaked into CC-CEDICT's pinyin column. It looks like a
-    // reading, and librime drops it with an `Encode failure` when it tries to encode it.
+    // `bai3ke4` is two syllables fused with no space; stripping the trailing digit leaves
+    // `bai3ke`, which is not letters, so the reading is unencodable.
     const rows: DictRow[] = [
       ['你好', '妳好', 'ni3 hao3', 'hello', 50000, 1],
-      ['帅', '帥', 'pua', 'handsome', 500, 0],
+      ['兡', '兡', 'bai3ke4', 'decawatt', 500, 0],
     ];
     const stats = await buildRimeDictionaries(
       { btreePath: '/asset.btree', outDir: OUT_DIR },
@@ -267,6 +292,47 @@ describe('the real filesystem adapter', () => {
       buildRimeDictionaries({ btreePath: path.join(dir, 'absent.btree'), outDir })
     ).rejects.toThrow(/npm run build:dict/);
     expect(fs.existsSync(outDir)).toBe(false);
+  });
+});
+
+describe('renderGlossSidecar', () => {
+  it('emits the data as one delimited string, sorted for reproducibility', () => {
+    const gloss = new Map([
+      ['你好', new Map([['ni hao', 'nǐ hǎo · hello']])],
+      ['绿', new Map([['lü', 'lǜ · green'], ['lu', 'lù · used in names']])],
+    ]);
+    const lua = renderGlossSidecar(gloss);
+    // The shape the filter's `require` returns: one string constant, a parse loop, a table.
+    expect(lua).toContain('local data = "');
+    expect(lua).toContain('for text, code, def in data:gmatch');
+    expect(lua.trimEnd().endsWith('return gloss')).toBe(true);
+    // Decode the Lua string and check the rows: 你好 sorts before 绿, and within 绿 the
+    // codes sort lu before lü.
+    const data = lua
+      .split('\n')
+      .find((line) => line.startsWith('local data = '))!
+      .slice('local data = '.length)
+      .replace(/^"|"$/g, '')
+      .replace(/\\t/g, '\t')
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\r')
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\');
+    expect(data).toBe(
+      '你好\tni hao\tnǐ hǎo · hello\n' + '绿\tlu\tlù · used in names\n' + '绿\tlü\tlǜ · green\n'
+    );
+  });
+
+  it('escapes quotes and backslashes so a definition can never break the Lua string', () => {
+    const gloss = new Map([['say', new Map([['shuo', 'he said "hi" \\ twice']])]]);
+    const lua = renderGlossSidecar(gloss);
+    expect(lua).toContain('local data = "say\\tshuo\\the said \\"hi\\" \\\\ twice\\n"');
+  });
+
+  it('emits an empty data string when no entry carries a definition', () => {
+    const lua = renderGlossSidecar(new Map());
+    expect(lua).toContain('local data = ""');
+    expect(lua.trimEnd().endsWith('return gloss')).toBe(true);
   });
 });
 

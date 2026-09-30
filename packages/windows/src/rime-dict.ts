@@ -42,12 +42,11 @@ export const RIME_SCRIPTS: readonly RimeScript[] = ['simplified', 'traditional']
  * The list has to be written out because `DictSettings::GetColumnIndex` falls back to
  * text/code/weight when `columns` is absent, and this emitter writes a fourth field.
  *
- * Read the next comment before assuming that declaring `comment` delivers the gloss. It
- * does not: librime's `EntryCollector` never reads this column, at any version including
- * master. The column is emitted anyway, and deliberately so — it costs a few bytes per
- * row, it keeps the file self-describing, and it means the day librime does read it the
- * fix is a Weasel upgrade rather than a regeneration of 9MB from a corpus that has since
- * been rebuilt. What it does not do is make the English definition appear.
+ * The `comment` column is the source of the English definition. librime's `EntryCollector`
+ * does not read it, so it never reaches the candidate list on its own — but the build also
+ * emits `lua/pinyinduck_gloss.lua` from it, and the schema's `lua_filter` looks the
+ * definition up from there. The column stays in the dictionary so the file stays
+ * self-describing and the sidecar can be regenerated from it.
  */
 export const RIME_COLUMNS = ['text', 'code', 'comment', 'weight'] as const;
 
@@ -85,11 +84,17 @@ export function sanitizeField(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
-/** A syllable as librime's encoder will accept it: letters, then exactly one tone digit. */
-const RIME_SYLLABLE = /^[a-zü]+[1-5]$/;
+/** A syllable once its tone digit is gone: one or more letters, `ü` included. */
+const RIME_SYLLABLE = /^[a-zü]+$/;
 
 /**
- * The Rime codes one source reading can produce, which is sometimes none and sometimes two.
+ * The toneless Rime codes one source reading can produce: sometimes none, sometimes two.
+ *
+ * The codes are toneless on purpose. A tone digit in the code would make the digit a *spelling*
+ * key, so typing `shi2` would be the only way to reach `是` — and a learner who types `shi`
+ * and presses `2` to pick the second candidate would instead be spelling a tone. Dropping the
+ * digits makes every code reachable by its plain spelling and turns the digit keys into
+ * candidate selectors, which is the behaviour the rest of PinyinDuck already has.
  *
  * CC-CEDICT is not a clean single-reading source, and both irregularities cost rows in the
  * deployed dictionary unless they are handled here rather than left to librime:
@@ -102,25 +107,28 @@ const RIME_SYLLABLE = /^[a-zü]+[1-5]$/;
  *   these with an `Encode failure` warning at deploy time, so passing them through buys
  *   nothing and costs a warning per row in Weasel's log.
  *
- * Verified against librime 1.13.1: 600 rows carry a second reading worth recovering, and 157
- * are unencodable. Both numbers are small, which is why this went unnoticed — but the
- * warnings are not, and a log that says `Encode failure` 880 times on every deploy is a log
- * nobody reads, including when it is telling the truth about something else.
+ * The validation is deliberately lenient — letters only, no syllable-set check. The web app's
+ * `cleanPinyin` keeps any run of letters (`r5` → `r`, `aa` → `aa`), so a stricter rule here
+ * would make Windows *less* capable than the web for the same corpus, dropping 儿化 words
+ * (`ai1 bian1 r5`), `AA制`, and `ACG` that are all reachable today. Only genuinely untypeable
+ * readings are rejected: squashed codes with an internal digit (`bai3ke4`) and bare numbers.
  */
 export function rimeCodes(pinyinNumbers: string): string[] {
   const codes: string[] = [];
   const seen = new Set<string>();
   for (const variant of pinyinNumbers.split(/[,·]/)) {
     const code = sanitizeField(variant);
-    // sanitizeField leaves no empty or doubled spaces, so a split on ' ' is exact.
-    if (code === '' || !code.split(' ').every((syllable) => RIME_SYLLABLE.test(syllable))) {
-      continue;
-    }
+    if (code === '') continue;
+    // sanitizeField leaves no empty or doubled spaces, so a split on ' ' is exact. Strip the
+    // trailing tone digit from each syllable; what remains is the code the schema matches on.
+    const syllables = code.split(' ').map((syllable) => syllable.replace(/[1-5]$/, ''));
+    if (!syllables.every((syllable) => RIME_SYLLABLE.test(syllable))) continue;
+    const toneless = syllables.join(' ');
     // A row that is its own duplicate would be dropped by the dictionary as a duplicate, but
     // counting it here is what keeps the reported row total equal to the rows written.
-    if (seen.has(code)) continue;
-    seen.add(code);
-    codes.push(code);
+    if (seen.has(toneless)) continue;
+    seen.add(toneless);
+    codes.push(toneless);
   }
   return codes;
 }
@@ -169,16 +177,17 @@ export function rimeToneMarks(entry: StoredEntry): string {
 }
 
 /**
- * The comment column, which no Rime version currently reads.
+ * The comment column: tone marks plus the definition, or `''` when there is no gloss.
  *
  * Tone marks and the definition travel together because they answer the same question:
  * which of these homophones did I mean.
  *
- * This value is written to the file and is not delivered to the user. librime's
+ * This value is written to the dictionary and is also what `lua/pinyinduck_gloss.lua` is
+ * generated from, so the Lua filter can put the definition on the candidate. librime's
  * `RawDictEntry` is text/code/weight and `EntryCollector` never reads a fourth field, so
- * the column is discarded at compile time; what `always_show_comments` then shows is the
- * candidate's own code, spelled out. Building it correctly anyway is the point: the file
- * is the artifact, and the artifact should be right even where the consumer is not.
+ * the column is discarded at compile time; what `always_show_comments` would otherwise show
+ * is the candidate's own code, spelled out. Building it correctly anyway is the point: the
+ * file is the artifact, and the artifact should be right even where the consumer is not.
  */
 export function rimeComment(entry: StoredEntry): string {
   const gloss = sanitizeField(entry.shortGloss);

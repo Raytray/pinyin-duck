@@ -14,10 +14,12 @@ import {
   SMOKE_CASES,
   candidatesByQuery,
   commentByQuery,
+  committedByQuery,
   evaluateSmoke,
   findRimeErrors,
   formatSmokeReport,
   parseSmokeOutput,
+  preeditByQuery,
   type SmokeCase,
   type SmokeRecord,
   type SmokeReport,
@@ -260,6 +262,43 @@ describe('commentByQuery', () => {
   });
 });
 
+describe('committedByQuery', () => {
+  it('takes the committed text per query, ignoring queries that did not commit', () => {
+    const committed = committedByQuery([
+      { kind: 'candidate', query: 'shi', index: 0, text: '是', comment: '' },
+      { kind: 'committed', query: 'shi2', text: '试' },
+      { kind: 'committed', query: 'nihao2', text: '你' },
+    ]);
+    expect(committed.get('shi2')).toBe('试');
+    expect(committed.get('nihao2')).toBe('你');
+    expect(committed.has('shi')).toBe(false);
+  });
+
+  it('takes the first commit when a query committed more than once', () => {
+    const committed = committedByQuery([
+      { kind: 'committed', query: 'shi2', text: '试' },
+      { kind: 'committed', query: 'shi2', text: '是' },
+    ]);
+    expect(committed.get('shi2')).toBe('试');
+  });
+});
+
+describe('preeditByQuery', () => {
+  it('takes the preedit of the first PREEDIT record per query', () => {
+    const preedit = preeditByQuery([
+      { kind: 'preedit', query: 'shi', preedit: 'shi' },
+      { kind: 'preedit', query: 'shi', preedit: '是' },
+      { kind: 'preedit', query: 'an', preedit: 'an' },
+    ]);
+    expect(preedit.get('shi')).toBe('shi');
+    expect(preedit.get('an')).toBe('an');
+  });
+
+  it('has no entry for a query that produced no preedit', () => {
+    expect(preeditByQuery(healthy()).has('shi')).toBe(false);
+  });
+});
+
 describe('evaluateSmoke', () => {
   it('passes a healthy run', () => {
     const report = evaluateSmoke(
@@ -343,6 +382,54 @@ describe('evaluateSmoke', () => {
       ''
     );
     expect(report.failures[0].message).toMatch(/does not contain "to be"/);
+  });
+
+  it('passes when the committed text is the one pinned', () => {
+    const report = evaluateSmoke(
+      [...healthy(), { kind: 'committed', query: 'shi2', text: '试' }, ...candidates('shi2', ['是', '试'])],
+      [testCase({ query: 'shi2', expect: ['是', '试'], expectCommit: '试' })],
+      ''
+    );
+    expect(report.failures).toEqual([]);
+  });
+
+  it('fails when the committed text is not the one pinned', () => {
+    const report = evaluateSmoke(
+      [...healthy(), { kind: 'committed', query: 'shi2', text: '是' }, ...candidates('shi2', ['是', '试'])],
+      [testCase({ query: 'shi2', expect: ['是', '试'], expectCommit: '试' })],
+      ''
+    );
+    expect(report.failures).toHaveLength(1);
+    expect(report.failures[0].message).toMatch(/committed "是".*"试"/);
+  });
+
+  it('fails when a case pins a commit but the query didn\'t commit', () => {
+    const report = evaluateSmoke(
+      [...healthy(), ...candidates('shi', ['是', '试'])],
+      [testCase({ query: 'shi', expect: ['是', '试'], expectCommit: '试' })],
+      ''
+    );
+    expect(report.failures).toHaveLength(1);
+    expect(report.failures[0].message).toMatch(/committed null/);
+  });
+
+  it('passes when the preedit is the one pinned', () => {
+    const report = evaluateSmoke(
+      [...healthy(), { kind: 'preedit', query: 'nihao2', preedit: '你hao' }],
+      [testCase({ query: 'nihao2', expect: undefined, expectPreedit: '你hao' })],
+      ''
+    );
+    expect(report.failures).toEqual([]);
+  });
+
+  it('fails when the preedit is not the one pinned', () => {
+    const report = evaluateSmoke(
+      [...healthy(), { kind: 'preedit', query: 'nihao2', preedit: 'nihao' }],
+      [testCase({ query: 'nihao2', expect: undefined, expectPreedit: '你hao' })],
+      ''
+    );
+    expect(report.failures).toHaveLength(1);
+    expect(report.failures[0].message).toMatch(/ended on the preedit "nihao".*"你hao"/);
   });
 
   it('fails on a librime log line, naming the line', () => {
@@ -466,27 +553,35 @@ describe('SMOKE_CASES', () => {
     }
   });
 
-  it('gives every case a reason and at least two expected candidates', () => {
+  it('gives every case a reason and something to pin', () => {
     for (const testCase of SMOKE_CASES) {
       expect(testCase.why.length).toBeGreaterThan(20);
-      expect(testCase.expect.length).toBeGreaterThanOrEqual(2);
+      // A case pins the candidate order, the committed text, or the resulting preedit.
+      const pinsOrder = (testCase.expect?.length ?? 0) >= 2;
+      const pinsCommit = testCase.expectCommit !== undefined;
+      const pinsPreedit = testCase.expectPreedit !== undefined;
+      expect(pinsOrder || pinsCommit || pinsPreedit, `${testCase.query} pins nothing`).toBe(true);
     }
   });
 
-  it('types every query with the tone digits its code requires', () => {
-    // A case that forgot the digits would pass with an empty list for the wrong reason,
-    // and the "no candidates" failure names the alphabet rather than the typo.
+  it('types every query toneless, with a selector digit only where a case commits', () => {
+    // The codes carry no tone digits and the alphabet has none either, so a query is the
+    // plain spelling, optionally followed by one digit that selects a candidate. A query
+    // with an internal digit would be spelling a tone the dictionary cannot match.
     for (const testCase of SMOKE_CASES) {
-      if (testCase.knownGap) continue;
-      expect(testCase.query, `${testCase.query} has no tone digit`).toMatch(/[1-5]/);
+      expect(testCase.query, `${testCase.query} has an internal digit`).toMatch(/^[a-zü]+[0-9]?$/);
+      if (testCase.expectCommit !== undefined) {
+        expect(testCase.query, `${testCase.query} must end in the selector digit`).toMatch(/[0-9]$/);
+      }
     }
   });
 
-  it('documents every known gap, so it reads as a decision rather than an excuse', () => {
+  it('delivers the gloss now that the Lua filter reads the sidecar', () => {
+    // The gloss was the last known gap: librime has no definition field, so the comment
+    // fell back to echoing the code. The Lua filter closes it, so no case is gapped and at
+    // least one pins the definition.
     const gapped = SMOKE_CASES.filter((c) => c.knownGap);
-    expect(gapped.length).toBeGreaterThan(0);
-    for (const testCase of gapped) {
-      expect(testCase.knownGap!.length).toBeGreaterThan(60);
-    }
+    expect(gapped).toEqual([]);
+    expect(SMOKE_CASES.some((c) => c.expectComment && !c.knownGap)).toBe(true);
   });
 });

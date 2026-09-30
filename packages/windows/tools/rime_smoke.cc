@@ -11,6 +11,7 @@
 //   SCHEMA_LIST  <id>,<id>,...
 //   PREEDIT      <query>  <preedit text>
 //   CANDIDATE    <query>  <index>  <text>  <comment>
+//   COMMITTED    <query>  <text>
 //   QUERY_ERROR  <query>  <detail>
 //
 // Anything librime itself logs goes to stderr, because traits.log_dir is set to "" and
@@ -165,6 +166,14 @@ int main(int argc, char** argv) {
     }
 
     record("PREEDIT", escape(query), escape(context.composition.preedit));
+    // A digit may have selected and committed a candidate. get_commit surfaces the
+    // committed text so the caller can tell "committed 试" from "committed 是" — the whole
+    // point of taking the digits out of the alphabet is that this now happens.
+    RIME_STRUCT(RimeCommit, commit);
+    if (rime->get_commit(session, &commit)) {
+      record("COMMITTED", escape(query), escape(commit.text ? commit.text : ""));
+      rime->free_commit(&commit);
+    }
     const RimeMenu& menu = context.menu;
     for (int i = 0; i < menu.num_candidates; ++i) {
       record("CANDIDATE", escape(query), i, escape(menu.candidates[i].text),
