@@ -39,8 +39,15 @@ export const RIME_SCRIPTS: readonly RimeScript[] = ['simplified', 'traditional']
 /**
  * Column order declared in the header, which is what gives the TSV body its meaning.
  *
- * This has to be written out: `DictSettings::GetColumnIndex` falls back to
- * text/code/weight when `columns` is absent, and `comment` is not part of that default.
+ * The list has to be written out because `DictSettings::GetColumnIndex` falls back to
+ * text/code/weight when `columns` is absent, and this emitter writes a fourth field.
+ *
+ * Read the next comment before assuming that declaring `comment` delivers the gloss. It
+ * does not: librime's `EntryCollector` never reads this column, at any version including
+ * master. The column is emitted anyway, and deliberately so — it costs a few bytes per
+ * row, it keeps the file self-describing, and it means the day librime does read it the
+ * fix is a Weasel upgrade rather than a regeneration of 9MB from a corpus that has since
+ * been rebuilt. What it does not do is make the English definition appear.
  */
 export const RIME_COLUMNS = ['text', 'code', 'comment', 'weight'] as const;
 
@@ -78,6 +85,46 @@ export function sanitizeField(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
+/** A syllable as librime's encoder will accept it: letters, then exactly one tone digit. */
+const RIME_SYLLABLE = /^[a-zü]+[1-5]$/;
+
+/**
+ * The Rime codes one source reading can produce, which is sometimes none and sometimes two.
+ *
+ * CC-CEDICT is not a clean single-reading source, and both irregularities cost rows in the
+ * deployed dictionary unless they are handled here rather than left to librime:
+ *
+ * - Some entries carry two alternative readings, separated by a comma or a middot
+ *   (`ai1 de2 hua2 · da2 la1 di4`). They are one word, so the right answer is two rows, one
+ *   per reading — not one row with both, which librime cannot encode at all.
+ * - Some readings are not readings. They are romanised English and abbreviations that leaked
+ *   into the pinyin column: `coser`, `bai3ke4`, `pua`, `t o n y`, a bare `11`. librime drops
+ *   these with an `Encode failure` warning at deploy time, so passing them through buys
+ *   nothing and costs a warning per row in Weasel's log.
+ *
+ * Verified against librime 1.13.1: 600 rows carry a second reading worth recovering, and 157
+ * are unencodable. Both numbers are small, which is why this went unnoticed — but the
+ * warnings are not, and a log that says `Encode failure` 880 times on every deploy is a log
+ * nobody reads, including when it is telling the truth about something else.
+ */
+export function rimeCodes(pinyinNumbers: string): string[] {
+  const codes: string[] = [];
+  const seen = new Set<string>();
+  for (const variant of pinyinNumbers.split(/[,·]/)) {
+    const code = sanitizeField(variant);
+    // sanitizeField leaves no empty or doubled spaces, so a split on ' ' is exact.
+    if (code === '' || !code.split(' ').every((syllable) => RIME_SYLLABLE.test(syllable))) {
+      continue;
+    }
+    // A row that is its own duplicate would be dropped by the dictionary as a duplicate, but
+    // counting it here is what keeps the reported row total equal to the rows written.
+    if (seen.has(code)) continue;
+    seen.add(code);
+    codes.push(code);
+  }
+  return codes;
+}
+
 /** The candidate text an entry contributes under a script. */
 export function rimeText(entry: StoredEntry, script: RimeScript): string {
   return sanitizeField(script === 'traditional' ? entry.traditional : entry.simplified);
@@ -103,7 +150,14 @@ export function hskBonus(hskLevel: number): number {
  * `log(weight)`, so only the ordering matters, not the scale.
  */
 export function rimeWeight(entry: StoredEntry): number {
-  return Math.round(entry.frequency / 5) + hskBonus(entry.hskLevel);
+  // Non-negative by construction. `hskLevel` is a `u8` in the asset, so it can carry 255,
+  // and `(7 - 255) * 5000` is a large negative bonus that outweighs any frequency. librime
+  // would not reject it: `dict_compiler.cc` computes `log(weight > 0 ? weight :
+  // DBL_EPSILON)`, so a non-positive weight becomes log(2.2e-16) ≈ -36 and the row sorts
+  // below every other candidate in its own menu, silently and permanently. Clamping here
+  // keeps the file valid; the corpus sweep asserts the clamp never engages, so a bad asset
+  // value is still reported rather than quietly absorbed.
+  return Math.max(0, Math.round(entry.frequency / 5) + hskBonus(entry.hskLevel));
 }
 
 /** Tone marks derived from the code, or `''` when the code is not typeable pinyin. */
@@ -115,11 +169,16 @@ export function rimeToneMarks(entry: StoredEntry): string {
 }
 
 /**
- * The comment Rime shows next to a candidate.
+ * The comment column, which no Rime version currently reads.
  *
  * Tone marks and the definition travel together because they answer the same question:
- * which of these homophones did I mean. `always_show_comments` in the schema puts this
- * on every candidate, not just the selected one.
+ * which of these homophones did I mean.
+ *
+ * This value is written to the file and is not delivered to the user. librime's
+ * `RawDictEntry` is text/code/weight and `EntryCollector` never reads a fourth field, so
+ * the column is discarded at compile time; what `always_show_comments` then shows is the
+ * candidate's own code, spelled out. Building it correctly anyway is the point: the file
+ * is the artifact, and the artifact should be right even where the consumer is not.
  */
 export function rimeComment(entry: StoredEntry): string {
   const gloss = sanitizeField(entry.shortGloss);
@@ -158,6 +217,12 @@ export interface RimeCodeRows {
   duplicates: number;
 }
 
+/** One entry pinned to the specific reading it is being emitted under. */
+export interface CodeEntry {
+  entry: StoredEntry;
+  code: string;
+}
+
 /**
  * Builds the rows for one code, dropping duplicates.
  *
@@ -165,17 +230,19 @@ export interface RimeCodeRows {
  * traditional one does not: distinct simplified words collapse onto one traditional
  * form (`干` and `乾` are both `乾`), and librime discards such a duplicate with a
  * warning while still compiling it. Deduplicating here keeps the file honest.
+ *
+ * The code arrives with each entry rather than being read back off it, because an entry
+ * with two readings contributes one row per reading and the two differ only in the code.
  */
-export function rowsForCode(entries: StoredEntry[], script: RimeScript): RimeCodeRows {
-  const sorted = [...entries].sort(compareEntriesForMenu);
+export function rowsForCode(items: CodeEntry[], script: RimeScript): RimeCodeRows {
+  const sorted = [...items].sort((a, b) => compareEntriesForMenu(a.entry, b.entry));
   const rows: RimeRow[] = [];
   const seen = new Set<string>();
   let duplicates = 0;
 
-  for (const entry of sorted) {
+  for (const { entry, code } of sorted) {
     const text = rimeText(entry, script);
-    const code = sanitizeField(entry.pinyinNumbers);
-    if (!text || !code) continue;
+    if (!text) continue;
     const key = `${text}${RIME_FIELD_SEPARATOR}${code}`;
     if (seen.has(key)) {
       duplicates++;
@@ -221,12 +288,14 @@ export function renderDictHeader(meta: RimeDictMeta): string {
 export class RimeDictWriter {
   /** Rows written, after duplicates within a code were dropped. */
   rowCount = 0;
-  /** Entries with no text or no code, which no dictionary can hold. */
+  /** Entries with no text for the script being written, which no dictionary can hold. */
   skippedCount = 0;
+  /** Entries whose reading is not encodable pinyin, so nothing can look them up. */
+  unencodableCount = 0;
   /** Duplicate `(text, code)` rows dropped. */
   duplicateCount = 0;
 
-  private block: StoredEntry[] = [];
+  private block: CodeEntry[] = [];
   private blockKey: string | null = null;
 
   constructor(
@@ -245,16 +314,22 @@ export class RimeDictWriter {
    * homophone cluster while still ordering each menu correctly.
    */
   add(entry: StoredEntry): void {
-    const code = sanitizeField(entry.pinyinNumbers);
-    if (!rimeText(entry, this.script) || !code) {
+    if (!rimeText(entry, this.script)) {
       this.skippedCount++;
+      return;
+    }
+    const codes = rimeCodes(entry.pinyinNumbers);
+    if (codes.length === 0) {
+      this.unencodableCount++;
       return;
     }
     if (entry.key !== this.blockKey) {
       this.flush();
       this.blockKey = entry.key;
     }
-    this.block.push(entry);
+    // One entry can legitimately contribute a row per reading, so the code is carried
+    // alongside the entry rather than recomputed from it at flush time.
+    for (const code of codes) this.block.push({ entry, code });
   }
 
   /** Flushes the last key block. Safe to call more than once. */
@@ -265,12 +340,11 @@ export class RimeDictWriter {
 
   private flush(): void {
     if (this.block.length === 0) return;
-    const byCode = new Map<string, StoredEntry[]>();
-    for (const entry of this.block) {
-      const code = sanitizeField(entry.pinyinNumbers);
-      const group = byCode.get(code);
-      if (group) group.push(entry);
-      else byCode.set(code, [entry]);
+    const byCode = new Map<string, CodeEntry[]>();
+    for (const item of this.block) {
+      const group = byCode.get(item.code);
+      if (group) group.push(item);
+      else byCode.set(item.code, [item]);
     }
     this.block = [];
 

@@ -26,3 +26,10 @@ packages/web/public/dictionary.json
 # The generated Rime dictionaries. The hand-written schemas next to them are committed;
 # these two are ~7MB each and are rebuilt by `npm run build:rime`.
 packages/windows/rime/*.dict.yaml
+
+# What `npm run setup:rime` provisions: a 172MB librime clone at the pinned tag 1.13.1,
+# and a local prefix holding cmake, Boost headers and the compiled liblibrime.so plus the
+# rime_smoke harness. Both are rebuilt from scratch by that script, which needs no sudo.
+# bootstrap-rime.sh and rime_smoke.cc next to them *are* committed — they are the source.
+packages/windows/tools/librime/
+packages/windows/tools/.local/

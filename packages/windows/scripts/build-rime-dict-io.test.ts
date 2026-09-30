@@ -168,8 +168,39 @@ describe('buildRimeDictionaries', () => {
     );
 
     expect(stats.entryCount).toBe(CORPUS.length);
-    expect(stats.scripts.simplified).toEqual({ rows: 5, skipped: 0, duplicates: 0 });
-    expect(stats.scripts.traditional).toEqual({ rows: 4, skipped: 0, duplicates: 1 });
+    expect(stats.scripts.simplified).toEqual({
+      rows: 5,
+      skipped: 0,
+      unencodable: 0,
+      duplicates: 0,
+    });
+    expect(stats.scripts.traditional).toEqual({
+      rows: 4,
+      skipped: 0,
+      unencodable: 0,
+      duplicates: 1,
+    });
+  });
+
+  it('counts an unreadable reading separately from a missing text', async () => {
+    // The two are reported apart because they are different problems: one is junk in the
+    // source that librime would drop with an `Encode failure`, the other is an entry that has
+    // no form in the script being written. A single "unusable" number hides which.
+    //
+    // `pua` is romanised English that leaked into CC-CEDICT's pinyin column. It looks like a
+    // reading, and librime drops it with an `Encode failure` when it tries to encode it.
+    const rows: DictRow[] = [
+      ['你好', '妳好', 'ni3 hao3', 'hello', 50000, 1],
+      ['帅', '帥', 'pua', 'handsome', 500, 0],
+    ];
+    const stats = await buildRimeDictionaries(
+      { btreePath: '/asset.btree', outDir: OUT_DIR },
+      fakeFs(buildBTree(rows.map((row) => [...row] as never))).deps
+    );
+
+    expect(stats.scripts.simplified.unencodable).toBe(1);
+    expect(stats.scripts.simplified.skipped).toBe(0);
+    expect(stats.scripts.simplified.rows).toBe(1);
   });
 
   it('explains how to regenerate a missing asset instead of failing on a read', async () => {

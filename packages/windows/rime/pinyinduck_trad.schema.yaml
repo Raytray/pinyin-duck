@@ -9,7 +9,11 @@
 # Switch between the two with the Rime scheme switcher (F4, or Ctrl+`), the same way a
 # Windows user switches between 拼音 and 英文.
 
-__include: pinyinduck.schema://
+# `filename:/` is the form librime's config compiler documents for including another
+# file's root. The more familiar `schema_id://` does not resolve here: it refers to a
+# *built* schema, and both schemes are built in the same pass, so the dependency is still
+# unresolved when this one is linked and the whole traditional scheme silently fails to load.
+__include: pinyinduck.schema.yaml:/
 
 schema:
   schema_id: pinyinduck_trad

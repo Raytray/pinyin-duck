@@ -6,9 +6,12 @@
   "scripts": {
     "build": "tsc",
     "build:rime": "tsx scripts/build-rime-dict.ts",
+    "setup:rime": "bash tools/bootstrap-rime.sh",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:rime": "tsx scripts/verify-rime.ts",
+    "test:rime:strict": "tsx scripts/verify-rime.ts --require"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
