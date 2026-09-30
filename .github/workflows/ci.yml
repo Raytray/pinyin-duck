@@ -1,0 +1,197 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── Detect which packages changed ────────────────────────────────────────
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      web: ${{ steps.filter.outputs.web }}
+      android: ${{ steps.filter.outputs.android }}
+      windows: ${{ steps.filter.outputs.windows }}
+      root: ${{ steps.filter.outputs.root }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            core:
+              - 'packages/core/**'
+            web:
+              - 'packages/web/**'
+            android:
+              - 'packages/android/**'
+            windows:
+              - 'packages/windows/**'
+            root:
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig*.json'
+              - '.oxlintrc.json'
+              - 'scripts/**'
+              - 'e2e/**'
+              - 'playwright.config.ts'
+
+  # ─── Root-level checks (lint + typecheck) ─────────────────────────────────
+  root-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (oxlint)
+        run: npm run lint
+
+      - name: Typecheck (all workspaces)
+        run: npm run typecheck
+
+  # ─── Per-package checks (parallel matrix) ─────────────────────────────────
+  package-checks:
+    needs: changes
+    if: ${{ needs.changes.outputs.core == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.android == 'true' || needs.changes.outputs.windows == 'true' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - core
+          - web
+          - android
+          - windows
+
+    name: ${{ matrix.package }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Build generated assets (needed by tests) ──
+      - name: Build dictionary assets
+        if: ${{ matrix.package == 'core' || matrix.package == 'web' || matrix.package == 'windows' }}
+        run: |
+          npm run build:dict
+          npm run build:rime
+
+      # ── Core ──
+      - name: [core] Lint
+        if: ${{ matrix.package == 'core' }}
+        run: npx oxlint packages/core
+
+      - name: [core] Typecheck
+        if: ${{ matrix.package == 'core' }}
+        run: npm run typecheck -w @pinyinduck/core
+
+      - name: [core] Test + Coverage
+        if: ${{ matrix.package == 'core' }}
+        run: npm run test:coverage -w @pinyinduck/core
+
+      # ── Web ──
+      - name: [web] Lint
+        if: ${{ matrix.package == 'web' }}
+        run: npx oxlint packages/web
+
+      - name: [web] Typecheck
+        if: ${{ matrix.package == 'web' }}
+        run: npm run typecheck -w @pinyinduck/web
+
+      - name: [web] Build
+        if: ${{ matrix.package == 'web' }}
+        run: npm run build -w @pinyinduck/web
+
+      # ── Android ──
+      - name: [android] Lint (ktlint via Gradle)
+        if: ${{ matrix.package == 'android' }}
+        run: |
+          cd packages/android
+          ./gradlew ktlintCheck
+
+      - name: [android] Unit tests
+        if: ${{ matrix.package == 'android' }}
+        run: |
+          cd packages/android
+          ./gradlew testDebugUnitTest
+
+      - name: [android] Coverage report
+        if: ${{ matrix.package == 'android' }}
+        run: |
+          cd packages/android
+          ./gradlew jacocoTestReport
+
+      # ── Windows ──
+      - name: [windows] Lint
+        if: ${{ matrix.package == 'windows' }}
+        run: npx oxlint packages/windows
+
+      - name: [windows] Typecheck
+        if: ${{ matrix.package == 'windows' }}
+        run: npm run typecheck -w @pinyinduck/windows
+
+      - name: [windows] Test + Coverage
+        if: ${{ matrix.package == 'windows' }}
+        run: npm run test:coverage -w @pinyinduck/windows
+
+      - name: [windows] Rime verification
+        if: ${{ matrix.package == 'windows' }}
+        run: |
+          npm run setup:rime -w @pinyinduck/windows
+          npm run test:rime -w @pinyinduck/windows
+
+  # ─── E2E tests (only if web or core changed) ──────────────────────────────
+  e2e:
+    needs: changes
+    if: ${{ needs.changes.outputs.web == 'true' || needs.changes.outputs.core == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Build dictionary assets
+        run: |
+          npm run build:dict
+          npm run build:rime
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
