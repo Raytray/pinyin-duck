@@ -13,8 +13,8 @@ flowchart TD
     end
     
     subgraph Milestone2["Milestone 2 (Desktop: Windows)"]
-        WinTauri["Tauri v2 Global Overlay\n(Rust LL Hook + Webview Card Tether)"]
-        WinRime["Rime / Weasel Schema\n(CC-CEDICT with Gloss Comments)"]
+        WinRime["Rime / Weasel Schema\n(CC-CEDICT, ranked by corpus frequency)\nBUILT"]
+        WinTauri["Tauri v2 Global Overlay\n(Rust LL Hook + Webview Card Tether)\ndeferred"]
     end
     
     subgraph Milestone3["Milestone 3 (Mobile: Android)"]
@@ -33,9 +33,45 @@ flowchart TD
 
 ## 2. Milestone 2: Windows Input Architecture
 
-To give Mandarin learners real-time English definitions anywhere in Windows (Notepad, Word, Discord, browsers), two architectures are detailed below:
+To give Mandarin learners feedback anywhere in Windows (Notepad, Word, Discord, browsers), two architectures were designed. **Approach B was built**, and it was then checked against a real Rime engine rather than against the format documentation — which changed two of its premises.
 
-### Approach A: Tauri Global Assistant (Recommended for Fast Iteration)
+### Approach B: Rime / Weasel Engine Schema — Implemented
+
+1. **Windows Text Services Framework (TSF)**:
+   - Rather than authoring a COM C++ TSF driver from scratch, utilize the battle-tested **Rime (Weasel / 小狼毫)** framework.
+2. **Schema & Dictionary Generation**:
+   - `packages/windows/scripts/build-rime-dict.ts` walks the shared B+ tree and emits `pinyinduck.dict.yaml` (122,687 rows), `pinyinduck_trad.dict.yaml` (122,734 rows) and `lua/pinyinduck_gloss.lua` (197,268 definitions), where the comment column of each entry carries its tone marks and concise CC-CEDICT English definition.
+   - `pinyinduck.schema.yaml` sets `always_show_comments: true`, keeps the digits **out of** `speller/alphabet`, and references a `lua_filter` that puts the definition on each candidate — see below.
+   - The traditional scheme uses CC-CEDICT's own traditional column rather than converting with OpenCC at runtime, so 中国 is offered as 中國 because that is what the source says.
+3. **Why this won.** The Windows client is a real, registered IME, so the OS already handles activation, focus, composing strings and per-app compatibility. That leaves the work being the part that is PinyinDuck's: the dictionary and the ranking, both of which come from `@pinyinduck/core` unchanged. It also builds and is tested from this WSL checkout — Approach A cannot be compiled or verified here at all, because neither the WSL side nor the Windows host has a Rust toolchain or MSVC.
+
+### What running the real engine changed
+
+`npm run setup:rime` builds librime 1.13.1 from source in gitignored `tools/`, without
+sudo, and `npm run test:rime` types into it. The first run of that check contradicted two
+things written above:
+
+- **The digits are now out of `speller/alphabet`, and the codes are toneless.** The design
+  assumed number keys would keep selecting candidates. They can: the speller only reaches a
+  code whose every character is in the alphabet, so with toneless codes (`shi`, `ni hao`) and
+  a digit-free alphabet, a number typed while composing falls through to the selector and
+  picks the candidate under it. That is the behaviour the rest of PinyinDuck already has.
+  `shi` gives every tone, merged and ordered by frequency, and `2` commits 十; `nihao`
+  reaches 你好 because the code is `ni hao` and the space delimiter never has to appear
+  mid-word.
+- **The gloss is shown, by a Lua filter.** `RawDictEntry` is `text`/`code`/`weight` and
+  `EntryCollector` never reads a comment column, at any version including master, so
+  `always_show_comments` alone shows the candidate's own code — `shi`, identical for all
+  five homophones. The filter closes that: it reads a generated sidecar and attaches the
+  definition. Without librime-lua the schema still works and the comment falls back to the
+  spelling echo.
+
+The two full write-ups are `PLAN.md` §Step 11b and `packages/windows/README.md` §"What
+Rime cannot show".
+
+
+### Approach A: Tauri Global Assistant — Not Built
+
 1. **Background Tray App**:
    - Built with Tauri v2 (Rust backend + React frontend).
    - Runs in the Windows system tray with low memory footprint (~25 MB).
@@ -48,12 +84,7 @@ To give Mandarin learners real-time English definitions anywhere in Windows (Not
 4. **Text Injection**:
    - When a candidate is committed (Space or numbers `1`–`9`), sends Unicode characters via `SendInput` using `KEYEVENTF_UNICODE` / `VK_PACKET`.
 
-### Approach B: Rime / Weasel Engine Schema (Native TSF IME)
-1. **Windows Text Services Framework (TSF)**:
-   - Rather than authoring a COM C++ TSF driver from scratch, utilize the battle-tested **Rime (Weasel / 小狼毫)** framework.
-2. **Schema & Dictionary Generation**:
-   - Generate a custom Rime dictionary (`pinyinduck.dict.yaml`) where the comment field of each entry is populated with the concise CC-CEDICT English definition.
-   - Configure candidate layout in `weasel.custom.yaml` to display candidate comments horizontally with distinctive tone coloring.
+Retained as a fallback for a future milestone if the Rime candidate window is ever judged too plain for a learner: it would carry the exact candidate-card UI of the web app. The costs that ruled it out for this milestone are the multi-GB Visual Studio Build Tools install it needs on the host, an extra resident process, having to re-implement composing and candidate windows, and its coexistence with the IME Windows already has installed. Nothing about the dictionary or the ranking would be reusable from Approach A — both approaches read the same `@pinyinduck/core` output, which is why the choice does not fork the project.
 
 ---
 
@@ -127,15 +158,15 @@ competing for the same role.”
 #### Test Execution Metrics
 - **Test Runner**: Vitest v3.2.7
 - **Test Suites**: 13 passed
-- **Tests**: 242 passed, 0 failed
-- **Command**: `npm test`
+- **Tests**: 248 passed, 0 failed
+- **Command**: `npm test -w @pinyinduck/core`
 
 | Suite | Tests | Covers |
 | :--- | :--- | :--- |
 | `src/parser/pinyin.test.ts` | 21 | Tone marks, umlaut handling, apostrophe splitting, normalization |
 | `src/dictionary/gloss.test.ts` | 14 | CC-CEDICT definition trimming |
 | `src/index/search.test.ts` | 6 | Engine search behaviour against a small fixture dictionary |
-| `src/index/ranking.test.ts` | 6 | Popularity is a tiebreaker, never an override of match quality |
+| `src/index/ranking.test.ts` | 11 | Popularity is a tiebreaker, never an override of match quality; supplementary-plane characters are not words; tone filters across word lengths |
 | `src/index/search-options.test.ts` | 19 | Search option defaults, tone edge cases, trie traversal |
 | `src/index/lazy-search.test.ts` | 24 | Lazy engine ranking, paging, tone filters, scan budget, engine parity |
 | `src/data/btree-codec.test.ts` | 29 | Varints, page/header/directory encode + decode, malformed input |
@@ -145,6 +176,33 @@ competing for the same role.”
 | `src/data/load-dictionary.test.ts` | 15 | Legacy wire-format decoding and loader error handling |
 | `scripts/build-dictionary.test.ts` | 38 | CC-CEDICT / frequency / HSK parsing and frequency normalization |
 | `scripts/build-dictionary-io.test.ts` | 27 | Download caching, both output formats, CLI flag handling |
+
+### Unit Tests (`packages/windows`)
+
+#### Test Execution Metrics
+- **Test Runner**: Vitest v3.2.7
+- **Test Suites**: 6 passed
+- **Tests**: 212 passed, 0 failed (including a sweep of all 245,421 emitted rows)
+- **Coverage**: 98.89% statements, 98.57% branches, 100% functions (gate: 95% on all four)
+- **Command**: `npm test -w @pinyinduck/windows`
+
+Separately, and not part of the unit run, `npm run test:rime` types into a real librime
+1.13.1 built from source by `npm run setup:rime`: **8 of 8 queries as pinned, no known
+gap**, no `Encode failure` in the log.
+
+| Suite | Tests | Covers |
+| :--- | :--- | :--- |
+| `src/rime-dict.test.ts` | 56 | Column order, the weight formula against `scoreEntry`, tie order against `compareScored`, toneless codes, multi-variant readings split into one row each, unreadable readings rejected, tone marks and gloss formatting, duplicate collapsing, and a whole dictionary built and read back through a real B+ tree |
+| `src/rime-format.test.ts` | 40 | An independent reader for the emitted format, written against librime's `GetColumnIndex` and `LoadDictEntry` rather than against our own writer |
+| `src/rime-verify.test.ts` | 52 | The harness transcript parser, smoke-case evaluation (candidate order, commit, preedit, gloss), and the report format |
+| `scripts/build-rime-dict-io.test.ts` | 19 | Flag handling, both output files and the sidecar, header and body shape, a missing asset, a corrupt asset, the `unencodable` statistic, and the CLI output |
+| `scripts/generated-dicts.test.ts` | 11 | The whole corpus: no duplicate text/code pair, no whitespace in a candidate, no weight librime would demote, every menu in descending weight, a candidate for every typeable code, and a byte-for-byte rebuild against a second run of the writer |
+| `scripts/verify-rime-io.test.ts` | 34 | Staging (including the `essay.txt` filter that keeps 880 warnings out of the log), the harness protocol, timeout detection, and the CLI's four exit paths against a stub harness |
+
+The suite pins the Rime dictionary format against librime's source rather than against a
+tutorial, because a drift still compiles and still deploys while silently reordering the
+candidate list — and, as Step 11b established, a tutorial is not a substitute for running
+the engine. See `packages/windows/README.md`.
 
 #### Verified Test Cases
 
@@ -164,14 +222,43 @@ competing for the same role.”
 > [!NOTE]
 > The tone-number cases above exercise the **engine API directly**. They are not reachable
 > from the Web IME keyboard, where digits are reserved as candidate-pick shortcuts for the
-> duration of a composition (see `PLAN.md` &sect;3.2).
+> duration of a composition (see `PLAN.md` &sect;3.2). The Windows schema now does the same
+> thing: its codes are toneless and its alphabet has no digits, so a number typed while
+> composing selects the candidate under it. `shi` gives every tone, merged, and `2` commits
+> 十.
+
+> [!NOTE]
+> Two of these expectations changed when Milestone 2 compared the Windows client against
+> the engine over the whole corpus, and both fixes are in `scoreEntry`:
+> `String.length` counted UTF-16 units, so the 205 CC-CEDICT characters outside the BMP were
+> treated as multi-character words (typing `an1` offered 𩽾 above **安**), and one typed tone
+> number awarded the full tone bonus to any longer word whose *first* syllable matched
+> (typing `bian3` offered **彼岸** above 扁). A tone filter now only constrains as many
+> syllables as the query has tones. Pinned by `packages/core/src/index/ranking.test.ts`.
+>
+> The `✅ PASS` marks in that table are the *web and core* results. The Windows client now
+> also shows an English definition on every candidate, delivered by a Lua filter over a
+> generated sidecar — see "What running the real engine changed" above.
+
+### Cross-Client Parity (`packages/windows` → Rime)
+
+The Windows menu and the web candidate list are ranked by the same rules, which is only
+true if the emitted dictionary preserves them. Measured over the real asset by comparing
+each Rime menu against the engine's results for the same reading:
+
+| Check | Result |
+| :--- | :--- |
+| Readings compared | 103,521 (every code a user can type) |
+| Rows compared | 121,304 |
+| Orderings identical | 103,518 (99.997%) |
+| Orderings that differ | 3 — CC-CEDICT's `ㄏㄤ`, `PO` and `TA` syllable abbreviations, where the Rime file ranks the real character first |
 
 ### End-to-End Tests (`e2e/`)
 
 #### Test Execution Metrics
 - **Test Runner**: Playwright v1.63.0 (Chromium)
-- **Tests**: 66 passed, 0 failed
-- **Suites**: `composition`, `candidate-paging`, `number-keys`, `toolbar`, `editing`, `dictionary-loading`
+- **Tests**: 72 passed, 0 failed
+- **Suites**: `composition`, `candidate-paging`, `number-keys`, `toolbar`, `editing`, `dictionary-loading`, `insert-position`
 - **Command**: `npm run test:e2e` (boots the Vite dev server automatically)
 
 > [!NOTE]
@@ -205,4 +292,8 @@ competing for the same role.”
 - **`npm run build:dict`**: Full CC-CEDICT generation passed in ~2.2s from cache. 125,132 lines parsed, 122,746 rows emitted (2,386 duplicate readings dropped), 26,811 with frequency, 5,247 on the HSK list, 11,851 single characters. Emitted a 9.12MB (4.27MB gzipped) B+ tree of 1,196 pages, which reads back as the same 122,746 entries.
 - **`@pinyinduck/core`**: `tsc` build passed with zero errors (`dist/index.d.ts`, `dist/index.js`).
 - **`@pinyinduck/web`**: `tsc && vite build` passed with zero errors. The JS bundle contains no dictionary data; `dist/dictionary.btree` is copied as a separate static asset, confirming the dictionary is genuinely lazy rather than bundled.
+- **`@pinyinduck/windows`**: `tsc --noEmit` passed with zero errors over `src` and `scripts`.
+- **`npm run build:rime`**: walked the 9.12MB B+ tree in ~1s and emitted `pinyinduck.dict.yaml` (122,746 rows) and `pinyinduck_trad.dict.yaml` (122,734 rows, 12 duplicates dropped, 0 unusable). Neither the asset nor the corpus is held in memory: the tree is scanned in key order and each homophone cluster is emitted as the scan leaves it.
 - **Cross-engine parity**: the lazy and in-memory engines were compared over 4,004 sampled queries drawn from the real corpus. Every query returned the same `total`, and the 930 queries whose top-20 ordering differed were permutations of the *same* candidate set where the swapped entries score identically — the B-tree scan cannot reproduce trie insertion order, so ties are broken deterministically instead. Zero queries showed a real ranking difference.
+- **Cross-client parity**: the generated Rime dictionaries were compared against the web engine over every typeable reading — see §4.
+- **Not verified here**: deploying to Windows. The host has no Rime installed, so the schemas have never been loaded by librime. The format is pinned against librime's source and the expected candidate lists in `packages/windows/README.md` are read out of the generated asset, but the last mile is a manual step.

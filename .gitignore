@@ -18,9 +18,18 @@ packages/core/coverage/
 # Downloaded CC-CEDICT / frequency / HSK sources, re-fetchable with build:dict
 packages/core/.cache/
 
-# The legacy whole-dictionary JSON asset. The B-tree at packages/web/public/dictionary.btree
-# is committed because the app needs it after a plain install; this one is only produced by
-# `build:dict -- --format json` and nothing in the app reads it.
+# The generated dictionary assets. Both are produced by `npm run build:dict`, which
+# downloads CC-CEDICT, the OpenSubtitles frequency list and the HSK 2012 word list, so
+# neither belongs in version control: they are 9MB of derived data that changes whenever
+# an upstream source does, and a commit that carries one is a 9MB diff nobody reads.
+#
+#   packages/web/public/dictionary.btree   the paged B+ tree the web app fetches
+#   packages/web/public/dictionary.json    the legacy whole-corpus form, nothing reads it
+#
+# A fresh clone therefore needs `npm run build:dict` before `npm run dev` or
+# `npm run test:e2e` will show candidates. `npm run test:e2e` says so in those words
+# rather than timing out on a missing asset.
+packages/web/public/dictionary.btree
 packages/web/public/dictionary.json
 
 # Android build state (packages/android)
@@ -35,3 +44,17 @@ packages/android/.kotlin/
 packages/android/app/reports/
 packages/android/app/.cxx/
 
+ The generated Rime dictionaries. The hand-written schemas next to them are committed;
+# these two are ~7MB each and are rebuilt by `npm run build:rime`.
+packages/windows/rime/*.dict.yaml
+
+# The generated Lua gloss sidecar the schema's filter reads. ~15MB, rebuilt by the same
+# build. The hand-written filter itself (rime/rime.lua) is committed next to it.
+packages/windows/rime/lua/
+
+# What `npm run setup:rime` provisions: a 172MB librime clone at the pinned tag 1.13.1,
+# and a local prefix holding cmake, Boost headers and the compiled liblibrime.so plus the
+# rime_smoke harness. Both are rebuilt from scratch by that script, which needs no sudo.
+# bootstrap-rime.sh and rime_smoke.cc next to them *are* committed — they are the source.
+packages/windows/tools/librime/
+packages/windows/tools/.local/

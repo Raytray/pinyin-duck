@@ -19,14 +19,20 @@ export default defineConfig({
       // so counting them would report misleading zeroes for the whole package.
       exclude: ['src/index.ts', 'src/types.ts', '**/*.test.ts'],
       thresholds: {
-        // Floor for the package as a whole, including any file the per-glob rules
-        // below do not match.
-        global: {
-          statements: 80,
-          branches: 80,
-          functions: 80,
-          lines: 80,
-        },
+        // The package-wide floor, written flat rather than under a `global` key. Vitest
+        // documents `thresholds.global`, and on 3.2.7 that shape checks nothing: `global`
+        // is not one of the threshold names, so it is read as a per-glob entry and matched
+        // against file paths as the pattern "global", which matches none — while the real
+        // global entry is built from `thresholds.branches` and friends, left undefined.
+        // The run prints its percentages, reports no error, and exits 0 at any coverage.
+        // The flat form is read straight into the global entry and fails the run properly.
+        //
+        // Flat means the floor for the package as a whole, including any file the
+        // per-glob rules below do not match.
+        statements: 80,
+        branches: 80,
+        functions: 80,
+        lines: 80,
         // The dictionary generator is a build-time script, but its download, cache
         // and file-writing paths are covered against a stubbed fetch and an in-memory
         // filesystem (scripts/build-dictionary-io.test.ts), so it is held to the same
