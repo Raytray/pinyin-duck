@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ktlint)
     jacoco
 }
 
@@ -291,6 +292,15 @@ tasks.named("check") {
     // always leaves an up-to-date HTML report next to the verdict. Coverage that only
     // appears when someone remembers the right task name is coverage nobody reads.
     dependsOn(jacocoTestReport, jacocoTestCoverageVerification)
+}
+
+ktlint {
+    android.set(true)
+    ignoreFailures.set(false)
+    filter {
+        exclude("**/generated/**")
+        exclude("**/build/**")
+    }
 }
 
 /**

@@ -1,6 +1,7 @@
 [versions]
 agp = "9.4.1"
 kotlin = "2.4.20"
+ktlint = "1.5.0"
 composeBom = "2025.06.01"
 # The Compose BOM does not manage the `-android` artifact variants, so the UI-test artifacts
 # need a version pinned to the BOM's Compose version (1.8.x) or they resolve with none.
@@ -42,3 +43,4 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
