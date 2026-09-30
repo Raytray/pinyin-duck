@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base theme for the settings activity. -->
+    <style name="Theme.PinyinDuck" parent="@android:style/Theme.Material.Light.NoActionBar" />
+
+    <!--
+      The IME service window. The keyboard draws its own full background, so the window
+      background matches it rather than being transparent, which avoids the artefacts a
+      translucent IME window picks up in some launchers and dialogs.
+    -->
+    <style name="Theme.PinyinDuck.Ime" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/keyboard_background</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+</resources>

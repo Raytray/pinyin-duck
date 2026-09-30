@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "build:dict": "tsx scripts/build-dictionary.ts"
+    "build:dict": "tsx scripts/build-dictionary.ts",
+    "build:parity": "tsx scripts/generate-android-parity.ts"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^3.2.7",

@@ -22,3 +22,12 @@ packages/core/.cache/
 # is committed because the app needs it after a plain install; this one is only produced by
 # `build:dict -- --format json` and nothing in the app reads it.
 packages/web/public/dictionary.json
+
+# Android build state (packages/android)
+packages/android/.gradle/
+packages/android/build/
+packages/android/app/build/
+packages/android/local.properties
+packages/android/.kotlin/
+*.hprof
+
