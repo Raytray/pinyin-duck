@@ -10,8 +10,9 @@ import dev.pinyinduck.android.engine.ScriptType
  * Small enough that `SharedPreferences` is the right size of tool; the dictionary itself is
  * not a setting, it ships in the APK.
  */
-class KeyboardSettings(context: Context) {
-
+class KeyboardSettings(
+    context: Context,
+) {
     private val preferences: SharedPreferences =
         context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 

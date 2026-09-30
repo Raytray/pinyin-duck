@@ -46,7 +46,6 @@ import kotlinx.coroutines.withContext
  * button in the system IME picker.
  */
 class SettingsActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val settings = KeyboardSettings(this)
@@ -64,7 +63,10 @@ class SettingsActivity : ComponentActivity() {
 }
 
 @Composable
-private fun SettingsScreen(settings: KeyboardSettings, onOpenImeSettings: () -> Unit) {
+private fun SettingsScreen(
+    settings: KeyboardSettings,
+    onOpenImeSettings: () -> Unit,
+) {
     val context = LocalContext.current
     var script by remember { mutableStateOf(settings.defaultScript) }
     var dictionaryStatus by remember { mutableStateOf<DictionaryStatus>(DictionaryStatus.Loading) }
@@ -72,25 +74,27 @@ private fun SettingsScreen(settings: KeyboardSettings, onOpenImeSettings: () -> 
     // The dictionary ships in the APK, so this reads it the same way the keyboard does:
     // by mapping the asset. It doubles as a check that the asset is present and mmap-able.
     LaunchedEffect(Unit) {
-        dictionaryStatus = withContext(Dispatchers.IO) {
-            runCatching { DictionaryLoader.openFromAssets(context.assets) }
-                .fold(
-                    onSuccess = { opened ->
-                        val entries = opened.entryCount
-                        opened.close()
-                        DictionaryStatus.Ready(entries)
-                    },
-                    onFailure = { DictionaryStatus.Failed(it.message ?: it.javaClass.simpleName) },
-                )
-        }
+        dictionaryStatus =
+            withContext(Dispatchers.IO) {
+                runCatching { DictionaryLoader.openFromAssets(context.assets) }
+                    .fold(
+                        onSuccess = { opened ->
+                            val entries = opened.entryCount
+                            opened.close()
+                            DictionaryStatus.Ready(entries)
+                        },
+                        onFailure = { DictionaryStatus.Failed(it.message ?: it.javaClass.simpleName) },
+                    )
+            }
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(DuckColors.Background)
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(DuckColors.Background)
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
     ) {
         Text(
             text = stringResource(R.string.app_name),
@@ -137,11 +141,12 @@ private fun SettingsScreen(settings: KeyboardSettings, onOpenImeSettings: () -> 
 
         SectionTitle(stringResource(R.string.settings_dictionary_heading))
         Text(
-            text = when (val status = dictionaryStatus) {
-                DictionaryStatus.Loading -> stringResource(R.string.settings_dictionary_loading)
-                is DictionaryStatus.Ready -> "CC-CEDICT: ${status.entries} entries"
-                is DictionaryStatus.Failed -> stringResource(R.string.settings_dictionary_missing)
-            },
+            text =
+                when (val status = dictionaryStatus) {
+                    DictionaryStatus.Loading -> stringResource(R.string.settings_dictionary_loading)
+                    is DictionaryStatus.Ready -> "CC-CEDICT: ${status.entries} entries"
+                    is DictionaryStatus.Failed -> stringResource(R.string.settings_dictionary_missing)
+                },
             color = if (dictionaryStatus is DictionaryStatus.Failed) DuckColors.Accent else DuckColors.PrimaryText,
             fontSize = 13.sp,
         )
@@ -150,8 +155,14 @@ private fun SettingsScreen(settings: KeyboardSettings, onOpenImeSettings: () -> 
 
 private sealed interface DictionaryStatus {
     data object Loading : DictionaryStatus
-    data class Ready(val entries: Int) : DictionaryStatus
-    data class Failed(val reason: String) : DictionaryStatus
+
+    data class Ready(
+        val entries: Int,
+    ) : DictionaryStatus
+
+    data class Failed(
+        val reason: String,
+    ) : DictionaryStatus
 }
 
 @Composable
@@ -166,15 +177,20 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun ScriptOption(label: String, selected: Boolean, onSelect: () -> Unit) {
+private fun ScriptOption(
+    label: String,
+    selected: Boolean,
+    onSelect: () -> Unit,
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) DuckColors.Accent.copy(alpha = 0.16f) else DuckColors.Key)
-            .clickable(onClick = onSelect)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 3.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (selected) DuckColors.Accent.copy(alpha = 0.16f) else DuckColors.Key)
+                .clickable(onClick = onSelect)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {

@@ -14,7 +14,6 @@ import java.io.IOException
  * reading it is on a phone with no access to the source.
  */
 class DictionaryErrorsTest {
-
     @Test
     fun aMissingAssetSaysHowToRegenerateIt() {
         val message = DictionaryErrors.describe(FileNotFoundException("dictionary.btree"))
@@ -26,9 +25,10 @@ class DictionaryErrorsTest {
     fun aCompressedAssetNamesTheSettingThatBrokeIt() {
         // `openFd` reports a compressed asset this way, and it is a build mistake rather than
         // a missing file, so telling the user to rebuild the dictionary would be wrong.
-        val compressed = FileNotFoundException(
-            "This file can not be opened as a file descriptor; it is probably compressed"
-        )
+        val compressed =
+            FileNotFoundException(
+                "This file can not be opened as a file descriptor; it is probably compressed",
+            )
         val message = DictionaryErrors.describe(compressed)
 
         assertTrue(message, message.contains("compressed"))
@@ -38,9 +38,10 @@ class DictionaryErrorsTest {
 
     @Test
     fun aMalformedAssetRepeatsTheFormatProblem() {
-        val message = DictionaryErrors.describe(
-            DictionaryFormatException("The dictionary payload is not a PinyinDuck B-tree asset")
-        )
+        val message =
+            DictionaryErrors.describe(
+                DictionaryFormatException("The dictionary payload is not a PinyinDuck B-tree asset"),
+            )
         assertTrue(message, message.contains("unreadable"))
         assertTrue(message, message.contains("not a PinyinDuck B-tree"))
         assertTrue(message, message.contains("build:dict"))
@@ -62,13 +63,14 @@ class DictionaryErrorsTest {
     @Test
     fun everyMessageNamesTheCommandThatFixesIt() {
         // Whatever went wrong, the user needs a next step.
-        val failures = listOf(
-            FileNotFoundException("dictionary.btree"),
-            FileNotFoundException("... probably compressed"),
-            DictionaryFormatException("bad magic"),
-            IOException("io"),
-            IOException(),
-        )
+        val failures =
+            listOf(
+                FileNotFoundException("dictionary.btree"),
+                FileNotFoundException("... probably compressed"),
+                DictionaryFormatException("bad magic"),
+                IOException("io"),
+                IOException(),
+            )
         failures.forEach { failure ->
             val message = DictionaryErrors.describe(failure)
             assertTrue(

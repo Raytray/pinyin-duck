@@ -12,7 +12,6 @@ import org.junit.Test
  * syllable boundary falls.
  */
 class PinyinParserTest {
-
     @Test
     fun segmentsAnUnbrokenTonelessString() {
         assertEquals(listOf("ni", "hao"), segmentPinyin("nihao"))

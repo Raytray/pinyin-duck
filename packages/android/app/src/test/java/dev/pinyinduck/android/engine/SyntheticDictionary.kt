@@ -14,7 +14,6 @@ package dev.pinyinduck.android.engine
  * 9MB asset.
  */
 object SyntheticDictionary {
-
     /** Entries per leaf. Small enough that a handful of keys fills a page. */
     private const val LEAF_ENTRIES = 8
 
@@ -30,27 +29,30 @@ object SyntheticDictionary {
 
         // Leaves are allocated first, so their ids are known before the internal root is
         // written and can name them.
-        val leaves = groups.mapIndexed { index, group ->
-            encodeLeaf(group, nextLeaf = if (index + 1 < groups.size) index + 1 else NO_PAGE)
-        }
+        val leaves =
+            groups.mapIndexed { index, group ->
+                encodeLeaf(group, nextLeaf = if (index + 1 < groups.size) index + 1 else NO_PAGE)
+            }
 
         val pages = leaves.toMutableList()
-        val rootPageId = if (groups.size == 1) {
-            0
-        } else {
-            // The root's separators are the *last* key of each leaf but the last, because a
-            // key can span several leaves and a low-key separator would skip the earlier
-            // ones. The final child is unbounded.
-            val highKeys = groups.dropLast(1).map { it.last().first }
-            pages.add(encodeInternal(children = groups.indices.toList(), highKeys = highKeys))
-            pages.lastIndex
-        }
+        val rootPageId =
+            if (groups.size == 1) {
+                0
+            } else {
+                // The root's separators are the *last* key of each leaf but the last, because a
+                // key can span several leaves and a low-key separator would skip the earlier
+                // ones. The final child is unbounded.
+                val highKeys = groups.dropLast(1).map { it.last().first }
+                pages.add(encodeInternal(children = groups.indices.toList(), highKeys = highKeys))
+                pages.lastIndex
+            }
 
         val directoryOffset = HEADER_SIZE
         var offset = directoryOffset + pages.size * 8
-        val locations = pages.map { page ->
-            (offset to page.size).also { offset += page.size }
-        }
+        val locations =
+            pages.map { page ->
+                (offset to page.size).also { offset += page.size }
+            }
 
         val out = ByteWriter()
         // The magic is four raw bytes, not a length-prefixed string.
@@ -97,7 +99,10 @@ object SyntheticDictionary {
         return leaves
     }
 
-    private fun encodeLeaf(entries: List<Pair<String, String>>, nextLeaf: Int): ByteArray {
+    private fun encodeLeaf(
+        entries: List<Pair<String, String>>,
+        nextLeaf: Int,
+    ): ByteArray {
         val out = ByteWriter()
         out.u8(LEAF_KIND)
         out.u16(entries.size)
@@ -106,15 +111,18 @@ object SyntheticDictionary {
             out.string(key)
             out.string(simplified) // simplified
             out.string(simplified) // traditional
-            out.string("")         // pinyinNumbers, derived on read
-            out.string("")         // shortGloss
-            out.varint(0)           // frequency
-            out.u8(0)               // hskLevel
+            out.string("") // pinyinNumbers, derived on read
+            out.string("") // shortGloss
+            out.varint(0) // frequency
+            out.u8(0) // hskLevel
         }
         return out.toByteArray()
     }
 
-    private fun encodeInternal(children: List<Int>, highKeys: List<String>): ByteArray {
+    private fun encodeInternal(
+        children: List<Int>,
+        highKeys: List<String>,
+    ): ByteArray {
         val out = ByteWriter()
         out.u8(INTERNAL_KIND)
         out.u16(children.size)

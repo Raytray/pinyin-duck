@@ -13,10 +13,10 @@ import java.io.File
  * assertion still passed.
  */
 object TestDictionary {
-
     private val opened: OpenedDictionary by lazy {
-        val path = System.getProperty("pinyinduck.dictionary")
-            ?: error("The pinyinduck.dictionary system property is not set. Run the tests through Gradle.")
+        val path =
+            System.getProperty("pinyinduck.dictionary")
+                ?: error("The pinyinduck.dictionary system property is not set. Run the tests through Gradle.")
         val file = File(path)
         check(file.isFile) { "Missing dictionary at $path. Run \"npm run build:dict\" at the repository root." }
         DictionaryLoader.openFromFile(file).also {

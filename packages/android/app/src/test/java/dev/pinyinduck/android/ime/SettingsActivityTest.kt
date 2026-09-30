@@ -26,7 +26,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(qualifiers = "w411dp-h891dp")
 class SettingsActivityTest {
-
     @get:Rule
     val compose = createAndroidComposeRule<SettingsActivity>()
 
@@ -76,8 +75,10 @@ class SettingsActivityTest {
         // This is what distinguishes "loaded, genuinely no match" from "the keyboard is broken".
         // The asset is mapped on a background dispatcher, so the first frames still say Loading.
         compose.waitUntil(timeoutMillis = 30_000) {
-            compose.onAllNodes(hasText("CC-CEDICT", substring = true))
-                .fetchSemanticsNodes().isNotEmpty()
+            compose
+                .onAllNodes(hasText("CC-CEDICT", substring = true))
+                .fetchSemanticsNodes()
+                .isNotEmpty()
         }
         compose.onNodeWithText("CC-CEDICT: 122746 entries").assertIsDisplayed()
     }

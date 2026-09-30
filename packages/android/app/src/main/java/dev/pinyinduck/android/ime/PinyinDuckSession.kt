@@ -24,7 +24,6 @@ class PinyinDuckSession(
     private val sink: TextSink,
     script: ScriptType = ScriptType.SIMPLIFIED,
 ) {
-
     /** Called after every state change so a UI can refresh. */
     var onChange: (() -> Unit)? = null
 
@@ -177,7 +176,10 @@ class PinyinDuckSession(
     }
 
     /** Moves the highlight by a whole page. */
-    fun moveSelectionByPage(delta: Int, pageSize: Int) = moveSelection(delta * pageSize)
+    fun moveSelectionByPage(
+        delta: Int,
+        pageSize: Int,
+    ) = moveSelection(delta * pageSize)
 
     /** Commits the highlighted or given candidate, keeping any leftover pinyin buffered. */
     fun selectCandidate(index: Int) {
@@ -238,7 +240,14 @@ class PinyinDuckSession(
         candidates = result.candidates
         total = result.total
         // A composition that suddenly matches nothing should not keep a stale highlight.
-        selectedIndex = if (candidates.isEmpty()) -1 else if (resetSelection) 0 else selectedIndex.coerceIn(0, candidates.size - 1)
+        selectedIndex =
+            if (candidates.isEmpty()) {
+                -1
+            } else if (resetSelection) {
+                0
+            } else {
+                selectedIndex.coerceIn(0, candidates.size - 1)
+            }
         notifyChanged()
     }
 
