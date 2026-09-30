@@ -81,7 +81,7 @@ test('commits the first candidate on Space', async ({ page }) => {
 
 test('commits a candidate chosen by number key', async ({ page }) => {
   await editor(page).pressSequentially('shi');
-  await expectCandidates(page, ['是', '十', '使', '试', '𫚕']);
+  await expectCandidates(page, ['是', '十', '使', '试', '诗']);
 
   await editor(page).press('2');
 
@@ -91,7 +91,7 @@ test('commits a candidate chosen by number key', async ({ page }) => {
 
 test('commits a candidate chosen by clicking the card', async ({ page }) => {
   await editor(page).pressSequentially('shi');
-  await expectCandidates(page, ['是', '十', '使', '试', '𫚕']);
+  await expectCandidates(page, ['是', '十', '使', '试', '诗']);
 
   await candidateItems(page).nth(2).click();
 

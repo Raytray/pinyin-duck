@@ -17,7 +17,10 @@ export default defineConfig({
       include: ['src/**/*.ts', 'scripts/**/*.ts'],
       // Re-export barrels and type-only modules compile to no runnable statements,
       // so counting them would report misleading zeroes for the whole package.
-      exclude: ['src/index.ts', 'src/types.ts', '**/*.test.ts'],
+      // The parity generator is a CLI entry point: its main() is not exported and
+      // runs on import, so it cannot be unit-tested without refactoring it into a
+      // library. Its output is consumed by PinyinEngineParityTest in packages/android.
+      exclude: ['src/index.ts', 'src/types.ts', 'scripts/generate-android-parity.ts', '**/*.test.ts'],
       thresholds: {
         // The package-wide floor, written flat rather than under a `global` key. Vitest
         // documents `thresholds.global`, and on 3.2.7 that shape checks nothing: `global`

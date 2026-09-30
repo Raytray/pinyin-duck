@@ -17,7 +17,7 @@ import {
 // the popup always reports 10 pages at the app's page size of 5, and page two holds
 // the sixth-ranked reading rather than the only remaining one.
 const TA_PAGE_ONE = ['他', '她', '它', '塔', 'TA'];
-const TA_PAGE_TWO = ['𨱏', '塌', '祂', '嗒', '踏'];
+const TA_PAGE_TWO = ['塌', '祂', '嗒', '踏', '拓'];
 
 test.beforeEach(async ({ page }) => {
   await gotoApp(page);
@@ -78,7 +78,7 @@ test('commits a candidate from the second page', async ({ page }) => {
   await editor(page).press(']');
   await editor(page).press(' ');
 
-  await expect(editor(page)).toHaveValue('𨱏');
+  await expect(editor(page)).toHaveValue('塌');
 });
 
 test('moves the selection with the arrow keys and commits the highlighted candidate', async ({
@@ -108,7 +108,7 @@ test('rolls the arrow selection onto the next page at the end of the list', asyn
   await expect(candidateItems(page).nth(0)).toHaveAttribute('aria-selected', 'true');
 
   await editor(page).press(' ');
-  await expect(editor(page)).toHaveValue('𨱏');
+  await expect(editor(page)).toHaveValue('塌');
 });
 
 test('moves the selection back to the last entry of the previous page', async ({ page }) => {
