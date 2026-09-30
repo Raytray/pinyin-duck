@@ -350,10 +350,20 @@ describeBuilt('the generated dictionaries', () => {
       it('is byte for byte what the generator produces', () => {
         // Catches a hand-edited dictionary, a stale artifact after the asset changed, and
         // any non-determinism in the B+ tree walk.
+        //
+        // This one fires more than you would expect, because neither the B-tree nor these
+        // dictionaries are committed: both are derived, and a change to one does not
+        // change the other on disk. The message says how to fix it, because "stale" on
+        // its own sends people looking in the test.
         const onDisk = createHash('sha256').update(contents[script]!).digest('hex');
-        expect(rebuilt.get(script)!.digest, `${DICT_NAMES[script]}.dict.yaml is stale`).toBe(
-          onDisk
-        );
+        expect(
+          rebuilt.get(script)!.digest,
+          `${DICT_NAMES[script]}.dict.yaml on disk is not what the generator produces ` +
+            `from the current ${path.basename(BTREE)}. Either the dictionary is ` +
+            `stale — run \`npm run build:rime\` — or the B-tree is, in which case ` +
+            `\`npm run build:dict\` first, since it is rebuilt from three live ` +
+            `upstream downloads and is not pinned to a revision.`
+        ).toBe(onDisk);
         // And the build's own tally agrees with what a read-back of the file counted.
         expect(rebuilt.get(script)!.rows).toBe(facts[script]!.rows);
       });

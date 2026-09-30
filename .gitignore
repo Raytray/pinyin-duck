@@ -18,9 +18,18 @@ packages/core/coverage/
 # Downloaded CC-CEDICT / frequency / HSK sources, re-fetchable with build:dict
 packages/core/.cache/
 
-# The legacy whole-dictionary JSON asset. The B-tree at packages/web/public/dictionary.btree
-# is committed because the app needs it after a plain install; this one is only produced by
-# `build:dict -- --format json` and nothing in the app reads it.
+# The generated dictionary assets. Both are produced by `npm run build:dict`, which
+# downloads CC-CEDICT, the OpenSubtitles frequency list and the HSK 2012 word list, so
+# neither belongs in version control: they are 9MB of derived data that changes whenever
+# an upstream source does, and a commit that carries one is a 9MB diff nobody reads.
+#
+#   packages/web/public/dictionary.btree   the paged B+ tree the web app fetches
+#   packages/web/public/dictionary.json    the legacy whole-corpus form, nothing reads it
+#
+# A fresh clone therefore needs `npm run build:dict` before `npm run dev` or
+# `npm run test:e2e` will show candidates. `npm run test:e2e` says so in those words
+# rather than timing out on a missing asset.
+packages/web/public/dictionary.btree
 packages/web/public/dictionary.json
 
 # The generated Rime dictionaries. The hand-written schemas next to them are committed;

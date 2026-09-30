@@ -49,23 +49,33 @@ Two scoping decisions are worth knowing about:
 
 Candidate data comes from the full [CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict)
 corpus, joined with an OpenSubtitles frequency list and the HSK 2012 word list. The
-generated asset is committed at `packages/web/public/dictionary.btree`, so the app works
-straight after `npm install`. (The legacy JSON asset is gitignored; regenerate it with
-`--format json` if you need it.) To rebuild the B-tree from source:
+generated asset is **not committed** — it is 9.12MB of data derived from three upstream
+downloads, and a commit carrying one is a 9MB diff that changes whenever an upstream
+source does. Build it once per clone:
 
 ```bash
-npm run build:dict                       # regenerates the asset
+npm run build:dict                       # writes packages/web/public/dictionary.btree
 npm run build:dict -w @pinyinduck/core -- --no-cache   # re-downloads the sources
 npm run build:dict -w @pinyinduck/core -- --format json # whole dictionary as JSON tuples
 ```
 
-Only `dictionary.btree` is committed. Pass `--` before the flags when running the
-workspace script directly, or npm will read them as its own.
+Pass `--` before the flags when running the workspace script directly, or npm will read
+them as its own.
 
-`npm run build` runs this automatically. Downloads are cached in `packages/core/.cache/`.
+`npm run build` runs this automatically. Downloads are cached in `packages/core/.cache/`,
+so it is a one-time cost per clone. `npm run dev` and `npm run test:e2e` check for the
+asset first and name it if it is missing, rather than leaving the app on "failed to load"
+or timing out 40 Playwright tests on a file nobody mentioned.
 
 Current output: 125,132 lines parsed into 122,746 unique word/reading pairs
 (26,811 with frequency data, 5,247 on the HSK list), 9.12MB raw and 4.27MB gzipped.
+
+> The builder downloads from live URLs rather than pinning revisions, so a rebuild can
+> legitimately produce a slightly different asset than the one a given clone was last
+> built against — CC-CEDICT and the frequency list both move. The output is deterministic
+> given the same three inputs, but the inputs are not pinned, so a row count in a test and
+> a row count on disk can disagree by a handful. Anything asserting an exact corpus size
+> should say so, or assert a relationship instead.
 
 The same asset also feeds the Windows input method:
 
