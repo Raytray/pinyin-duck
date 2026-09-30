@@ -245,15 +245,29 @@ rules rot while every assertion still passed.
 | `PageSourceTest` | mmap ranges, clamping, and the reader over a synthetic tree |
 | `PinyinParserTest` | Segmentation, tone marks, umlauts, digit handling |
 | `PinyinDuckSessionTest` | Composition rules against a fake editor |
+| `KeyRoutingTest` | Physical key codes mapped to actions, and which keys are passed on |
+| `KeyboardTest` | The Compose keyboard: every key, the candidate strip, the expanded panel |
+| `PinyinDuckImeServiceTest` | The service end to end: dictionary load, key routing, lifecycle, teardown |
+| `SettingsActivityTest` | The settings screen, and the script preference round-tripping |
+| `DictionaryLoaderTest` | Opening the mapped asset out of the APK, and its failure modes |
 | `KeysTest` | Key layouts: reachability, core keys, shift behaviour |
+
+The Compose and activity suites run under **Robolectric**, so the whole app is covered from
+the JVM — no device or emulator is needed to run `./gradlew check`.
 
 ### Coverage
 
 Jacoco measures the whole module and writes HTML plus XML to
-`app/build/reports/jacoco/jacocoTestReport/`.
+`app/build/reports/jacoco/jacocoTestReport/`. Open
+`app/build/reports/jacoco/jacocoTestReport/html/index.html` to browse it per class.
 
-`./gradlew check` enforces an **85% instruction and branch floor**, per class, on the
-portable half of the app:
+Current state: **92% instruction coverage** (10,496 of 11,357 instructions), 186 tests.
+
+`./gradlew check` enforces two floors:
+
+- **80% instruction coverage across the whole module**, so the headline claim is checked by
+  the build rather than observed once and remembered.
+- **85% instruction *and* branch coverage, per class**, on the portable half:
 
 ```
 dev.pinyinduck.android.engine.PinyinKt              the parser
@@ -267,13 +281,20 @@ dev.pinyinduck.android.ime.PinyinDuckSession        composition rules
 dev.pinyinduck.android.ui.KeysKt                    key layouts
 ```
 
-The floor is scoped to those classes rather than applied to the module as a whole, and the
-distinction matters. Android framework and Compose surfaces (`PinyinDuckImeService`,
-`SettingsActivity`, the Compose keyboard) cannot be reached by a plain JVM test: they need
-an instrumentation test on a device. They are still included in the report, so the headline
-number is honest, but gating them would mean either writing those instrumentation tests or
-setting a floor so low it stops meaning anything. The classes above are where behaviour
-that can actually go wrong lives, and every one of them is reachable without a device.
+The per-class floor is the strict one because these are the classes where a branch is a real
+decision — a tone filter, a scan budget, a page boundary. The module-wide floor is on
+instructions only, and deliberately so: the Compose compiler emits branches for recomposition
+and stability checks that no test can drive, so a module-wide *branch* floor would be
+measuring the compiler rather than this code. Branch coverage is still enforced, at the same
+85%, everywhere it is meaningful.
+
+### What a JVM test still cannot reach
+
+There is no `ShadowInputMethodService`, so `currentInputConnection` is always null under
+Robolectric. `PinyinDuckImeServiceTest` therefore asserts on the state the service owns —
+composition, candidate selection, layout, lifecycle — and not on the text the keyboard would
+have committed. Verifying the committed text means an instrumentation test on a device, which
+is the one thing in this project that is not automated yet.
 
 ### The parity test
 

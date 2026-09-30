@@ -31,3 +31,7 @@ packages/android/local.properties
 packages/android/.kotlin/
 *.hprof
 
+# Jacoco coverage output for the Android app (regenerate with ./gradlew jacocoTestReport)
+packages/android/app/reports/
+packages/android/app/.cxx/
+

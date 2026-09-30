@@ -220,6 +220,8 @@ Re-measured on the `pinyin-typeduck-windows` branch at `11c245b`:
 | End-to-end tests | `npm run test:e2e` | 72 tests passed |
 | Web coverage | `npm run test:e2e` | 98.93% statements, 99.25% branches, 100% functions |
 | Lint | `npm run lint` | 0 warnings, 0 errors over 47 files |
+| Android unit tests | `cd packages/android && ./gradlew test` | 186 tests passed |
+| Android coverage | `cd packages/android && ./gradlew check` | 92% instructions (10,496/11,357); both gates pass (exit 0) |
 
 > [!NOTE]
 > `npm run typecheck` currently resolves to nothing: the root script uses

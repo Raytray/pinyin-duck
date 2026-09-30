@@ -20,9 +20,7 @@
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "typecheck": "npm run --workspaces --if-present typecheck",
-    "build:parity": "npm run build:parity -w @pinyinduck/core",
-    "build:android": "npm run build:required -w @pinyinduck/android",
-    "test:android": "npm run -w @pinyinduck/android test"
+    "build:parity": "npm run build:parity -w @pinyinduck/core"
   },
   "keywords": [
     "pinyin",

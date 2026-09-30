@@ -1,0 +1,491 @@
+package dev.pinyinduck.android.ime
+
+import android.os.Looper
+import android.view.KeyEvent
+import android.view.inputmethod.EditorInfo
+import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.Lifecycle
+import dev.pinyinduck.android.engine.ScriptType
+import dev.pinyinduck.android.ui.KeyAction
+import dev.pinyinduck.android.ui.KeyLayout
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.android.controller.ServiceController
+
+/**
+ * The input method service, driven end to end.
+ *
+ * Everything below the service — the parser, the dictionary, the composition rules, the key
+ * mapping — is tested directly elsewhere. What is left is the wiring: that the dictionary
+ * actually loads, that a key press reaches the session, that the session's changes reach the
+ * UI state, and that keys the keyboard does not own are handed back to the system. That last
+ * one is the failure this exists to catch — consuming a key the app behind the keyboard
+ * needed is silent and leaves no trace in any other test.
+ *
+ * There is no `ShadowInputMethodService`, so `currentInputConnection` is always null and the
+ * text this keyboard would have committed is not observable. Every assertion is therefore
+ * about state the service itself owns, which is the part the service is responsible for.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(qualifiers = "w411dp-h891dp")
+class PinyinDuckImeServiceTest {
+
+    private lateinit var controller: ServiceController<PinyinDuckImeService>
+    private var destroyed = false
+    private val service get() = controller.get()
+
+    @Before
+    fun setUp() {
+        controller = Robolectric.buildService(PinyinDuckImeService::class.java).create()
+    }
+
+    @After
+    fun tearDown() {
+        if (!destroyed) controller.destroy()
+    }
+
+    /**
+     * Tears the service down through the controller rather than by calling `onDestroy`.
+     *
+     * Robolectric's controller refuses a second destroy ("can be called only once"), so the
+     * callback is not something a test may invoke directly — and calling the real Android
+     * teardown path through the controller is the more honest test anyway. Note that
+     * [ServiceController.get] is only usable before this, hence capturing the instance first.
+     */
+    private fun destroy() {
+        controller.destroy()
+        destroyed = true
+    }
+
+    // --- startup ----------------------------------------------------------------
+
+    @Test
+    fun theDictionaryLoadsAndTheKeyboardStopsSayingItIsLoading() {
+        awaitDictionary()
+
+        assertFalse(service.uiState.loading)
+        assertNull(service.uiState.dictionaryError)
+        assertEquals(122_746, service.uiState.dictionaryEntries)
+        assertNotNull("no session was created", service.session)
+    }
+
+    @Test
+    fun theServiceSuppliesTheLifecycleComposeLooksFor() {
+        // An IME has no view tree of its own, so the service provides the owner. Without it the
+        // keyboard renders nothing and throws nothing, which makes this silent.
+        assertEquals(Lifecycle.State.CREATED, service.lifecycle.currentState)
+    }
+
+    @Test
+    fun theInputViewIsCreated() {
+        val view = service.onCreateInputView()
+
+        assertTrue("expected a ComposeView, got ${view.javaClass.name}", view is ComposeView)
+    }
+
+    // --- hardware keys ----------------------------------------------------------
+
+    @Test
+    fun typingLettersOnAHardwareKeyboardBuildsAComposition() {
+        awaitDictionary()
+
+        "nihao".forEach { press(letterKey(it), it) }
+
+        assertEquals("nihao", service.uiState.buffer)
+        assertEquals("你好", service.uiState.candidates.first().hanzi)
+    }
+
+    @Test
+    fun aKeyTheKeyboardDoesNotOwnIsLeftToTheSystem() {
+        awaitDictionary()
+
+        // Consuming any of these would steal it from the app being typed into.
+        assertFalse(service.onKeyDown(KeyEvent.KEYCODE_VOLUME_UP, unowned(KeyEvent.KEYCODE_VOLUME_UP)))
+        assertFalse(service.onKeyDown(KeyEvent.KEYCODE_TAB, unowned(KeyEvent.KEYCODE_TAB, '\t')))
+        assertFalse(service.onKeyDown(KeyEvent.KEYCODE_CAMERA, unowned(KeyEvent.KEYCODE_CAMERA)))
+    }
+
+    @Test
+    fun keysArePassedOnBeforeTheDictionaryIsReady() {
+        // `onCreate` loads on a background thread and posts the result to the main looper, so
+        // until that looper runs there is no session. Consuming the key anyway would drop the
+        // keystroke the user just made.
+        assertNull(service.session)
+        assertFalse(service.onKeyDown(KeyEvent.KEYCODE_N, unowned(KeyEvent.KEYCODE_N, 'n')))
+    }
+
+    @Test
+    fun theDownArrowMovesTheSelectionByAWholePage() {
+        awaitDictionary()
+        type("ni")
+
+        val last = service.uiState.candidates.size - 1
+        val before = service.uiState.selectedIndex
+
+        assertTrue(service.onKeyDown(KeyEvent.KEYCODE_DPAD_DOWN, unowned(KeyEvent.KEYCODE_DPAD_DOWN)))
+
+        assertEquals((before + KeyRouting.PAGE_SIZE).coerceAtMost(last), service.uiState.selectedIndex)
+    }
+
+    @Test
+    fun theLeftArrowMovesTheSelectionBackByOne() {
+        awaitDictionary()
+        type("ni")
+        service.onKeyDown(KeyEvent.KEYCODE_DPAD_DOWN, unowned(KeyEvent.KEYCODE_DPAD_DOWN))
+        val afterPage = service.uiState.selectedIndex
+
+        assertTrue(service.onKeyDown(KeyEvent.KEYCODE_DPAD_LEFT, unowned(KeyEvent.KEYCODE_DPAD_LEFT)))
+
+        assertEquals(afterPage - 1, service.uiState.selectedIndex)
+    }
+
+    @Test
+    fun escapeAbandonsTheComposition() {
+        awaitDictionary()
+        type("ni")
+
+        assertTrue(service.onKeyDown(KeyEvent.KEYCODE_ESCAPE, unowned(KeyEvent.KEYCODE_ESCAPE)))
+
+        assertEquals("", service.uiState.buffer)
+        assertTrue(service.uiState.candidates.isEmpty())
+    }
+
+    @Test
+    fun aShiftedLetterStillTypesALowerCasePinyinLetter() {
+        awaitDictionary()
+
+        service.onKeyDown(KeyEvent.KEYCODE_N, unowned(KeyEvent.KEYCODE_N, 'N', shift = true))
+
+        assertEquals("n", service.uiState.buffer)
+    }
+
+    // --- on-screen callbacks ----------------------------------------------------
+
+    @Test
+    fun tappingALetterKeyTypesIt() {
+        awaitDictionary()
+        val keys = service.callbacks()
+
+        keys.onKey(KeyAction.Letter('n'))
+        keys.onKey(KeyAction.Letter('i'))
+
+        assertEquals("ni", service.uiState.buffer)
+    }
+
+    @Test
+    fun shiftIsOneShotSoTheNextLetterIsNotUpperCase() {
+        awaitDictionary()
+        val keys = service.callbacks()
+
+        keys.onKey(KeyAction.Shift)
+        assertTrue(service.uiState.shift)
+
+        keys.onKey(KeyAction.Letter('n'))
+
+        assertFalse("shift should have dropped after a letter", service.uiState.shift)
+        assertEquals("n", service.uiState.buffer)
+    }
+
+    @Test
+    fun shiftChangesTheLabelOnlyAndNeverTheTypedLetter() {
+        // `Keys` builds every letter action from a lower-case row and `Keyboard` uppercases
+        // only for display. The session lowercases before searching, so a key that started
+        // sending the upper-case character would type the same pinyin — but this pins the
+        // invariant, because "fixing" the label to come from the action would break it.
+        awaitDictionary()
+        val keys = service.callbacks()
+        keys.onKey(KeyAction.Shift)
+
+        keys.onKey(KeyAction.Letter('n'))
+
+        assertEquals("n", service.uiState.buffer)
+    }
+
+    @Test
+    fun switchingToTheNumberLayerDropsShift() {
+        awaitDictionary()
+        val keys = service.callbacks()
+
+        keys.onKey(KeyAction.Shift)
+        keys.onKey(KeyAction.SwitchTo(KeyLayout.NUMBERS))
+
+        assertEquals(KeyLayout.NUMBERS, service.uiState.layout)
+        assertFalse(service.uiState.shift)
+    }
+
+    @Test
+    fun theExpandButtonToggles() {
+        awaitDictionary()
+        val keys = service.callbacks()
+
+        keys.onToggleExpanded()
+        assertTrue(service.uiState.expanded)
+
+        keys.onToggleExpanded()
+        assertFalse(service.uiState.expanded)
+    }
+
+    @Test
+    fun theExpandKeyOnTheKeyboardAlsoToggles() {
+        awaitDictionary()
+
+        service.callbacks().onKey(KeyAction.ToggleExpanded)
+
+        assertTrue(service.uiState.expanded)
+    }
+
+    @Test
+    fun tappingACandidateCommitsTheComposition() {
+        awaitDictionary()
+        val keys = service.callbacks()
+        type("ni")
+        assertTrue(service.uiState.candidates.isNotEmpty())
+
+        keys.onSelectCandidate(0)
+
+        // The pinyin in the editor is replaced by the characters, so the strip empties. The
+        // text itself is written through the editor connection, which is null under
+        // Robolectric and so cannot be asserted on here.
+        assertEquals("", service.uiState.buffer)
+        assertTrue(service.uiState.candidates.isEmpty())
+        assertEquals(-1, service.uiState.selectedIndex)
+    }
+
+    @Test
+    fun tappingBeyondTheEndOfTheStripIsIgnored() {
+        // A stale index from a strip that has since re-paged would otherwise crash on a list
+        // access, or worse, commit an unrelated candidate.
+        awaitDictionary()
+        val keys = service.callbacks()
+        type("ni")
+
+        keys.onSelectCandidate(9999)
+        keys.onSelectCandidate(-1)
+
+        assertEquals("ni", service.uiState.buffer)
+    }
+
+    @Test
+    fun theScriptButtonTogglesTheScript() {
+        awaitDictionary()
+        type("n")
+        assertEquals(ScriptType.SIMPLIFIED, service.uiState.script)
+
+        service.callbacks().onToggleScript()
+
+        assertEquals(ScriptType.TRADITIONAL, service.uiState.script)
+    }
+
+    @Test
+    fun theScriptKeyOnTheKeyboardAlsoToggles() {
+        awaitDictionary()
+
+        service.callbacks().onKey(KeyAction.ToggleScript)
+
+        assertEquals(ScriptType.TRADITIONAL, service.uiState.script)
+    }
+
+    @Test
+    fun theClearButtonEmptiesTheComposition() {
+        awaitDictionary()
+        type("n")
+
+        service.callbacks().onClear()
+
+        assertEquals("", service.uiState.buffer)
+    }
+
+    @Test
+    fun aPunctuationKeyEndsTheCompositionRatherThanExtendingIt() {
+        // `ni` then `。` should commit the pinyin and add the full stop. Appending it to the
+        // buffer instead would produce a composition that can never match anything.
+        awaitDictionary()
+        type("ni")
+
+        service.callbacks().onKey(KeyAction.Symbol("。"))
+
+        assertEquals("", service.uiState.buffer)
+    }
+
+    @Test
+    fun aToneDigitIsTreatedAsAToneRatherThanAsACandidateNumber() {
+        // On a phone candidates are tapped, so a digit during a composition means a tone.
+        awaitDictionary()
+        type("ni")
+
+        service.callbacks().onKey(KeyAction.Digit(3))
+
+        assertEquals("ni3", service.uiState.buffer)
+        assertTrue(service.uiState.candidates.isNotEmpty())
+    }
+
+    @Test
+    fun backspaceShortensTheComposition() {
+        awaitDictionary()
+        type("ni")
+
+        service.callbacks().onKey(KeyAction.Backspace)
+
+        assertEquals("n", service.uiState.buffer)
+    }
+
+    @Test
+    fun aSpaceCommitsTheTopCandidate() {
+        awaitDictionary()
+        type("nihao")
+
+        service.callbacks().onKey(KeyAction.Space)
+
+        assertEquals("", service.uiState.buffer)
+        assertTrue(service.uiState.candidates.isEmpty())
+    }
+
+    @Test
+    fun theKeyboardControlKeysDoNothingBeforeTheDictionaryIsReady() {
+        // The first tap can land before the background load finishes. It must not crash, and it
+        // must not leave a half-applied key for the next one to build on.
+        val keys = service.callbacks()
+
+        keys.onKey(KeyAction.Letter('n'))
+        keys.onSelectCandidate(0)
+        keys.onToggleScript()
+        keys.onClear()
+        keys.onToggleExpanded()
+
+        assertEquals("", service.uiState.buffer)
+    }
+
+    // --- input lifecycle --------------------------------------------------------
+
+    @Test
+    fun startingANewFieldResetsTheKeyboard() {
+        awaitDictionary()
+        val keys = service.callbacks()
+        type("n")
+        keys.onKey(KeyAction.Shift)
+        keys.onToggleExpanded()
+        keys.onKey(KeyAction.SwitchTo(KeyLayout.SYMBOLS))
+
+        service.onStartInput(EditorInfo(), restarting = false)
+
+        assertEquals("", service.uiState.buffer)
+        assertFalse(service.uiState.shift)
+        assertFalse(service.uiState.expanded)
+        assertEquals(KeyLayout.LETTERS, service.uiState.layout)
+    }
+
+    @Test
+    fun finishingInputAbandonsTheComposition() {
+        awaitDictionary()
+        type("n")
+
+        service.onFinishInput()
+
+        assertEquals("", service.uiState.buffer)
+    }
+
+    @Test
+    fun theInputViewDrivesTheLifecycleSoComposeStaysAttached() {
+        awaitDictionary()
+
+        service.onStartInputView(EditorInfo(), restarting = false)
+        assertEquals(Lifecycle.State.STARTED, service.lifecycle.currentState)
+
+        service.onFinishInputView(finishingInput = true)
+        assertEquals(Lifecycle.State.CREATED, service.lifecycle.currentState)
+    }
+
+    @Test
+    fun destroyingTheServiceReleasesEverything() {
+        awaitDictionary()
+        val svc = service
+        assertNotNull(svc.session)
+
+        destroy()
+
+        assertNull("the session outlived the service", svc.session)
+        assertEquals(Lifecycle.State.DESTROYED, svc.lifecycle.currentState)
+    }
+
+    @Test
+    fun destroyingBeforeTheDictionaryFinishesIsHarmless() {
+        // The user can switch away from the keyboard while the dictionary is still mapping.
+        // Nothing is loaded, so there is nothing to close, and tearing down must not block.
+        val svc = service
+        assertNull(svc.session)
+
+        destroy()
+
+        assertEquals(Lifecycle.State.DESTROYED, svc.lifecycle.currentState)
+    }
+
+    // --- helpers ----------------------------------------------------------------
+
+    /** Types [text] one hardware letter at a time. */
+    private fun type(text: String) = text.forEach { press(letterKey(it), it) }
+
+    private fun press(keyCode: Int, letter: Char) {
+        assertTrue(
+            "the keyboard refused to handle '$letter'",
+            service.onKeyDown(keyCode, unowned(keyCode, letter)),
+        )
+    }
+
+    /** The `KEYCODE_A`-style key code for a lowercase letter, e.g. `a` -> `KEYCODE_A`. */
+    private fun letterKey(letter: Char): Int =
+        KeyEvent.KEYCODE_A + (letter.lowercaseChar() - 'a')
+
+    /**
+     * A key event carrying a specific character.
+     *
+     * `getUnicodeChar` is derived from the key code and meta state, and a synthetic event
+     * cannot be persuaded to report a character that does not match its code — shift+N really
+     * does produce `N`, but the tone digit on a phone keyboard has no key code at all. So the
+     * event is subclassed to report the character the test means, which is exactly the part of
+     * the event the keyboard reads.
+     */
+    private fun unowned(keyCode: Int, unicode: Char = 0.toChar(), shift: Boolean = false) =
+        object : KeyEvent(
+            0L,
+            0L,
+            KeyEvent.ACTION_DOWN,
+            keyCode,
+            0,
+            if (shift) KeyEvent.META_SHIFT_ON else 0,
+        ) {
+            override fun getUnicodeChar(): Int = unicode.code
+            override fun getUnicodeChar(metaState: Int): Int = unicode.code
+        }
+
+    /**
+     * Waits for the background dictionary load and drains the main looper.
+     *
+     * This is one of the few places where waiting is right: the load is a real thread doing
+     * real `mmap`, not a scheduler Robolectric controls, so no idling call can be told when it
+     * has finished.
+     */
+    private fun awaitDictionary(timeoutMillis: Long = 30_000) {
+        val main = shadowOf(Looper.getMainLooper())
+        val deadline = System.nanoTime() + timeoutMillis * 1_000_000L
+        while (service.uiState.loading && System.nanoTime() < deadline) {
+            main.idle()
+            Thread.sleep(5)
+        }
+        main.idle()
+        assertFalse(
+            "the dictionary did not finish loading within ${timeoutMillis}ms",
+            service.uiState.loading,
+        )
+    }
+}
