@@ -8,6 +8,7 @@ A TypeDuck-inspired Mandarin Pinyin input method designed for learners. As you t
 - **`packages/web`**: Web application featuring an interactive IME composition playground with inline candidate definition cards.
 - **`packages/android`**: Android input method (Milestone 3). An `InputMethodService` with a Jetpack Compose keyboard over the same mmap'd `dictionary.btree`. Build, install and usage: [`packages/android/README.md`](packages/android/README.md).
 - **`packages/windows`**: Windows input method, delivered as a Rime/Weasel schema generated from the same engine. See [packages/windows/README.md](packages/windows/README.md).
+- **`packages/macos`**: macOS input method, delivered as a Rime/Squirrel schema generated from the same engine. See [packages/macos/README.md](packages/macos/README.md).
 
 ## Getting Started
 
@@ -77,17 +78,18 @@ Current output: 125,132 lines parsed into 122,746 unique word/reading pairs
 > a row count on disk can disagree by a handful. Anything asserting an exact corpus size
 > should say so, or assert a relationship instead.
 
-The same asset also feeds the Windows input method:
+The same asset also feeds the Windows and macOS input methods:
 
 ```bash
-npm run build:rime                   # regenerates packages/windows/rime/*.dict.yaml
+npm run build:rime                   # regenerates packages/{windows,macos}/rime/*.dict.yaml
 npm run build:rime -- --out /tmp/rime   # writes the dictionaries somewhere else
 npm run build:rime -- --btree <path>    # reads a different asset
 ```
 
 The Rime dictionaries are ~9.3MB each and gitignored, so `npm run build` regenerates
 them. Installing them on Windows is one PowerShell script; see
-[packages/windows/README.md](packages/windows/README.md).
+[packages/windows/README.md](packages/windows/README.md). Installing them on macOS is
+one shell script; see [packages/macos/README.md](packages/macos/README.md).
 
 **The asset is a paged B+ tree, not a blob.** It is keyed on toneless pinyin and split
 into ~1,200 byte-ranged pages, so a client opens it by reading only the 24-byte header
@@ -176,6 +178,7 @@ The repository has three test layers:
 | --- | --- | --- |
 | Unit (`packages/core`) | `npm test` | Pinyin parsing, syllable segmentation, tone-mark conversion, trie search, ranking, dictionary generation and loading |
 | Unit (`packages/windows`) | `npm test` | The Rime dictionary emitter: column order, weights, candidate ordering, duplicate collapsing, and the file writing |
+| Unit (`packages/macos`) | `npm test` | The re-exported Rime dictionary emitter and the macOS build script |
 | End-to-end (Playwright) | `npm run test:e2e` | The full IME loop in a real browser: composition, candidate ranking, paging, keyboard shortcuts, text editing, script toggle, dictionary loading |
 | Android (`packages/android`) | `./gradlew test` | The Kotlin engine against the real dictionary, its parity with the TypeScript engine, and the composition rules against a fake editor |
 
@@ -230,6 +233,7 @@ forces headed, for environments where the default is not what you want.
 | `@pinyinduck/web` | `npm run test:e2e` | `coverage/web/` | 99.8% statements, 99% branches, 100% functions |
 | `packages/android` | `cd packages/android && ./gradlew check` | `app/build/reports/jacoco/jacocoTestReport/html/` | 92% instructions, 186 tests |
 | `@pinyinduck/windows` | `npm run test:coverage -w @pinyinduck/windows` | `packages/windows/coverage/` | 97.94% statements, 96.66% branches, 100% functions |
+| `@pinyinduck/macos` | `npm run test:coverage -w @pinyinduck/macos` | `packages/macos/coverage/` | 95%+ statements, branches, functions |
 
 Run the first two with `npm run test:coverage:all`; the Android one is Gradle and needs no npm.
 

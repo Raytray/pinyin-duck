@@ -1,0 +1,27 @@
+# Rime schema — PinyinDuck (Traditional)
+# encoding: utf-8
+#
+# The same learner-first schema over the traditional half of CC-CEDICT, so 中国 is
+# offered as 中國 without asking OpenCC to convert anything at runtime. CC-CEDICT carries
+# both forms for every entry, so this costs one more dictionary file and no conversion
+# step.
+#
+# Switch between the two with the Rime scheme switcher (F4, or Ctrl+`), the same way a
+# macOS user switches between 拼音 and 英文.
+
+# `filename:/` is the form librime's config compiler documents for including another
+# file's root. The more familiar `schema_id://` does not resolve here: it refers to a
+# *built* schema, and both schemes are built in the same pass, so the dependency is still
+# unresolved when this one is linked and the whole traditional scheme silently fails to load.
+__include: pinyinduck.schema.yaml:/
+
+schema:
+  schema_id: pinyinduck_trad
+  name: 拼音鸭·繁
+  version: "0.1"
+
+translator:
+  dictionary: pinyinduck_trad
+
+__patch:
+  - pinyinduck_trad.custom:/patch?
