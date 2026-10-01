@@ -44,7 +44,7 @@ packages/android/.kotlin/
 packages/android/app/reports/
 packages/android/app/.cxx/
 
- The generated Rime dictionaries. The hand-written schemas next to them are committed;
+# The generated Rime dictionaries. The hand-written schemas next to them are committed;
 # these two are ~7MB each and are rebuilt by `npm run build:rime`.
 packages/windows/rime/*.dict.yaml
 
@@ -58,3 +58,14 @@ packages/windows/rime/lua/
 # bootstrap-rime.sh and rime_smoke.cc next to them *are* committed — they are the source.
 packages/windows/tools/librime/
 packages/windows/tools/.local/
+
+# The same three artifacts for macOS (packages/macos), which runs the same emitter against
+# the same asset. `npm run build:rime` writes both dictionaries and the Lua sidecar from one
+# pass over the B+ tree; `npm run setup:rime` builds librime and the harness into tools/.
+packages/macos/rime/*.dict.yaml
+packages/macos/rime/lua/
+
+# What `npm run setup:rime` provisions for macOS: the librime clone and the compiled
+# rime_smoke harness. bootstrap-rime.sh and rime_smoke.cc next to them *are* committed.
+packages/macos/tools/librime/
+packages/macos/tools/rime_smoke
