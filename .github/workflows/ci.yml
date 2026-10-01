@@ -18,6 +18,7 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       android: ${{ steps.filter.outputs.android }}
       windows: ${{ steps.filter.outputs.windows }}
+      macos: ${{ steps.filter.outputs.macos }}
       root: ${{ steps.filter.outputs.root }}
     steps:
       - uses: actions/checkout@v4
@@ -34,6 +35,8 @@ jobs:
               - 'packages/android/**'
             windows:
               - 'packages/windows/**'
+            macos:
+              - 'packages/macos/**'
             root:
               - 'package.json'
               - 'package-lock.json'
@@ -66,7 +69,7 @@ jobs:
   # ─── Per-package checks (parallel matrix) ─────────────────────────────────
   package-checks:
     needs: changes
-    if: ${{ needs.changes.outputs.core == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.android == 'true' || needs.changes.outputs.windows == 'true' }}
+    if: ${{ needs.changes.outputs.core == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.android == 'true' || needs.changes.outputs.windows == 'true' || needs.changes.outputs.macos == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -76,6 +79,7 @@ jobs:
           - web
           - android
           - windows
+          - macos
 
     name: ${{ matrix.package }}
 
@@ -91,75 +95,107 @@ jobs:
         run: npm ci
 
       # ── Build generated assets (needed by tests) ──
+      # macOS emits Rime dictionaries from the same B-tree as Windows, so it needs both
+      # the asset and the sibling packages' schemas staged by build:rime.
       - name: Build dictionary assets
-        if: ${{ matrix.package == 'core' || matrix.package == 'web' || matrix.package == 'windows' }}
+        if: ${{ matrix.package == 'core' || matrix.package == 'web' || matrix.package == 'windows' || matrix.package == 'macos' }}
         run: |
           npm run build:dict
           npm run build:rime
 
+      # ── Core package types ──
+      # `@pinyinduck/web` imports the core entry points, whose declarations are emitted
+      # by tsc. Typechecking web before core is built reports TS2307 for a module that
+      # does exist, which is noise rather than a real finding.
+      - name: Build core type declarations
+        if: ${{ matrix.package == 'web' }}
+        run: npm run build -w @pinyinduck/core
+
       # ── Core ──
-      - name: [core] Lint
+      - name: "[core] Lint"
         if: ${{ matrix.package == 'core' }}
         run: npx oxlint packages/core
 
-      - name: [core] Typecheck
+      - name: "[core] Typecheck"
         if: ${{ matrix.package == 'core' }}
         run: npm run typecheck -w @pinyinduck/core
 
-      - name: [core] Test + Coverage
+      - name: "[core] Test + Coverage"
         if: ${{ matrix.package == 'core' }}
         run: npm run test:coverage -w @pinyinduck/core
 
       # ── Web ──
-      - name: [web] Lint
+      - name: "[web] Lint"
         if: ${{ matrix.package == 'web' }}
         run: npx oxlint packages/web
 
-      - name: [web] Typecheck
+      - name: "[web] Typecheck"
         if: ${{ matrix.package == 'web' }}
         run: npm run typecheck -w @pinyinduck/web
 
-      - name: [web] Build
+      - name: "[web] Build"
         if: ${{ matrix.package == 'web' }}
         run: npm run build -w @pinyinduck/web
 
       # ── Android ──
-      - name: [android] Lint (ktlint via Gradle)
+      - name: "[android] Lint (ktlint via Gradle)"
         if: ${{ matrix.package == 'android' }}
         run: |
           cd packages/android
           ./gradlew ktlintCheck
 
-      - name: [android] Unit tests
+      - name: "[android] Unit tests"
         if: ${{ matrix.package == 'android' }}
         run: |
           cd packages/android
           ./gradlew testDebugUnitTest
 
-      - name: [android] Coverage report
+      - name: "[android] Coverage report"
         if: ${{ matrix.package == 'android' }}
         run: |
           cd packages/android
           ./gradlew jacocoTestReport
 
       # ── Windows ──
-      - name: [windows] Lint
+      - name: "[windows] Lint"
         if: ${{ matrix.package == 'windows' }}
         run: npx oxlint packages/windows
 
-      - name: [windows] Typecheck
+      - name: "[windows] Typecheck"
         if: ${{ matrix.package == 'windows' }}
         run: npm run typecheck -w @pinyinduck/windows
 
-      - name: [windows] Test + Coverage
+      - name: "[windows] Test + Coverage"
         if: ${{ matrix.package == 'windows' }}
         run: npm run test:coverage -w @pinyinduck/windows
 
-      - name: [windows] Rime verification
+      - name: "[windows] Rime verification"
         if: ${{ matrix.package == 'windows' }}
         run: |
           npm run setup:rime -w @pinyinduck/windows
           npm run test:rime -w @pinyinduck/windows
+
+      # ── macOS ──
+      # Same shape as the Windows job above. The Rime step runs the non-strict variant:
+      # it skips cleanly when librime could not be built, so a toolchain problem is
+      # visible in the log without turning every commit red.
+      - name: "[macos] Lint"
+        if: ${{ matrix.package == 'macos' }}
+        run: npm run lint -w @pinyinduck/macos
+
+      - name: "[macos] Typecheck"
+        if: ${{ matrix.package == 'macos' }}
+        run: npm run typecheck -w @pinyinduck/macos
+
+      - name: "[macos] Test + Coverage"
+        if: ${{ matrix.package == 'macos' }}
+        run: npm run test:coverage -w @pinyinduck/macos
+
+      - name: "[macos] Rime verification"
+        if: ${{ matrix.package == 'macos' }}
+        run: |
+          npm run setup:rime -w @pinyinduck/macos
+          npm run test:rime -w @pinyinduck/macos
 
   # ─── E2E tests (only if web or core changed) ──────────────────────────────
   e2e:
