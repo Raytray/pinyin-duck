@@ -22,7 +22,7 @@
     "test:coverage:all": "npm run test:coverage && npm run test:e2e",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "typecheck": "npm run --workspaces --if-present typecheck",
+    "typecheck": "npm run build -w @pinyinduck/core && npm run --workspaces --if-present typecheck",
     "build:parity": "npm run build:parity -w @pinyinduck/core"
   },
   "keywords": [

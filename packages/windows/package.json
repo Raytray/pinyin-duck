@@ -5,6 +5,8 @@
   "description": "Rime/Weasel schema generator for the PinyinDuck Windows input method",
   "scripts": {
     "build": "tsc",
+    "lint": "oxlint .",
+    "typecheck": "tsc --noEmit",
     "build:rime": "tsx scripts/build-rime-dict.ts",
     "setup:rime": "bash tools/bootstrap-rime.sh",
     "test": "vitest run",
