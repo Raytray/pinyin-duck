@@ -69,3 +69,5 @@ packages/macos/rime/lua/
 # rime_smoke harness. bootstrap-rime.sh and rime_smoke.cc next to them *are* committed.
 packages/macos/tools/librime/
 packages/macos/tools/rime_smoke
+key.properties
+*.jks
