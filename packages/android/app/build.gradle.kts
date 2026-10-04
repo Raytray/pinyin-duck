@@ -335,6 +335,9 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    // The IME service is its own ViewModelStoreOwner so it can hand one to Compose through the
+    // view tree. It arrives transitively via activity-compose, but it is imported directly now.
+    implementation(libs.androidx.lifecycle.viewmodel.android)
     implementation(libs.androidx.savedstate.ktx)
     // The dictionary is mapped off a background thread; this is what cancels that work
     // when the service is destroyed before it finishes.
