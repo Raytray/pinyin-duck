@@ -109,7 +109,11 @@ private fun CompositionBar(
         Box(modifier = Modifier.weight(1f)) {
             when {
                 state.dictionaryError != null -> HintText(state.dictionaryError)
-                state.loading -> HintText("Loading dictionary…")
+                // Checked before `loading`, because the buffer is the more specific fact and
+                // it is the one the user is looking for. The session accepts letters while
+                // the dictionary is still mapping, so a composition can be in progress with
+                // the load unfinished, and showing the loading hint then would hide the
+                // pinyin the user just typed behind a message about the dictionary.
                 state.buffer.isNotEmpty() ->
                     Text(
                         text = state.buffer,
@@ -118,6 +122,7 @@ private fun CompositionBar(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                state.loading -> HintText("Loading dictionary…")
                 state.dictionaryEntries > 0 ->
                     HintText(
                         "${formatCount(state.dictionaryEntries)} entries ready · type pinyin · 123 for digits",
@@ -206,7 +211,15 @@ private fun CandidateStrip(
         Box(modifier = Modifier.weight(1f)) {
             if (state.candidates.isEmpty()) {
                 Text(
-                    text = if (state.buffer.isEmpty()) "" else "No match",
+                    text =
+                        when {
+                            state.buffer.isEmpty() -> ""
+                            // Not "No match": nothing has been searched yet, and telling the
+                            // user their pinyin does not exist when the dictionary simply has
+                            // not finished mapping is both wrong and needlessly alarming.
+                            state.loading -> "Loading…"
+                            else -> "No match"
+                        },
                     color = DuckColors.SecondaryText,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center,

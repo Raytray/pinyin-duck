@@ -18,14 +18,26 @@ import dev.pinyinduck.android.engine.SearchOptions
  * replaces it with 你好. That keeps what the user sees identical to what [buffer] holds,
  * and it tells the editor the text is in progress — so autocorrect leaves it alone and the
  * standard underline is shown. Committing finalises the region.
+ *
+ * The dictionary is *not* a constructor argument. Mapping it is real I/O on a background
+ * thread, and the keyboard is on screen and being tapped long before that finishes, so the
+ * session has to exist without one and have it arrive later via [onDictionaryReady]. A
+ * session with no dictionary still composes: letters reach the editor and [buffer] grows.
+ * It simply cannot rank anything yet, and [onDictionaryReady] ranks the backlog the moment
+ * it can.
  */
 class PinyinDuckSession(
-    private val engine: PinyinDuckEngine,
     private val sink: TextSink,
     script: ScriptType = ScriptType.SIMPLIFIED,
 ) {
     /** Called after every state change so a UI can refresh. */
     var onChange: (() -> Unit)? = null
+
+    /** The dictionary to rank against, or null until [onDictionaryReady] installs one. */
+    private var engine: PinyinDuckEngine? = null
+
+    /** Whether the dictionary has arrived, so a composition can be ranked. */
+    val isReady: Boolean get() = engine != null
 
     var script: ScriptType = script
         set(value) {
@@ -62,6 +74,20 @@ class PinyinDuckSession(
         total = 0
         selectedIndex = -1
         notifyChanged()
+    }
+
+    /**
+     * Installs the dictionary and ranks whatever is already buffered.
+     *
+     * The refresh is the point of the whole two-phase design. Pinyin typed while the
+     * dictionary was still mapping is already sitting in the editor's composing region, so
+     * it needs its candidates the instant the engine exists — not after the user happens to
+     * press another key and provoke a second refresh. Without this, the wait for the
+     * dictionary would cost the user every letter they typed during it.
+     */
+    fun onDictionaryReady(engine: PinyinDuckEngine) {
+        this.engine = engine
+        refresh()
     }
 
     /** Appends a letter to the composition, or inserts it directly when not composing. */
@@ -229,10 +255,16 @@ class PinyinDuckSession(
 
     private fun refresh(resetSelection: Boolean = false) {
         if (buffer.isEmpty()) {
-            candidates = emptyList()
-            total = 0
-            selectedIndex = -1
-            notifyChanged()
+            clearRanking()
+            return
+        }
+
+        val engine = engine
+        if (engine == null) {
+            // Nothing to rank yet, but the buffer is already in the editor's composing
+            // region, so it stays exactly where it is — clearing it here would desync the
+            // editor from [buffer] and lose the user's typing. `onDictionaryReady` ranks it.
+            clearRanking()
             return
         }
 
@@ -248,6 +280,19 @@ class PinyinDuckSession(
             } else {
                 selectedIndex.coerceIn(0, candidates.size - 1)
             }
+        notifyChanged()
+    }
+
+    /**
+     * Drops the ranking while leaving [buffer] alone.
+     *
+     * The buffer and the editor's composing region are two views of the same text, so
+     * forgetting the candidates must never mean forgetting what the user typed.
+     */
+    private fun clearRanking() {
+        candidates = emptyList()
+        total = 0
+        selectedIndex = -1
         notifyChanged()
     }
 

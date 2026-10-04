@@ -121,12 +121,44 @@ class PinyinDuckImeServiceTest {
     }
 
     @Test
-    fun keysArePassedOnBeforeTheDictionaryIsReady() {
+    fun theSessionExistsBeforeTheDictionaryIsReady() {
         // `onCreate` loads on a background thread and posts the result to the main looper, so
-        // until that looper runs there is no session. Consuming the key anyway would drop the
-        // keystroke the user just made.
-        assertNull(service.session)
-        assertFalse(service.onKeyDown(KeyEvent.KEYCODE_N, unowned(KeyEvent.KEYCODE_N, 'n')))
+        // the dictionary is genuinely absent for a while after the keyboard is on screen. The
+        // session is built in `onCreate` regardless, because one created only at the end of the
+        // load left every input path bailing out on a null session — the keyboard ate what the
+        // user typed during the load, showed no candidates, and typed nothing at all.
+        assertNotNull("no session until the dictionary finishes", service.session)
+        assertTrue("the dictionary should still be loading", service.uiState.loading)
+    }
+
+    @Test
+    fun aHardwareLetterBeforeTheDictionaryIsReadyComposesRatherThanPassingThrough() {
+        // This used to return false, handing the key to the app as raw text, so the same letter
+        // bypassed the engine on a hardware keyboard while the on-screen keyboard swallowed it.
+        // One session answers for both, whichever keyboard produced the key.
+        val handled = service.onKeyDown(KeyEvent.KEYCODE_N, unowned(KeyEvent.KEYCODE_N, 'n'))
+
+        assertTrue("the keyboard refused a letter it owns", handled)
+        assertEquals("n", service.uiState.buffer)
+    }
+
+    @Test
+    fun aCompositionStartedDuringTheLoadIsRankedWhenTheDictionaryLands() {
+        // Deterministic under Robolectric because the load is a real background thread and the
+        // main looper is not drained until `awaitDictionary`. On a device the same thing happens
+        // whenever the user types faster than the dictionary maps, which is why it only ever
+        // showed up on a fresh entry and could not be reproduced on demand.
+        val keys = service.callbacks()
+        keys.onKey(KeyAction.Letter('n'))
+        keys.onKey(KeyAction.Letter('i'))
+        keys.onKey(KeyAction.Letter('h'))
+        assertTrue("nothing can be ranked before the load", service.uiState.candidates.isEmpty())
+
+        awaitDictionary()
+
+        assertEquals("the pinyin typed during the load", "nih", service.uiState.buffer)
+        assertTrue("the backlog was never ranked", service.uiState.candidates.isNotEmpty())
+        assertEquals(0, service.uiState.selectedIndex)
     }
 
     @Test
@@ -356,18 +388,42 @@ class PinyinDuckImeServiceTest {
     }
 
     @Test
-    fun theKeyboardControlKeysDoNothingBeforeTheDictionaryIsReady() {
-        // The first tap can land before the background load finishes. It must not crash, and it
-        // must not leave a half-applied key for the next one to build on.
+    fun theControlKeysAreHarmlessBeforeTheDictionaryIsReady() {
+        // A tap can land before the background load finishes. None of these may crash, and none
+        // may leave a half-applied key behind for the next one to build on.
         val keys = service.callbacks()
 
-        keys.onKey(KeyAction.Letter('n'))
         keys.onSelectCandidate(0)
-        keys.onToggleScript()
         keys.onClear()
         keys.onToggleExpanded()
 
         assertEquals("", service.uiState.buffer)
+    }
+
+    @Test
+    fun aTappedLetterIsNotSwallowedBeforeTheDictionaryIsReady() {
+        // The regression itself. The tap was consumed by the Compose key and then dropped by the
+        // `session ?: return` guard, so the character vanished with nothing on screen to show
+        // that it had ever arrived.
+        val keys = service.callbacks()
+
+        keys.onKey(KeyAction.Letter('n'))
+        keys.onKey(KeyAction.Letter('i'))
+
+        assertEquals("ni", service.uiState.buffer)
+    }
+
+    @Test
+    fun theScriptToggledDuringTheLoadIsNotRolledBackWhenItLands() {
+        // The 简/繁 toggle is live while loading, so the load must not re-read the stored
+        // preference on completion and silently undo the user's own choice.
+        val keys = service.callbacks()
+        keys.onToggleScript()
+        assertEquals(ScriptType.TRADITIONAL, service.uiState.script)
+
+        awaitDictionary()
+
+        assertEquals(ScriptType.TRADITIONAL, service.uiState.script)
     }
 
     // --- input lifecycle --------------------------------------------------------
@@ -425,32 +481,35 @@ class PinyinDuckImeServiceTest {
     @Test
     fun destroyingBeforeTheDictionaryFinishesIsHarmless() {
         // The user can switch away from the keyboard while the dictionary is still mapping.
-        // Nothing is loaded, so there is nothing to close, and tearing down must not block.
+        // No dictionary is loaded, so there is nothing to close, and tearing down must not
+        // block. The session does exist by now, and is released like anything else.
         val svc = service
-        assertNull(svc.session)
+        assertNotNull(svc.session)
+        assertTrue(svc.uiState.loading)
 
         destroy()
 
         assertEquals(Lifecycle.State.DESTROYED, svc.lifecycle.currentState)
+        assertNull("the session outlived the service", svc.session)
     }
 
     @Test
     fun destroyingTheServiceCancelsAnInFlightDictionaryLoad() {
         // The load is real I/O on a background thread, so it is still running when the user
-        // switches away. Cancelling the scope must discard the result: the session is never
-        // created and the keyboard never claims to be ready.
+        // switches away. Cancelling the scope must discard the result: no dictionary is
+        // installed, the keyboard never claims to be ready, and nothing is resurrected.
         val svc = service
-        assertNull(svc.session)
         assertTrue("the dictionary should still be loading", svc.uiState.loading)
 
         destroy()
         // Drain the main looper. Without cancellation the pending continuation would run
-        // here and assign `session`; with it, the coroutine is already cancelled and the
+        // here and install the engine; with it, the coroutine is already cancelled and the
         // continuation throws instead.
         shadowOf(Looper.getMainLooper()).idle()
 
-        assertNull("a cancelled load must not create a session", svc.session)
         assertTrue("a cancelled load must not clear the loading flag", svc.uiState.loading)
+        assertEquals("a cancelled load must not install a dictionary", 0, svc.uiState.dictionaryEntries)
+        assertNull("a cancelled load must not resurrect the session", svc.session)
     }
 
     // --- helpers ----------------------------------------------------------------

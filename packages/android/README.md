@@ -263,7 +263,7 @@ Jacoco measures the whole module and writes HTML plus XML to
 `app/build/reports/jacoco/jacocoTestReport/`. Open
 `app/build/reports/jacoco/jacocoTestReport/html/index.html` to browse it per class.
 
-Current state: **92% instruction coverage** (10,496 of 11,357 instructions), 186 tests.
+Current state: **92% instruction coverage** (10,469 of 11,351 instructions), 207 tests.
 
 `./gradlew check` enforces two floors:
 
