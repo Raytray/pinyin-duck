@@ -64,11 +64,12 @@ class PinyinDuckSessionTest {
 
     private val editor = FakeEditor()
     private val session =
-        PinyinDuckSession(
-            // The same real dictionary the engine tests use; it is only read.
-            engine = TestDictionary.engine,
-            sink = editor,
-        )
+        PinyinDuckSession(sink = editor).also {
+            // The dictionary arrives separately, the way the service delivers it once its
+            // background load finishes. Handing it over here keeps every test below on the
+            // same ready path the running keyboard is on.
+            it.onDictionaryReady(TestDictionary.engine)
+        }
 
     private fun type(text: String) = text.forEach { session.typeLetter(it) }
 
@@ -399,5 +400,129 @@ class PinyinDuckSessionTest {
 
         assertEquals("", session.buffer)
         assertEquals("nihao", editor.text.toString())
+    }
+
+    // --- before the dictionary arrives ------------------------------------------------
+
+    /**
+     * A session with no dictionary yet.
+     *
+     * This is the state the keyboard is in for the whole window between `onCreate` and the
+     * background load finishing, and it is the state the bug lived in: keys arriving in it
+     * used to be dropped, because the session itself did not exist until the load was done.
+     */
+    private fun pending() = PinyinDuckSession(sink = editor)
+
+    @Test
+    fun lettersTypedBeforeTheDictionaryArrivesStillReachTheEditor() {
+        val pending = pending()
+
+        "ni".forEach { pending.typeLetter(it) }
+
+        assertEquals("ni", editor.composing)
+        assertEquals("ni", pending.buffer)
+    }
+
+    @Test
+    fun nothingCanBeRankedBeforeTheDictionaryArrives() {
+        val pending = pending()
+
+        "nih".forEach { pending.typeLetter(it) }
+
+        assertFalse(pending.hasCandidates)
+        assertEquals(0, pending.total)
+        assertEquals(-1, pending.selectedIndex)
+    }
+
+    @Test
+    fun theDictionaryRanksWhateverWasTypedBeforeItArrived() {
+        // The point of `onDictionaryReady`: the pinyin typed during the load is already in
+        // the editor, so it gets candidates the moment the engine exists rather than waiting
+        // for the user to press another key to provoke a refresh.
+        val pending = pending()
+        "nih".forEach { pending.typeLetter(it) }
+
+        pending.onDictionaryReady(TestDictionary.engine)
+
+        assertTrue("the backlog must be ranked", pending.hasCandidates)
+        assertEquals("nih", pending.buffer)
+        assertEquals("the top candidate should be highlighted", 0, pending.selectedIndex)
+    }
+
+    @Test
+    fun aCompositionIsNotForgottenWhileTheDictionaryIsMissing() {
+        // The buffer and the editor's composing region are two views of one text, so
+        // forgetting the ranking must never mean forgetting what the user typed. This is
+        // the desync that makes a keyboard look like it ate the character.
+        val pending = pending()
+
+        pending.typeLetter('n')
+        pending.typeLetter('i')
+
+        assertEquals("ni", pending.buffer)
+        assertEquals("ni", editor.composing)
+    }
+
+    @Test
+    fun spaceWithNoDictionaryCommitsTheRawPinyinRatherThanNothing() {
+        // If the dictionary never arrives — a corrupt asset, a failed map — the keyboard has
+        // to degrade to a plain text keyboard. It must not become one that eats input and
+        // types nothing at all.
+        val pending = pending()
+        "ni".forEach { pending.typeLetter(it) }
+
+        pending.space()
+
+        assertEquals("ni", editor.committed.toString())
+        assertFalse(pending.isComposing)
+    }
+
+    @Test
+    fun aCandidateCanBePickedOnceTheDictionaryArrives() {
+        val pending = pending()
+        "nihao".forEach { pending.typeLetter(it) }
+        pending.onDictionaryReady(TestDictionary.engine)
+
+        pending.space()
+
+        assertEquals("你好", editor.text.toString())
+        assertFalse(pending.isComposing)
+    }
+
+    @Test
+    fun theScriptCanBeToggledBeforeTheDictionaryArrivesAndIsNotUndone() {
+        // The toggle is live during the load, so nothing downstream may re-read the stored
+        // preference and silently roll the user's own choice back.
+        val pending = pending()
+        pending.toggleScript()
+        pending.typeLetter('n')
+
+        pending.onDictionaryReady(TestDictionary.engine)
+
+        assertEquals(ScriptType.TRADITIONAL, pending.script)
+        assertEquals("n", pending.buffer)
+    }
+
+    @Test
+    fun pinyinTypedInTheChosenScriptRanksInThatScript() {
+        val pending = pending()
+        pending.toggleScript()
+        "zhongguo".forEach { pending.typeLetter(it) }
+
+        pending.onDictionaryReady(TestDictionary.engine)
+
+        assertEquals("中國", pending.candidates.first().hanzi)
+    }
+
+    @Test
+    fun installingTheDictionaryWithNothingComposedIsHarmless() {
+        val pending = pending()
+        assertFalse(pending.isReady)
+
+        pending.onDictionaryReady(TestDictionary.engine)
+
+        assertTrue(pending.isReady)
+        assertEquals("", pending.buffer)
+        assertFalse(pending.hasCandidates)
     }
 }

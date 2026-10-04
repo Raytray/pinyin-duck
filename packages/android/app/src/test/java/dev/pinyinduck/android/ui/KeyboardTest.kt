@@ -156,6 +156,45 @@ class KeyboardTest {
         compose.onAllNodesWithText("No match").assertCountEquals(0)
     }
 
+    @Test
+    fun aStripWaitingOnTheDictionaryDoesNotClaimAMissedLookup() {
+        // The session accepts letters while the dictionary is still mapping, so a composition
+        // can be in progress with nothing ranked yet. "No match" there would be a lie: the
+        // lookup has not run, and telling the user their pinyin does not exist is worse than
+        // admitting the wait.
+        show(Recorder(), buffer = "ni", loading = true)
+
+        compose.onAllNodesWithText("No match").assertCountEquals(0)
+        compose.onNodeWithText("Loading", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun theCompositionBarShowsTypedPinyinWhileTheDictionaryLoads() {
+        // The buffer is the more specific fact and the one the user is looking for. Showing
+        // the loading hint over it would hide what they just typed behind a message about the
+        // dictionary, which is how a keyboard mid-load reads as having swallowed the input.
+        show(Recorder(), buffer = "ni", loading = true)
+
+        compose.onNodeWithText("ni").assertIsDisplayed()
+        compose.onAllNodesWithText("Loading dictionary", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun theCompositionBarStillReportsProgressWhileNothingHasBeenTyped() {
+        show(Recorder(), loading = true)
+
+        compose.onNodeWithText("Loading dictionary", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun aFailedDictionaryOutranksEverythingInTheBar() {
+        // A load that failed outright has no composition to recover and no backlog to rank, so
+        // the reason is all there is to say.
+        show(Recorder(), buffer = "ni", loading = false, error = "The dictionary is missing.")
+
+        compose.onNodeWithText("The dictionary is missing.").assertIsDisplayed()
+    }
+
     // --- composition bar --------------------------------------------------------
 
     @Test

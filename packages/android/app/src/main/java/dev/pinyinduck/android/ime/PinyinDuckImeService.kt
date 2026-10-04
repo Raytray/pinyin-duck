@@ -101,6 +101,24 @@ class PinyinDuckImeService :
         savedStateRegistryController.performRestore(null)
         lifecycleRegistry.currentState = Lifecycle.State.CREATED
 
+        // Built here, before the dictionary arrives, and not down in `loadDictionary` where
+        // it used to be created. Mapping the dictionary is real I/O on a background thread,
+        // and on a cold start the keyboard is on screen and being tapped well before it
+        // finishes — so a session created only at the end of the load would not exist for
+        // the first keystrokes, and every input path guarded on it (`session ?: return`)
+        // would swallow them. The keyboard appeared dead: input eaten, no candidates,
+        // nothing typeable until the load happened to land.
+        //
+        // The session is a pure state machine and only the *engine* needs the dictionary, so
+        // nothing is lost by starting without one. `onDictionaryReady` hands it over below.
+        session =
+            PinyinDuckSession(editor, settings.defaultScript).also {
+                it.onChange = ::syncFromSession
+            }
+        // Seeds the script from the preference the session was just built with, so the
+        // composition bar does not claim simplified until the first keystroke.
+        syncFromSession()
+
         loadDictionary()
     }
 
@@ -121,17 +139,22 @@ class PinyinDuckImeService :
                 result
                     .onSuccess { opened ->
                         dictionary = opened
-                        session =
-                            PinyinDuckSession(opened.engine, editor, settings.defaultScript)
-                                .also { it.onChange = ::syncFromSession }
+                        // Hands the engine to the session that has existed since `onCreate`,
+                        // which also ranks anything typed while the load was in flight. The
+                        // `script` is deliberately not re-applied from the preference here:
+                        // the session owns it, and the toggle is live during the load, so
+                        // re-reading the setting would silently undo the user's own choice.
+                        session?.onDictionaryReady(opened.engine)
                         uiState =
                             uiState.copy(
                                 loading = false,
                                 dictionaryError = null,
                                 dictionaryEntries = opened.entryCount,
-                                script = settings.defaultScript,
                             )
                     }.onFailure { error ->
+                        // The session is left in place without an engine, which is what makes
+                        // this a degraded keyboard rather than a dead one: letters still
+                        // reach the editor and space commits the raw pinyin.
                         uiState = uiState.copy(loading = false, dictionaryError = describe(error))
                     }
             }
@@ -229,6 +252,13 @@ class PinyinDuckImeService :
      * A physical keyboard drives the same session as the on-screen one, so the two can
      * never disagree about what a letter means. Arrow keys move the candidate selection,
      * which also makes the whole app testable over `adb shell input keyevent`.
+     *
+     * Both input paths share one session and one null guard, and the guard is only ever
+     * reached between [onDestroy] clearing it and the window closing. It used to double as
+     * the startup path: with the session created at the end of the dictionary load, a
+     * hardware key pressed before that was passed on to the app as raw text and bypassed
+     * the engine entirely, while the same key on the on-screen keyboard was swallowed. The
+     * two disagreed about the same letter depending on which keyboard produced it.
      */
     override fun onKeyDown(
         keyCode: Int,
@@ -259,6 +289,11 @@ class PinyinDuckImeService :
      *
      * Exposed to the test so the same code path the taps take can be driven directly, rather
      * than by synthesising pointer events against the Compose tree.
+     *
+     * A tap is consumed by the Compose key the moment it lands, so a callback that quietly
+     * did nothing would erase the keystroke with nothing left to show for it. The session is
+     * therefore built in [onCreate] and exists before the first tap can arrive, and the
+     * `?.` here is only ever live once [onDestroy] has cleared it.
      */
     internal fun callbacks() =
         KeyboardCallbacks(
