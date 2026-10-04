@@ -181,9 +181,6 @@ private fun IconLabel(
  */
 private const val STRIP_PAGE_SIZE = KeyRouting.PAGE_SIZE
 
-/** How many cards the expanded grid holds per page. */
-private const val EXPANDED_PAGE_SIZE = 12
-
 @Composable
 private fun CandidateStrip(
     state: KeyboardUiState,
@@ -292,17 +289,19 @@ private fun RowScope.StripCandidate(
  *
  * This is the point of the app: `你` and `泥` both read `nǐ`/`ní` and mean nothing alike, so
  * the gloss next to each character is what stops a learner picking the wrong one.
+ *
+ * The list scrolls rather than pages, and the header carries the collapse control instead of
+ * page arrows. Two things follow from that. This view used to *replace* the composition bar, so
+ * the `▾` that closes it lived in a bar that was no longer on screen and the list could not be
+ * closed by touch at all; and paging through a scrollable viewport meant scrolling within a
+ * page as well as between pages. The session fetches up to [PinyinDuckSession.FETCH_LIMIT]
+ * candidates, so scrolling them is what keeps all of them reachable.
  */
 @Composable
 private fun ExpandedCandidates(
     state: KeyboardUiState,
     callbacks: KeyboardCallbacks,
 ) {
-    val pages = pageCount(state.total, state.fetched, EXPANDED_PAGE_SIZE)
-    var page by remember(state.buffer, state.total) { mutableStateOf(0) }
-    val safePage = page.coerceIn(0, (pages - 1).coerceAtLeast(0))
-    val start = safePage * EXPANDED_PAGE_SIZE
-
     Column(
         modifier =
             Modifier
@@ -312,18 +311,12 @@ private fun ExpandedCandidates(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text =
-                    if (state.total > state.candidates.size) {
-                        "${state.total} matches · ${safePage + 1}/$pages"
-                    } else {
-                        "${state.total} matches"
-                    },
+                text = "${state.total} matches",
                 color = DuckColors.SecondaryText,
                 fontSize = 11.sp,
                 modifier = Modifier.weight(1f),
             )
-            PagerArrow("‹", enabled = safePage > 0) { page = (safePage - 1).coerceAtLeast(0) }
-            PagerArrow("›", enabled = safePage < pages - 1) { page = (safePage + 1).coerceAtMost(pages - 1) }
+            IconLabel(text = "▾", onClick = callbacks.onToggleExpanded)
         }
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -332,11 +325,11 @@ private fun ExpandedCandidates(
             columns = GridCells.Fixed(2),
             modifier = Modifier.height(196.dp),
         ) {
-            itemsIndexed(
-                items = state.candidates.drop(start).take(EXPANDED_PAGE_SIZE),
-                key = { _, candidate -> candidate.id },
-            ) { offset, candidate ->
-                val index = start + offset
+            // No explicit key: `Candidate.id` is `"$simplified-$pinyinNumbers"` and the
+            // dictionary is keyed by traditional headword, so 幹/乾/干 all produce the same id.
+            // A lazy grid throws on a duplicate key, and slicing the list to a page was what
+            // kept those apart. Position-based default keys cannot collide.
+            itemsIndexed(items = state.candidates) { index, candidate ->
                 CandidateCard(
                     candidate = candidate,
                     selected = index == state.selectedIndex,

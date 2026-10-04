@@ -4,8 +4,9 @@ An Android input method (IME) for typing Mandarin pinyin and picking Chinese cha
 with the English definition next to every candidate — the idea behind
 [PinyinDuck](../README.md) and TypeDuck, running as a real keyboard on a real device.
 
-Type `nihao` and the strip offers 你好 *nǐ hǎo "hello; hi"*, 你 *nǐ "you"*, 呢 *ní "dense
-wool fabric"* all the way down. The definition is the point: 你 and 泥 look identical and
+Type `nihao` and the strip offers 你好 *"hello; hi"*, 你 *"you"*, 呢 *"dense wool fabric"*
+all the way down, and **▴** opens the full list, where each one also carries its tone-marked
+pinyin. The definition is the point: 你 and 泥 look identical and
 mean nothing alike, so a learner should never have to guess.
 
 This is **Milestone 3** of [PLAN.md](../../PLAN.md): the same dictionary engine and the same
@@ -150,10 +151,11 @@ Hold **⌫** to delete repeatedly.
 
 ### Candidates
 
-The strip shows nine candidates with page arrows either side. **▴** opens the full list,
-which lays the candidates out two per row with the tone-marked pinyin, the **HSK level** and
-the English gloss for each one. That expanded view is the screen worth reading when two
-characters sound the same and you want to know which is which.
+The strip shows four candidates with page arrows either side, each pairing the characters with
+their definition. **▴** opens the full list, which lays the candidates out two per row with the
+tone-marked pinyin, the **HSK level** and the English gloss for each one, and scrolls through
+everything the session fetched. **▾** collapses it again. That expanded view is the screen worth
+reading when two characters sound the same and you want to know which is which.
 
 **简 / 繁** switches every candidate between Simplified and Traditional without losing the
 composition, and **✕** clears it.

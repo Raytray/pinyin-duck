@@ -248,6 +248,21 @@ class KeyboardTest {
     }
 
     @Test
+    fun theExpandedPanelCanBeCollapsed() {
+        val recorder = Recorder()
+        show(
+            recorder,
+            expanded = true,
+            buffer = "ni",
+            candidates = listOf(candidate("你", "nǐ", "you")),
+        )
+
+        compose.onNodeWithText("▾").performClick()
+
+        assertEquals(1, recorder.expandedToggles)
+    }
+
+    @Test
     fun theExpandedPanelShowsTheMatchCount() {
         show(
             Recorder(),
