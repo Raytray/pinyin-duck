@@ -9,11 +9,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -57,6 +62,10 @@ data class KeyboardCallbacks(
  * view, except that the strip pages rather than showing only the top three. Restricting it
  * to three would mean a page of arrow keys for a broad syllable like `ta`, which has 1,476
  * candidates; paging the strip keeps every candidate one tap away.
+ *
+ * The bottom inset is the keyboard's own navigation bar, not the device's: an IME window
+ * draws the switch-keyboard globe and the hide-keyboard arrow over its content rather than
+ * taking space for them, so the keys have to stop short themselves.
  */
 @Composable
 fun PinyinDuckKeyboard(
@@ -67,7 +76,10 @@ fun PinyinDuckKeyboard(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .background(DuckColors.Background),
+                // The background is drawn before the padding, so the keyboard colour reaches
+                // into the strip below the keys rather than leaving the window background there.
+                .background(DuckColors.Background)
+                .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)),
     ) {
         if (state.expanded) {
             ExpandedCandidates(state, callbacks)
