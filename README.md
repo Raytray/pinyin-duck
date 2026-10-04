@@ -6,7 +6,7 @@ A TypeDuck-inspired Mandarin Pinyin input method designed for learners. As you t
 
 - **`packages/core`**: Pinyin syllable segmenter, CC-CEDICT asset generator and loader, Trie-based candidate search engine, and ranking algorithm.
 - **`packages/web`**: Web application featuring an interactive IME composition playground with inline candidate definition cards.
-- **`packages/android`**: Android input method (Milestone 3). An `InputMethodService` with a Jetpack Compose keyboard over the same mmap'd `dictionary.btree`. Build, install and usage: [`packages/android/README.md`](packages/android/README.md).
+- **`packages/android`**: Android input method. An `InputMethodService` with a Jetpack Compose keyboard over the same mmap'd `dictionary.btree`. Build, install and usage: [`packages/android/README.md`](packages/android/README.md).
 - **`packages/windows`**: Windows input method, delivered as a Rime/Weasel schema generated from the same engine. See [packages/windows/README.md](packages/windows/README.md).
 - **`packages/macos`**: macOS input method, delivered as a Rime/Squirrel schema generated from the same engine. See [packages/macos/README.md](packages/macos/README.md).
 

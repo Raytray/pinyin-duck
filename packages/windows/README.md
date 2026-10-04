@@ -115,8 +115,8 @@ emitted as soon as the scan leaves it.
 To write somewhere else:
 
 ```bash
-npm run build:rime -- --out /tmp/rime
-npm run build:rime -- --btree path/to/other.btree
+npm run build:rime --out /tmp/rime
+npm run build:rime --btree path/to/other.btree
 ```
 
 ## Verify before installing

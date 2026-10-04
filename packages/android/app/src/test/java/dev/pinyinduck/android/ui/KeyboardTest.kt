@@ -111,16 +111,19 @@ class KeyboardTest {
     // --- candidate strip --------------------------------------------------------
 
     @Test
-    fun theStripShowsTheCompositionAndItsCandidates() {
+    fun theStripShowsTheCompositionAndEachCandidateWithItsDefinition() {
         show(
             Recorder(),
             buffer = "nihao",
-            candidates = listOf(candidate("你好", "nǐ hǎo")),
+            candidates = listOf(candidate("你好", "nǐ hǎo", "hello; hi")),
         )
 
         compose.onNodeWithText("nihao").assertIsDisplayed()
         compose.onNodeWithText("你好").assertIsDisplayed()
-        compose.onNodeWithText("nǐ hǎo").assertIsDisplayed()
+        // The definition, not the pinyin: the collapsed strip has one line and the gloss is
+        // what distinguishes `你` from `泥`.
+        compose.onNodeWithText("hello; hi").assertIsDisplayed()
+        compose.onAllNodesWithText("nǐ hǎo").assertCountEquals(0)
     }
 
     @Test

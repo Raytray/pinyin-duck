@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.pinyinduck.android.engine.Candidate
 import dev.pinyinduck.android.engine.ScriptType
+import dev.pinyinduck.android.ime.KeyRouting
 import dev.pinyinduck.android.ime.KeyboardUiState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -172,8 +173,13 @@ private fun IconLabel(
     }
 }
 
-/** How many candidates the strip shows at once. */
-private const val STRIP_PAGE_SIZE = 9
+/**
+ * How many candidates the strip shows at once.
+ *
+ * Shared with the hardware paging keys via [KeyRouting.PAGE_SIZE] so a physical arrow and the
+ * on-screen pager can never disagree about how far a page is.
+ */
+private const val STRIP_PAGE_SIZE = KeyRouting.PAGE_SIZE
 
 /** How many cards the expanded grid holds per page. */
 private const val EXPANDED_PAGE_SIZE = 12
@@ -212,7 +218,7 @@ private fun CandidateStrip(
             } else {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     state.candidates
                         .drop(start)
@@ -235,34 +241,48 @@ private fun CandidateStrip(
     }
 }
 
+/**
+ * One candidate in the collapsed strip: the characters and their definition on a single line.
+ *
+ * The tone-marked pinyin that used to sit here moved out rather than being kept alongside the
+ * gloss, because at one line the width only fits one of them and the definition is the one
+ * worth having: `你` and `泥` read alike and mean nothing alike, which is the whole point of the
+ * app. The expanded panel still shows the pinyin next to every candidate for careful reading.
+ *
+ * The card takes `weight` rather than a fixed width, so it divides whatever the strip has and
+ * no candidate is clipped off the right edge on a narrow screen. The gloss is weighted with
+ * `fill = false` so a short one like `you` keeps its natural width instead of being stretched.
+ */
 @Composable
-private fun StripCandidate(
+private fun RowScope.StripCandidate(
     candidate: Candidate,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    Column(
+    Row(
         modifier =
             Modifier
-                .width(44.dp)
+                .weight(1f)
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (selected) DuckColors.Accent.copy(alpha = 0.18f) else Color.Transparent)
                 .clickable(onClick = onClick)
-                .padding(vertical = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(horizontal = 5.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = candidate.hanzi,
             color = if (selected) DuckColors.Accent else DuckColors.PrimaryText,
-            fontSize = if (candidate.hanzi.length > 2) 17.sp else 22.sp,
+            fontSize = if (candidate.hanzi.length > 2) 15.sp else 19.sp,
             maxLines = 1,
         )
+        Spacer(modifier = Modifier.width(5.dp))
         Text(
-            text = candidate.pinyinMarks,
+            text = candidate.shortGloss,
             color = DuckColors.SecondaryText,
-            fontSize = 9.sp,
+            fontSize = 10.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
         )
     }
 }

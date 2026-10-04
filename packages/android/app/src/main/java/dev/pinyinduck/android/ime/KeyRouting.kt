@@ -17,9 +17,12 @@ object KeyRouting {
      * The candidate-selection distance for a paging key press.
      *
      * Up and down move by a whole page of the strip, matching what the arrow keys do on the
-     * on-screen keyboard's pager.
+     * on-screen keyboard's pager. The strip reads this same value rather than keeping a page
+     * size of its own, because the two input paths have to agree: a hardware arrow that moved
+     * nine candidates over a strip that pages by four would desync the selection from what is
+     * on screen.
      */
-    const val PAGE_SIZE = 9
+    const val PAGE_SIZE = 4
 
     /** What the keyboard should do about a key, or `null` to let the system have it. */
     sealed interface Outcome {
