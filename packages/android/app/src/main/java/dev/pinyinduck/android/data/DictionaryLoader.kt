@@ -53,7 +53,7 @@ object DictionaryLoader {
         val descriptor = assets.openFd(assetName)
         val stream = FileInputStream(descriptor.fileDescriptor)
         return try {
-            val source = MappedPageSource.open(stream, descriptor.startOffset, descriptor.length.toLong())
+            val source = MappedPageSource.open(stream, descriptor.startOffset, descriptor.length)
             val dictionary = BTreeDictionary.open(source)
             OpenedDictionary(dictionary, PinyinDuckEngine(dictionary), source)
         } catch (error: Throwable) {

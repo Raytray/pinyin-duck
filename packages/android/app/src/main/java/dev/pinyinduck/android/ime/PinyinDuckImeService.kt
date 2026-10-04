@@ -12,7 +12,10 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
@@ -45,7 +48,8 @@ import kotlinx.coroutines.withContext
 class PinyinDuckImeService :
     InputMethodService(),
     LifecycleOwner,
-    SavedStateRegistryOwner {
+    SavedStateRegistryOwner,
+    ViewModelStoreOwner {
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
 
@@ -74,6 +78,16 @@ class PinyinDuckImeService :
     override val lifecycle: Lifecycle get() = lifecycleRegistry
 
     override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryController.savedStateRegistry
+
+    /**
+     * Cleared in [onDestroy] alongside the lifecycle, since nothing outlives the service.
+     *
+     * Named `store` because the interface property is [viewModelStore], and the two cannot share
+     * a name in Kotlin.
+     */
+    private val store = ViewModelStore()
+
+    override val viewModelStore: ViewModelStore get() = store
 
     /** Reaches the field the user is typing into. */
     private val editor = EditorSink()
@@ -125,16 +139,45 @@ class PinyinDuckImeService :
     }
 
     override fun onCreateInputView(): View {
+        installViewTreeOwners()
+
         val view = ComposeView(this)
         view.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-        view.setViewTreeLifecycleOwner(this)
-        view.setViewTreeSavedStateRegistryOwner(this)
         view.setContent {
             PinyinDuckTheme {
                 PinyinDuckKeyboard(uiState, callbacks())
             }
         }
         return view
+    }
+
+    /**
+     * Publishes the owners Compose resolves on the IME window's decor view.
+     *
+     * `ComponentActivity.setContent` does this for an activity, and Compose's
+     * `AbstractComposeView` walks *up* the parent chain looking for them, starting from the
+     * window. An `InputMethodService` is not a `ComponentActivity`, so it has to install them
+     * itself; nothing does it on our behalf.
+     *
+     * This has to be the decor view rather than the `ComposeView` itself. Setting them on the
+     * `ComposeView` compiles, passes every test, and still crashes on device the moment the
+     * input view is attached:
+     *
+     * ```
+     * IllegalStateException: ViewTreeLifecycleOwner not found from android.widget.LinearLayout
+     *   ... #10204a4 android:id/parentPanel
+     *   at AbstractComposeView.onAttachedToWindow(ComposeView.android.kt)
+     * ```
+     *
+     * The `parentPanel` in that message is a frame of the IME window, not the `ComposeView` that
+     * was tagged — the lookup had already walked past it. Robolectric never attaches the input
+     * view to a real window, so no unit test can see this, which is why it is written down here.
+     */
+    private fun installViewTreeOwners() {
+        val decorView = window?.window?.decorView ?: return
+        decorView.setViewTreeLifecycleOwner(this)
+        decorView.setViewTreeViewModelStoreOwner(this)
+        decorView.setViewTreeSavedStateRegistryOwner(this)
     }
 
     override fun onStartInputView(
@@ -174,6 +217,9 @@ class PinyinDuckImeService :
         dictionary?.close()
         dictionary = null
         session = null
+        // Cleared last, so anything the dictionary or session teardown triggers can still reach
+        // it. Compose observes the lifecycle above and disposes with it.
+        store.clear()
         super.onDestroy()
     }
 
