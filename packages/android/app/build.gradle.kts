@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -80,6 +81,33 @@ val syncDictionaryAsset by tasks.registering(Copy::class) {
     into(dictionaryAssetsDir)
 }
 
+/**
+ * Where the release signing credentials come from, when they are available at all.
+ *
+ * `key.properties` is gitignored, because it holds passwords and a keystore path. A fresh
+ * clone, CI, and anyone who is only sideloading therefore do not have one, so the release
+ * build has to degrade to an unsigned APK rather than fail — which is what Android produces
+ * by default and is installable for local testing.
+ *
+ * Resolved against [rootProject] deliberately. Inside a module, `file()` resolves against the
+ * module directory, so a relative `storeFile` would quietly mean `app/<path>` rather than the
+ * project root a reader would assume.
+ */
+val keystoreProperties =
+    Properties().apply {
+        val file = rootProject.file("key.properties")
+        if (file.isFile) {
+            file.inputStream().use { load(it) }
+        }
+    }
+
+/** True when [keystoreProperties] names a keystore that is actually on disk. */
+val hasReleaseKeystore =
+    keystoreProperties
+        .getProperty("storeFile")
+        ?.let { rootProject.file(it) }
+        ?.isFile == true
+
 android {
     namespace = "dev.pinyinduck.android"
     compileSdk = 36
@@ -112,6 +140,18 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Applied only when a keystore is actually present. Leaving it unset otherwise is
+            // what makes AGP emit `app-release-unsigned.apk`, which is the correct outcome for
+            // a build with no credentials rather than a configuration error.
+            if (hasReleaseKeystore) {
+                signingConfig =
+                    signingConfigs.create("release") {
+                        storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                        storePassword = keystoreProperties.getProperty("storePassword")
+                        keyAlias = keystoreProperties.getProperty("keyAlias")
+                        keyPassword = keystoreProperties.getProperty("keyPassword")
+                    }
+            }
         }
     }
 
