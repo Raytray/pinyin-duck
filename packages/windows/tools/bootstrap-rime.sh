@@ -160,12 +160,18 @@ ensure_luajit() {
     cd "${DEB_DIR}"
     # The runtime package supplies the real .so that the -dev package symlinks to; both
     # are needed to link and then to load the harness.
+    #
+    # `pkgconf`, not `pkg-config`. On Ubuntu 24.04 `pkg-config` is a 7 kB transitional
+    # package that ships no binary, and `apt-get download` resolves no `Depends:` the way
+    # `apt-get install` does, so the download succeeds and unpacking yields no pkg-config
+    # at all. `pkgconf` is the package that actually ships /usr/bin/pkg-config, on both
+    # 22.04 and 24.04.
     apt-get download -q \
       "luajit" \
       "libluajit-5.1-2" \
       "libluajit-5.1-dev" \
-      "pkg-config" \
-      || die "Could not download the LuaJIT and pkg-config packages."
+      "pkgconf" \
+      || die "Could not download the LuaJIT and pkgconf packages."
     for deb in ./*.deb; do dpkg-deb -x "${deb}" "${LUAJIT_DIR}"; done
   )
 
@@ -174,6 +180,11 @@ ensure_luajit() {
   local pc="${LUAJIT_LIB}/pkgconfig/luajit.pc"
   [[ -f "${pc}" ]] || die "luajit.pc is missing from ${LUAJIT_DIR}."
   sed -i "s|^prefix=.*|prefix=${LUAJIT_DIR}/usr|" "${pc}"
+  # A pkg-config that never arrived otherwise surfaces much later as a CMake error, and
+  # FindPkgConfig.cmake clears the variable once `--version` fails, so the log blames a
+  # missing executable rather than a missing package.
+  [[ -x "${LUAJIT_DIR}/usr/bin/pkg-config" ]] \
+    || die "pkg-config is missing from ${LUAJIT_DIR}/usr/bin. The pkgconf package was downloaded but shipped no binary; check the apt sources."
   info "luajit: ${LUAJIT_LIB}"
   info "pkg-config: ${LUAJIT_DIR}/usr/bin/pkg-config"
 }
