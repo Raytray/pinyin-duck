@@ -84,7 +84,8 @@ test('commits a candidate from the second page', async ({ page }) => {
 test('moves the selection with the arrow keys and commits the highlighted candidate', async ({
   page,
 }) => {
-  await expect(candidateItems(page).nth(0)).toHaveAttribute('aria-selected', 'true');
+  // Wait for the first candidate to be selected (selectedIndex = 0 is set on buffer change)
+  await expect(candidateItems(page).nth(0)).toHaveAttribute('aria-selected', 'true', { timeout: 5000 });
 
   await editor(page).press('ArrowDown');
   await expect(candidateItems(page).nth(1)).toHaveAttribute('aria-selected', 'true');
