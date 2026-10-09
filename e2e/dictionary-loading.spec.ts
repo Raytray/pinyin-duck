@@ -2,7 +2,6 @@ import { test, expect } from './coverage-fixtures.js';
 import {
   editor,
   candidateList,
-  gotoApp,
   dictionaryStatus,
   dictionaryError,
   textLength,
