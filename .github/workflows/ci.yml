@@ -186,6 +186,10 @@ jobs:
         if: ${{ matrix.package == 'windows' }}
         run: npm run test:coverage -w @pinyinduck/windows
 
+      - name: "[windows] Update apt package lists"
+        if: ${{ matrix.package == 'windows' }}
+        run: sudo apt-get update
+
       - name: "[windows] Rime verification"
         if: ${{ matrix.package == 'windows' }}
         run: |
@@ -207,6 +211,12 @@ jobs:
       - name: "[macos] Test + Coverage"
         if: ${{ matrix.package == 'macos' }}
         run: npm run test:coverage -w @pinyinduck/macos
+
+      - name: "[macos] Install Rime build dependencies"
+        if: ${{ matrix.package == 'macos' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libboost-dev libboost-regex-dev libluajit-5.1-dev pkg-config
 
       - name: "[macos] Rime verification"
         if: ${{ matrix.package == 'macos' }}
