@@ -16,6 +16,15 @@ package dev.pinyinduck.android.engine
  */
 const val DEFAULT_MAX_MATCHES = 16384
 
+/**
+ * Counts characters rather than UTF-16 units.
+ *
+ * The counterpart of `countCharacters` in `packages/core/src/index/ranking.ts`, and it must
+ * stay a separate function rather than an inline `.length` because the two disagree
+ * whenever a string holds a character outside the BMP.
+ */
+fun countCharacters(text: String): Int = text.codePointCount(0, text.length)
+
 /** The fields that participate in scoring. */
 data class ScorableEntry(
     val simplified: String,
@@ -55,7 +64,14 @@ fun scoreEntry(
     // Prefer a multi-character word over a single character with the same reading. The
     // boost is capped rather than scaled by length, or an 8-character exact match such as
     // 中国中央电视台 would bury the common 2-character word inside it.
-    if (isExactPinyin && entry.simplified.length > 1) {
+    //
+    // Length is counted in code points. `String.length` counts UTF-16 units, and CC-CEDICT
+    // holds single characters outside the BMP (CJK extension B and later), which encode as
+    // a surrogate pair. The naive length calls every one of them a multi-character word and
+    // hands a rare 𬤊 the boost that should go to 你好 — enough to rank it above a common
+    // character with the same reading, which is exactly the divergence
+    // PinyinEngineParityTest exists to catch.
+    if (isExactPinyin && countCharacters(entry.simplified) > 1) {
         score += 20000
     }
 
