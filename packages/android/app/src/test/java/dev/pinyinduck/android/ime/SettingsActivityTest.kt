@@ -95,7 +95,12 @@ class SettingsActivityTest {
                 .config[SemanticsProperties.Text]
                 .joinToString("") { it.text }
         assertTrue("expected a corpus size, got \"$label\"", label.matches(Regex("^CC-CEDICT: [\\d,]+ entries$")))
-        val reported = label.removePrefix("CC-CEDICT: ").removeSuffix(" entries").replace(",", "").toInt()
+        val reported =
+            label
+                .removePrefix("CC-CEDICT: ")
+                .removeSuffix(" entries")
+                .replace(",", "")
+                .toInt()
         assertTrue(
             "expected the full CC-CEDICT corpus, the screen reported $reported",
             reported >= TestDictionary.MIN_ENTRY_COUNT,
