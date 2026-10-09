@@ -97,8 +97,9 @@ jobs:
       # ── Build generated assets (needed by tests) ──
       # macOS emits Rime dictionaries from the same B-tree as Windows, so it needs both
       # the asset and the sibling packages' schemas staged by build:rime.
+      # Android also needs the dictionary.btree for its asset sync.
       - name: Build dictionary assets
-        if: ${{ matrix.package == 'core' || matrix.package == 'web' || matrix.package == 'windows' || matrix.package == 'macos' }}
+        if: ${{ matrix.package == 'core' || matrix.package == 'web' || matrix.package == 'android' || matrix.package == 'windows' || matrix.package == 'macos' }}
         run: |
           npm run build:dict
           npm run build:rime
@@ -138,6 +139,22 @@ jobs:
         run: npm run build -w @pinyinduck/web
 
       # ── Android ──
+      - name: Setup Java
+        if: ${{ matrix.package == 'android' }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Setup Android SDK
+        if: ${{ matrix.package == 'android' }}
+        uses: android-actions/setup-android@v4
+        with:
+          api-level: 36
+          ndk-version: r27c
+          cache-key: android-sdk-${{ runner.os }}-${{ hashFiles('packages/android/gradle/wrapper/gradle-wrapper.properties') }}
+
       - name: "[android] Lint (ktlint via Gradle)"
         if: ${{ matrix.package == 'android' }}
         run: |
