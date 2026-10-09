@@ -98,9 +98,19 @@ const nodeDeps: RimeVerifyDeps = {
 };
 
 /**
+ * The shared library librime actually produces.
+ *
+ * The CMake target is named `rime` (src/CMakeLists.txt), so the file is `librime.so` with
+ * no `lib` prefix, and `LIBRARY_OUTPUT_DIRECTORY` puts it under `build/lib/`. Looking for
+ * `liblibrime.so` finds nothing, which reads as "not built" and skips the verification
+ * rather than failing it.
+ */
+const LIBRIME_SO = ['build', 'lib', 'librime.so'];
+
+/**
  * Whether the toolchain this verifier needs has been built.
  *
- * Both halves matter: `liblibrime.so` without a harness has nothing to drive it, and a
+ * Both halves matter: the library without a harness has nothing to drive it, and a
  * harness without the library it links against cannot start.
  */
 export function checkLibrime(
@@ -108,9 +118,7 @@ export function checkLibrime(
   harness: string,
   deps: RimeVerifyDeps = nodeDeps
 ): boolean {
-  return (
-    deps.exists(path.join(librimeDir, 'build', 'liblibrime.so')) && deps.exists(harness)
-  );
+  return deps.exists(path.join(librimeDir, ...LIBRIME_SO)) && deps.exists(harness);
 }
 
 /**
