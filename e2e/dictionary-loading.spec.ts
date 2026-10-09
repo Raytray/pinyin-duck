@@ -6,6 +6,7 @@ import {
   dictionaryError,
   textLength,
   expectCandidates,
+  gotoApp,
 } from './helpers';
 
 // The dictionary is fetched at runtime rather than bundled, so a missing or broken
@@ -131,6 +132,18 @@ test('still commits newline and plain text when the dictionary failed', async ({
 
 test('serves the full CC-CEDICT asset', async ({ page }) => {
   await gotoApp(page);
-  // 125,132 lines parsed into 122,834 unique word/reading pairs.
-  await expect(dictionaryStatus(page)).toContainText('122,834 entries');
+
+  // A floor, not an exact count. The status line reports the entry count of the whole
+  // corpus, which moves whenever `build:dict` picks up a newer CC-CEDICT release or a
+  // different frequency list, so pinning it here would fail on a dictionary rebuild that
+  // changed nothing about this app. What the test is actually for is the claim in its
+  // name: the full asset is served, not a seed list or a truncated page. A stubbed or
+  // partially built dictionary would report a small number, which is what this catches.
+  // The Android suite pins the same asset the same way.
+  const status = await dictionaryStatus(page).innerText();
+  const entries = Number(status.replace(/[^\d]/g, ''));
+
+  expect(entries, `dictionary status did not report an entry count: ${status}`).toBeGreaterThan(
+    100_000
+  );
 });
