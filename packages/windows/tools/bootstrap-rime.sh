@@ -161,32 +161,50 @@ ensure_luajit() {
     # The runtime package supplies the real .so that the -dev package symlinks to; both
     # are needed to link and then to load the harness.
     #
-    # `pkgconf`, not `pkg-config`. On Ubuntu 24.04 `pkg-config` is a 7 kB transitional
-    # package that ships no binary, and `apt-get download` resolves no `Depends:` the way
-    # `apt-get install` does, so the download succeeds and unpacking yields no pkg-config
-    # at all. `pkgconf` is the package that actually ships /usr/bin/pkg-config, on both
-    # 22.04 and 24.04.
+    # Never fetch `pkg-config` itself: on Ubuntu 24.04 it is a 7 kB transitional package
+    # that ships no binary, and `apt-get download` resolves no `Depends:` the way
+    # `apt-get install` does, so it unpacks to nothing usable.
+    #
+    # The real implementation is split across three packages, and which one holds the
+    # executable depends on the release:
+    #   22.04  `pkgconf` carries the binary; `pkgconf-bin` does not exist.
+    #   24.04  `pkgconf` carries only `pkg-config -> pkgconf`; `pkgconf-bin` has the binary.
+    # Both need `libpkgconf3`, and neither binary is static, so an unpacked pkg-config
+    # that cannot locate libpkgconf.so.3 exits 127 on `--version` and FindPkgConfig then
+    # reports that as a missing PKG_CONFIG_EXECUTABLE. Fetch all three, tolerating only
+    # `pkgconf-bin` being absent, which is the 22.04 case.
     apt-get download -q \
       "luajit" \
       "libluajit-5.1-2" \
       "libluajit-5.1-dev" \
+      "libpkgconf3" \
       "pkgconf" \
-      || die "Could not download the LuaJIT and pkgconf packages."
+      || die "Could not download the LuaJIT and pkg-config packages."
+    apt-get download -q "pkgconf-bin" 2>/dev/null \
+      || info "no pkgconf-bin package here; pkgconf carries the binary itself"
     for deb in ./*.deb; do dpkg-deb -x "${deb}" "${LUAJIT_DIR}"; done
   )
+
+  # libpkgconf.so.3 unpacked into usr/lib/x86_64-linux-gnu, which is not searched by
+  # default for an executable run out of the build tree. Exported here, outside the
+  # subshell, so it also covers the cmake configure in build_librime and the harness.
+  export LD_LIBRARY_PATH="${LUAJIT_DIR}/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
   # The .deb files record /usr as their install prefix; rewrite luajit.pc to the local one
   # so pkg-config reports the headers and library under ${LUAJIT_DIR}.
   local pc="${LUAJIT_LIB}/pkgconfig/luajit.pc"
   [[ -f "${pc}" ]] || die "luajit.pc is missing from ${LUAJIT_DIR}."
   sed -i "s|^prefix=.*|prefix=${LUAJIT_DIR}/usr|" "${pc}"
-  # A pkg-config that never arrived otherwise surfaces much later as a CMake error, and
-  # FindPkgConfig.cmake clears the variable once `--version` fails, so the log blames a
-  # missing executable rather than a missing package.
-  [[ -x "${LUAJIT_DIR}/usr/bin/pkg-config" ]] \
-    || die "pkg-config is missing from ${LUAJIT_DIR}/usr/bin. The pkgconf package was downloaded but shipped no binary; check the apt sources."
+
+  # `-x` is not enough: on 24.04 `pkgconf` alone leaves `pkg-config` a dangling symlink,
+  # and a pkg-config that cannot load its shared library still passes `-x` yet exits
+  # non-zero on `--version`. Actually run it, which is the only check that distinguishes
+  # all of these from a working pkg-config.
+  local pkgconf_version
+  pkgconf_version="$("${LUAJIT_DIR}/usr/bin/pkg-config" --version 2>/dev/null)" \
+    || die "pkg-config at ${LUAJIT_DIR}/usr/bin/pkg-config is present but not runnable. Check that pkgconf (and pkgconf-bin on 24.04) plus libpkgconf3 were fetched, and that LD_LIBRARY_PATH reaches the unpacked library."
+  info "pkg-config: ${pkgconf_version}"
   info "luajit: ${LUAJIT_LIB}"
-  info "pkg-config: ${LUAJIT_DIR}/usr/bin/pkg-config"
 }
 
 # --------------------------------------------------------------------------------------
