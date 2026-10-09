@@ -1,0 +1,80 @@
+name: Deploy web to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/web/**'
+      - 'packages/core/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-pages.yml'
+  # Also runnable by hand, to re-publish without a new commit.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  # Never let two deploys overlap: the second one to finish would overwrite the first's
+  # artifact and publish a build from a commit that is no longer HEAD.
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The dictionary asset is generated, not committed: it is built from three
+      # upstream downloads, so the workflow has to build it exactly as CI does.
+      # The downloads are cached in packages/core/.cache/ to keep this from refetching
+      # ~27MB of upstream data on every run.
+      - name: Cache dictionary source downloads
+        uses: actions/cache@v4
+        with:
+          path: packages/core/.cache
+          key: dict-sources-${{ hashFiles('packages/core/scripts/build-dictionary.ts') }}
+          restore-keys: dict-sources-
+
+      - name: Build dictionary asset
+        run: npm run build:dict
+
+      # `vite build` resolves @pinyinduck/core through the source alias, but `tsc` still
+      # resolves the workspace's "types" entry, which only exists after core is built.
+      - name: Build core type declarations
+        run: npm run build -w @pinyinduck/core
+
+      # GitHub Pages serves a project site from https://<user>.github.io/<repo>/, so the
+      # bundle's asset URLs need that prefix. vite.config.ts reads it from BASE_PATH.
+      - name: Build web
+        run: npm run build -w @pinyinduck/web
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: packages/web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
