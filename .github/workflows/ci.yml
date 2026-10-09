@@ -227,9 +227,16 @@ jobs:
 
       - name: "[macos] Install Rime build dependencies"
         if: ${{ matrix.package == 'macos' }}
+        # librime 1.13.1's CMakeLists does find_package(... REQUIRED) for Boost regex,
+        # YamlCpp, LevelDb, Marisa and Opencc. Boost alone is not enough: configure aborts
+        # at cmake/FindYamlCpp.cmake ("Could not find yaml-cpp library") without the rest.
+        # libyaml-cpp-dev on ubuntu-latest carries yaml-cpp 0.7, which satisfies the 0.5+
+        # node/node.h API that FindYamlCpp.cmake requires.
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake libboost-dev libboost-regex-dev libluajit-5.1-dev pkg-config
+          sudo apt-get install -y cmake libboost-dev libboost-regex-dev \
+            libgoogle-glog-dev libyaml-cpp-dev libleveldb-dev libmarisa-dev libopencc-dev \
+            libluajit-5.1-dev pkg-config
 
       - name: "[macos] Rime verification"
         if: ${{ matrix.package == 'macos' }}
