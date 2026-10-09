@@ -1,6 +1,7 @@
 package dev.pinyinduck.android.data
 
 import androidx.test.core.app.ApplicationProvider
+import dev.pinyinduck.android.engine.TestDictionary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThrows
@@ -26,7 +27,12 @@ class DictionaryLoaderTest {
     @Test
     fun itOpensTheShippedDictionary() {
         DictionaryLoader.openFromAssets(assets).use { opened ->
-            assertEquals("CC-CEDICT", 122_746, opened.entryCount)
+            // A floor, not the exact size: the asset is rebuilt from a live CC-CEDICT download,
+            // so the count moves whenever upstream publishes. See TestDictionary.MIN_ENTRY_COUNT.
+            assertTrue(
+                "expected the full CC-CEDICT corpus, found ${opened.entryCount}",
+                opened.entryCount >= TestDictionary.MIN_ENTRY_COUNT,
+            )
             assertTrue("expected a paged asset", opened.pageCount > 100)
         }
     }
@@ -75,12 +81,17 @@ class DictionaryLoaderTest {
 
     @Test
     fun itOpensTheSameDictionaryFromDisk() {
-        // The unit tests use this path, so the two loaders agreeing matters.
+        // The unit tests use this path, so the two loaders agreeing matters. Comparing them
+        // to each other is a stronger check than comparing both to a constant, and it is the
+        // one that keeps holding as CC-CEDICT grows.
         val path =
             System.getProperty("pinyinduck.dictionary")
                 ?: error("The pinyinduck.dictionary system property is not set.")
-        DictionaryLoader.openFromFile(File(path)).use { opened ->
-            assertEquals(122_746, opened.entryCount)
+        DictionaryLoader.openFromAssets(assets).use { fromAssets ->
+            DictionaryLoader.openFromFile(File(path)).use { fromDisk ->
+                assertEquals(fromAssets.entryCount, fromDisk.entryCount)
+                assertEquals(fromAssets.pageCount, fromDisk.pageCount)
+            }
         }
     }
 }

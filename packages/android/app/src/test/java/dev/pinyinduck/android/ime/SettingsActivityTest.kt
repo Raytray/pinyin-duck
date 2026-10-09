@@ -1,5 +1,6 @@
 package dev.pinyinduck.android.ime
 
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
@@ -8,7 +9,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import dev.pinyinduck.android.engine.ScriptType
+import dev.pinyinduck.android.engine.TestDictionary
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -80,7 +83,23 @@ class SettingsActivityTest {
                 .fetchSemanticsNodes()
                 .isNotEmpty()
         }
-        compose.onNodeWithText("CC-CEDICT: 122746 entries").assertIsDisplayed()
+        // What this test is actually about is that the screen reports the corpus size rather
+        // than sitting on "Loading" or an error, so it pins the shape of the line and reads
+        // the number back out. Hard-coding the number would re-break this every time
+        // CC-CEDICT publishes, since the asset is rebuilt from a live download each run.
+        val label =
+            compose
+                .onAllNodes(hasText("CC-CEDICT", substring = true))
+                .fetchSemanticsNodes()
+                .single()
+                .config[SemanticsProperties.Text]
+                .joinToString("") { it.text }
+        assertTrue("expected a corpus size, got \"$label\"", label.matches(Regex("^CC-CEDICT: [\\d,]+ entries$")))
+        val reported = label.removePrefix("CC-CEDICT: ").removeSuffix(" entries").replace(",", "").toInt()
+        assertTrue(
+            "expected the full CC-CEDICT corpus, the screen reported $reported",
+            reported >= TestDictionary.MIN_ENTRY_COUNT,
+        )
     }
 
     @Test

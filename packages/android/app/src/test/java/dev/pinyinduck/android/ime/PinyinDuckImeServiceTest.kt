@@ -6,6 +6,7 @@ import android.view.inputmethod.EditorInfo
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
 import dev.pinyinduck.android.engine.ScriptType
+import dev.pinyinduck.android.engine.TestDictionary
 import dev.pinyinduck.android.ui.KeyAction
 import dev.pinyinduck.android.ui.KeyLayout
 import org.junit.After
@@ -75,7 +76,12 @@ class PinyinDuckImeServiceTest {
 
         assertFalse(service.uiState.loading)
         assertNull(service.uiState.dictionaryError)
-        assertEquals(122_746, service.uiState.dictionaryEntries)
+        // A floor rather than an exact count: the asset is regenerated from a live CC-CEDICT
+        // download on every CI run, so the entry count legitimately changes over time.
+        assertTrue(
+            "the dictionary reported ${service.uiState.dictionaryEntries} entries",
+            service.uiState.dictionaryEntries >= TestDictionary.MIN_ENTRY_COUNT,
+        )
         assertNotNull("no session was created", service.session)
     }
 
