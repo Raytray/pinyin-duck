@@ -120,7 +120,7 @@ describe('parseOutput', () => {
 
 describe('checkLibrime', () => {
   it('is true only when the library and the harness are both built', () => {
-    const { deps } = createFakeDeps({}, ['/tools/librime/build/liblibrime.so', '/tools/rime_smoke']);
+    const { deps } = createFakeDeps({}, ['/tools/librime/build/lib/librime.so', '/tools/rime_smoke']);
 
     expect(checkLibrime('/tools/librime', '/tools/rime_smoke', deps)).toBe(true);
   });
@@ -132,7 +132,7 @@ describe('checkLibrime', () => {
   });
 
   it('is false when the harness is missing', () => {
-    const { deps } = createFakeDeps({}, ['/tools/librime/build/liblibrime.so']);
+    const { deps } = createFakeDeps({}, ['/tools/librime/build/lib/librime.so']);
 
     expect(checkLibrime('/tools/librime', '/tools/rime_smoke', deps)).toBe(false);
   });
@@ -316,8 +316,8 @@ describe('against the real filesystem', () => {
   /** Lays out a temp dir that satisfies `checkLibrime`, with a stub for the harness. */
   function toolchain(name: string, body?: string): { librimeDir: string; harness: string } {
     const librimeDir = path.join(root, name);
-    fs.mkdirSync(path.join(librimeDir, 'build'), { recursive: true });
-    fs.writeFileSync(path.join(librimeDir, 'build', 'liblibrime.so'), '');
+    fs.mkdirSync(path.join(librimeDir, 'build', 'lib'), { recursive: true });
+    fs.writeFileSync(path.join(librimeDir, 'build', 'lib', 'librime.so'), '');
     const harness = path.join(librimeDir, 'rime_smoke');
     fs.writeFileSync(harness, `#!/usr/bin/env node\n${body ?? ''}\n`);
     fs.chmodSync(harness, 0o755);
@@ -429,7 +429,7 @@ process.stdin.on('end', () => { process.exit(4); });`
 });
 
 describe('main', () => {
-  const BUILT = ['/tools/librime/build/liblibrime.so', '/tools/rime_smoke'];
+  const BUILT = ['/tools/librime/build/lib/librime.so', '/tools/rime_smoke'];
   const STAGED = [
     '/rime/pinyinduck.schema.yaml',
     '/rime/pinyinduck_trad.schema.yaml',

@@ -128,9 +128,19 @@ npm run test:rime      # types into it and checks the answers
 ```
 
 `setup:rime` clones librime at the tag Squirrel 0.17.0 bundles (1.13.1) into
-`tools/librime/`, fetches cmake, Boost and LuaJIT without root, and builds `liblibrime.so`
-plus the small C++ harness in `tools/rime_smoke.cc`. It takes a few minutes and then never
-runs again — the harness is rebuilt only when the library is newer.
+`tools/librime/`, builds `librime.so` plus the small C++ harness in `tools/rime_smoke.cc`.
+It takes a few minutes and then never runs again — the harness is rebuilt only when the
+library is newer.
+
+Unlike the Windows package, this one builds against the system's Boost, yaml-cpp, leveldb,
+marisa and opencc rather than fetching them into a local prefix, so those have to be
+installed first. On Debian and Ubuntu:
+
+```bash
+sudo apt-get install -y cmake libboost-dev libboost-regex-dev \
+  libgoogle-glog-dev libyaml-cpp-dev libleveldb-dev libmarisa-dev libopencc-dev \
+  libluajit-5.1-dev pkg-config
+```
 
 `test:rime` deploys the real schemas against the real 9.6 MB dictionaries in a temporary
 user directory, types eight queries, and compares the candidate lists:

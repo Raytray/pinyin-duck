@@ -2,10 +2,13 @@
 #
 # bootstrap-rime.sh — Builds librime 1.13.1 from source, without sudo.
 #
-# Clones librime at the tag Squirrel 0.17.0 bundles (1.13.1) into tools/librime/,
-# fetches cmake, Boost and LuaJIT without root, and builds liblibrime.so plus the
-# small C++ harness in tools/rime_smoke.cc. It takes a few minutes and then never
-# runs again — the harness is rebuilt only when the library is newer.
+# Clones librime at the tag Squirrel 0.17.0 bundles (1.13.1) into tools/librime/ and
+# builds librime.so plus the small C++ harness in tools/rime_smoke.cc. It takes a few
+# minutes and then never runs again — the harness is rebuilt only when the library is newer.
+#
+# Unlike the Windows package's copy of this script, the build dependencies here are the
+# system ones (Boost, yaml-cpp, leveldb, marisa, opencc), installed by CI. On a machine
+# without them, cmake configure fails with "Could not find yaml-cpp library" and the like.
 #
 # Everything lands in gitignored tools/, so nothing outside the repository is touched.
 #
@@ -35,6 +38,7 @@ cd "$BUILD_DIR"
 
 cmake .. \
   -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_SHARED_LIBS=ON \
   -DBUILD_TEST=OFF \
   -DENABLE_LOGGING=OFF
 
@@ -44,12 +48,21 @@ make -j$(nproc 2>/dev/null || echo 4)
 echo '  building the test harness...'
 cd "$TOOLS_DIR"
 
-# Find the librime shared library
-LIBRIME_SO=$(find "$BUILD_DIR" -name 'liblibrime.so*' -type f | head -1)
-if [[ -z "$LIBRIME_SO" ]]; then
-  echo 'ERROR: liblibrime.so not found after build' >&2
+# Find the librime shared library.
+#
+# The CMake target is named `rime`, not `librime`, so the output is `librime.so` with no
+# `lib` prefix, and `LIBRARY_OUTPUT_DIRECTORY` in src/CMakeLists.txt puts it in build/lib/.
+# Globbing for `liblibrime.so*` matches nothing and fails the build with a misleading
+# "not found after build" even when the library was produced.
+LIBRIME_LIB="$BUILD_DIR/lib"
+if [[ ! -f "$LIBRIME_LIB/librime.so" ]]; then
+  echo 'ERROR: librime.so not found after build' >&2
+  echo "  expected it at: $LIBRIME_LIB/librime.so" >&2
+  echo '  found instead:' >&2
+  find "$BUILD_DIR" -name '*.so*' >&2 || true
   exit 1
 fi
+LIBRIME_SO="$LIBRIME_LIB/librime.so"
 
 # Compile the harness
 c++ -std=c++17 -O2 \
