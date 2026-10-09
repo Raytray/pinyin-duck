@@ -132,6 +132,6 @@ test('still commits newline and plain text when the dictionary failed', async ({
 
 test('serves the full CC-CEDICT asset', async ({ page }) => {
   await gotoApp(page);
-  // 125,132 lines parsed into 122,746 unique word/reading pairs.
-  await expect(dictionaryStatus(page)).toContainText('122,746 entries');
+  // 125,132 lines parsed into 122,834 unique word/reading pairs.
+  await expect(dictionaryStatus(page)).toContainText('122,834 entries');
 });
