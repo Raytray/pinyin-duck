@@ -15,7 +15,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-const TOOLS_DIR = path.resolve(__dirname, '../../tools');
+const TOOLS_DIR = path.resolve(__dirname, '../tools');
 const RIME_DIR = path.resolve(__dirname, '../rime');
 const LIBRIME_DIR = path.join(TOOLS_DIR, 'librime');
 const HARNESS = path.join(TOOLS_DIR, 'rime_smoke');
@@ -30,17 +30,44 @@ const HARNESS = path.join(TOOLS_DIR, 'rime_smoke');
 export interface Query {
   schema: string;
   input: string;
-  expected: string[];
+  /** The menu to expect. Omitted only when the query asserts nothing about the menu. */
+  expected?: string[];
+  /** Text the query is expected to commit, for a digit that selects a whole candidate. */
+  expectCommit?: string;
+  /** Composition buffer to expect, for a digit that selects only part of the input. */
+  expectPreedit?: string;
 }
 
+/**
+ * The pinned queries.
+ *
+ * Each is a (schema, input, expected) triple. These are the assertions the whole emitter
+ * exists to satisfy: the codes, the ordering inside a menu, and the traditional column all
+ * have to hold for a learner typing into a real engine.
+ *
+ * A query ending in a digit is asserted by what it *did*, not by a menu. Selecting a
+ * candidate takes it out of the menu, so a digit that covers the whole input commits the
+ * text and leaves nothing behind (`shi2`), while a digit that covers only the first
+ * syllable leaves the rest still composing and the committed part visible in the buffer
+ * (`nihao2`). Asserting a menu for either would pin the engine's behaviour backwards.
+ */
 export const QUERIES: Query[] = [
   { schema: 'pinyinduck', input: 'shi', expected: ['是', '十', '使', '试', '诗'] },
-  { schema: 'pinyinduck', input: 'shi2', expected: ['十'] },
+  // A digit selects the second candidate outright: it is committed, and the menu is empty
+  // because the selected candidate is no longer among the options.
+  { schema: 'pinyinduck', input: 'shi2', expectCommit: '十', expected: [] },
   { schema: 'pinyinduck', input: 'an', expected: ['暗', '岸', '按', '安', '案'] },
   { schema: 'pinyinduck', input: 'lv', expected: ['绿', '驴', '旅', '律', '率'] },
   { schema: 'pinyinduck', input: 'nv', expected: ['女', '衄', '籹', '恧', '钕'] },
   { schema: 'pinyinduck', input: 'nihao', expected: ['你好', '你', '呢', '尼', '妮'] },
-  { schema: 'pinyinduck', input: 'nihao2', expected: ['你'] },
+  // 你 covers only the first syllable, so it is selected for that part alone: the buffer
+  // keeps the unselected `hao`, and the menu is whatever that still matches.
+  {
+    schema: 'pinyinduck',
+    input: 'nihao2',
+    expectPreedit: '你hao',
+    expected: ['好', '号', '浩', '豪', '嚎'],
+  },
   { schema: 'pinyinduck_trad', input: 'zhongguo', expected: ['中國', '中古', '種', '重', '鍾'] },
 ];
 
@@ -59,6 +86,8 @@ export interface QueryResult {
   schema: string;
   input: string;
   candidates: string[];
+  /** Text the harness saw committed, or undefined when the query committed nothing. */
+  committed?: string;
 }
 
 /** What running the harness produced: its exit code, its stdout and its stderr. */
@@ -122,6 +151,38 @@ export function checkLibrime(
 }
 
 /**
+ * librime's own preset data, copied out of the cloned librime tree.
+ *
+ * The PinyinDuck schemas are not self-contained: they declare
+ * `punctuator/import_preset: symbols` and `key_binder/import_preset: default`, so
+ * deployment needs librime's `symbols.yaml` and `default.yaml` to resolve. Without them
+ * the schema fails to compile ("error building config: pinyinduck.schema") and every
+ * query comes back with an empty candidate list, which reads as a ranking regression
+ * rather than a missing input file.
+ *
+ * `default.yaml` is also what `default.custom.yaml` patches, so it must be present for the
+ * scheme switcher list to be built at all.
+ */
+const LIBRIME_PRESETS = ['default.yaml', 'symbols.yaml'];
+
+function stagePresetFiles(
+  librimeDir: string,
+  tempDir: string,
+  deps: RimeVerifyDeps
+): void {
+  const presetDir = path.join(librimeDir, 'data', 'minimal');
+  for (const file of LIBRIME_PRESETS) {
+    const src = path.join(presetDir, file);
+    if (deps.exists(src)) {
+      deps.copyFile(src, path.join(tempDir, file));
+    }
+    // Absent presets are not fatal here: the caller has already checked that librime was
+    // built, and a tree laid out differently should surface as a candidate mismatch in the
+    // output rather than as an exception about a file in someone else's repository.
+  }
+}
+
+/**
  * Copies the schemas, dictionaries and Lua filter into a throwaway user directory.
  *
  * librime resolves `lua/` relative to its user directory, so the gloss sidecar has to
@@ -131,7 +192,8 @@ export function checkLibrime(
 export function stageFiles(
   rimeDir: string,
   tempDir: string,
-  deps: RimeVerifyDeps = nodeDeps
+  deps: RimeVerifyDeps = nodeDeps,
+  librimeDir: string = LIBRIME_DIR
 ): void {
   for (const file of STAGED_FILES) {
     const src = path.join(rimeDir, file);
@@ -140,6 +202,8 @@ export function stageFiles(
     }
     deps.copyFile(src, path.join(tempDir, file));
   }
+
+  stagePresetFiles(librimeDir, tempDir, deps);
 
   const luaDir = path.join(tempDir, 'lua');
   deps.mkdir(luaDir);
@@ -211,6 +275,8 @@ export function parseOutput(output: string): QueryResult[] {
       current.input = line.slice(8);
     } else if (line.startsWith('CANDIDATE ') && current) {
       current.candidates.push(line.slice(10));
+    } else if (line.startsWith('COMMITTED ') && current) {
+      current.committed = line.slice(10);
     }
   }
   if (current) results.push(current);
@@ -280,13 +346,37 @@ export async function main(
       const actual = result.candidates;
       const expected = query.expected;
 
-      if (actual.length === expected.length && actual.every((c, j) => c === expected[j])) {
-        console.log(`PASS: ${query.schema} ${query.input} → ${actual.join(' ')}`);
+      // A query pinned by expectCommit or expectPreedit asserts what the selection did
+      // rather than only the menu, because selecting a candidate removes it from the menu.
+      // All three are checked when a query pins them.
+      const commitOk =
+        query.expectCommit === undefined || result.committed === query.expectCommit;
+      const preeditOk =
+        query.expectPreedit === undefined || result.input === query.expectPreedit;
+      const menuOk =
+        expected === undefined ||
+        (actual.length === expected.length && actual.every((c, j) => c === expected[j]));
+
+      if (commitOk && preeditOk && menuOk) {
+        const shown = query.expectCommit
+          ? `committed ${result.committed ?? ''}`
+          : actual.join(' ');
+        console.log(`PASS: ${query.schema} ${query.input} → ${shown}`);
         passed++;
       } else {
         console.error(`FAIL: ${query.schema} ${query.input}`);
-        console.error(`  expected: ${expected.join(' ')}`);
-        console.error(`  actual:   ${actual.join(' ')}`);
+        if (query.expectCommit !== undefined) {
+          console.error(`  expected commit: ${query.expectCommit}`);
+          console.error(`  actual commit:   ${result.committed ?? '(none)'}`);
+        }
+        if (query.expectPreedit !== undefined) {
+          console.error(`  expected preedit: ${query.expectPreedit}`);
+          console.error(`  actual preedit:   ${result.input}`);
+        }
+        if (expected !== undefined) {
+          console.error(`  expected: ${expected.join(' ')}`);
+          console.error(`  actual:   ${actual.join(' ')}`);
+        }
         failed++;
       }
     }
