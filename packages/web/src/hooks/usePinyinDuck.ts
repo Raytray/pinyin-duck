@@ -42,7 +42,15 @@ const EMPTY_RESULT: SearchResult = { query: '', segments: [], candidates: [], to
 const CANDIDATE_LIMIT = 50;
 
 export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
-  const { pageSize = 5, initialScript = 'simplified', dictionaryUrl = DEFAULT_BTREE_URL } = options;
+  // The asset is fetched from the app's own base path rather than the origin root: on a
+  // GitHub Pages project site it lives under /<repo>/, and a root-relative URL 404s there
+  // while still working under `vite dev`. BASE_URL ends with a slash, so this concatenates
+  // rather than joins.
+  const {
+    pageSize = 5,
+    initialScript = 'simplified',
+    dictionaryUrl = `${import.meta.env.BASE_URL}${DEFAULT_BTREE_URL.replace(/^\//, '')}`,
+  } = options;
 
   const [engine, setEngine] = useState<LazyPinyinSearchEngine | null>(null);
   const [dictionaryStatus, setDictionaryStatus] = useState<DictionaryStatus>('loading');

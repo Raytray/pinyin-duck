@@ -37,6 +37,22 @@ npm run test:all      # unit + e2e tests
 - Windows: `npm run build:rime` then follow `packages/windows/README.md`
 - macOS: `npm run build:rime` then follow `packages/macos/README.md`
 
+## Deployment
+
+`packages/web` publishes to GitHub Pages via `.github/workflows/deploy-pages.yml`, which
+runs on every push to `main` that touches the web or core package and builds the site
+with `BASE_PATH=/<repo>/` so asset URLs resolve under the project-site path.
+
+The site is served from **Settings → Pages → Source: GitHub Actions**. A manual run
+(`workflow_dispatch`) re-publishes without a new commit.
+
+To check the base-path build locally:
+
+```bash
+BASE_PATH=/pinyin-duck/ npm run build -w @pinyinduck/web
+npx vite preview --outDir packages/web/dist --base /pinyin-duck/
+```
+
 ## Development notes
 
 - The root workspace uses npm workspaces.
