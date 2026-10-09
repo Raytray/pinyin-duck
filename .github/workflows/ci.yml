@@ -4,9 +4,15 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Manual trigger. Path filtering is bypassed in favour of the full suite so a
+  # green run always means "every package checked", not "the files I touched checked".
+  workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Manual dispatches get their own group. Dispatching on a branch that also has
+  # push activity would otherwise share a group with it, and cancel-in-progress
+  # would let the two runs cancel each other mid-suite.
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && 'dispatch' || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -14,6 +20,9 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
+      # True when the run was triggered manually; downstream jobs OR this into their
+      # own gates so a dispatch runs every package regardless of the diff.
+      full: ${{ steps.manual.outputs.full }}
       core: ${{ steps.filter.outputs.core }}
       web: ${{ steps.filter.outputs.web }}
       android: ${{ steps.filter.outputs.android }}
@@ -22,6 +31,10 @@ jobs:
       root: ${{ steps.filter.outputs.root }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Detect manual dispatch
+        id: manual
+        run: echo "full=${{ github.event_name == 'workflow_dispatch' }}" >> "$GITHUB_OUTPUT"
 
       - uses: dorny/paths-filter@v3
         id: filter
@@ -69,7 +82,7 @@ jobs:
   # ─── Per-package checks (parallel matrix) ─────────────────────────────────
   package-checks:
     needs: changes
-    if: ${{ needs.changes.outputs.core == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.android == 'true' || needs.changes.outputs.windows == 'true' || needs.changes.outputs.macos == 'true' }}
+    if: ${{ needs.changes.outputs.full == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.android == 'true' || needs.changes.outputs.windows == 'true' || needs.changes.outputs.macos == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -227,7 +240,7 @@ jobs:
   # ─── E2E tests (only if web or core changed) ──────────────────────────────
   e2e:
     needs: changes
-    if: ${{ needs.changes.outputs.web == 'true' || needs.changes.outputs.core == 'true' }}
+    if: ${{ needs.changes.outputs.full == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.core == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
