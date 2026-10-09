@@ -29,4 +29,16 @@ object TestDictionary {
     val entryCount: Int get() = opened.entryCount
 
     val pageCount: Int get() = opened.pageCount
+
+    /**
+     * The smallest entry count the corpus may legitimately have.
+     *
+     * The exact size is not assertable, because it comes from a live CC-CEDICT download that
+     * grows whenever MDBG publishes an edition: `npm run build:dict` fetches it fresh on every
+     * CI run, so a test pinning the number fails the next time upstream adds entries, with
+     * nothing in this repository having changed. A floor catches the failures that actually
+     * matter — a truncated download, a wrong file copied into the assets, or a header
+     * misread so the count comes back near zero — while tolerating the upstream drift.
+     */
+    const val MIN_ENTRY_COUNT = 100_000
 }
