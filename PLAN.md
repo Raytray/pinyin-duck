@@ -25,11 +25,11 @@ flowchart LR
     `@pinyinduck/core` engine, so it is a real system input method rather than a
     keyboard hook. See `docs/roadmap.md` §2 and `packages/windows/README.md`.
   - The B+ tree asset is walked in key order and each homophone cluster is emitted as it
-    is left, so the generator's peak memory is one cluster rather than the 122k-entry
-    corpus. It emits a simplified and a traditional dictionary (~9.3MB each) whose
+    is left, so the generator's peak memory is one cluster rather than the full
+    corpus. It emits a simplified and a traditional dictionary whose
     candidate order matches the web app.
   - Two ranking defects the real corpus exposed were fixed in `scoreEntry`, both pinned
-    by unit tests: UTF-16 length miscounted the 205 single characters outside the BMP as
+    by unit tests: UTF-16 length miscounted single characters outside the BMP as
     multi-character words, and one typed tone number awarded the tone bonus to any longer
     word whose first syllable matched.
 - **Milestone 3 (Complete)**:
@@ -117,9 +117,9 @@ pinyin-typeduck-windows/
 
 ### 3.1 Dictionary Dataset & Frequency Weighting
 - **CC-CEDICT**: Provides full coverage of Traditional and Simplified characters, Pinyin with tone numbers, and English translations.
-- **Full corpus, lazily paged**: The whole of CC-CEDICT (125,132 lines) is compiled into a single generated asset rather than shipping a hand-written seed list. 122,746 unique `(word, reading)` pairs survive deduplication, covering 26,811 words with frequency data, 5,247 on the HSK list and 11,851 single characters. The asset is 9.12MB raw / 4.27MB gzipped, which is far too large to bundle and too large to hold in a low-memory process, so it is emitted to `packages/web/public/dictionary.btree` as a paged B+ tree keyed on toneless pinyin and fetched page by page at runtime. `npm run build:dict` regenerates it from three sources, caching downloads in `packages/core/.cache/`; `npm run build` runs it automatically.
+- **Full corpus, lazily paged**: The whole of CC-CEDICT is compiled into a single generated asset rather than shipping a hand-written seed list. Unique `(word, reading)` pairs survive deduplication, joined with frequency data, HSK levels and single-character coverage. The asset is multiple megabytes raw and about a third of that gzipped, far too large to bundle and too large to hold in a low-memory process, so it is emitted to `packages/web/public/dictionary.btree` as a paged B+ tree keyed on toneless pinyin and fetched page by page at runtime. `npm run build:dict` regenerates it from three sources, caching downloads in `packages/core/.cache/`; `npm run build` runs it automatically.
   - Sources: [CC-CEDICT](https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz) (headwords, pinyin, definitions), [OpenSubtitles frequency list](https://github.com/hermitdave/FrequencyWords) (popularity), [HSK 2012 list](https://github.com/gigacool/hanyu-shuiping-kaoshi) (difficulty).
-  - **Why a B+ tree**: the Android milestone needs the full corpus inside a keyboard process. Materializing 122k entries costs an object graph an order of magnitude larger than the file, so a client opens the asset by reading only its 24-byte header and page directory, then fetches just the pages a query touches. Resident memory is a bounded LRU page cache (256KB default) plus the scan budget, not the dictionary size. This is what makes Milestone 3 viable without a second, reduced dictionary.
+  - **Why a B+ tree**: the Android milestone needs the full corpus inside a keyboard process. Materializing the whole corpus costs an object graph an order of magnitude larger than the file, so a client opens the asset by reading only its 24-byte header and page directory, then fetches just the pages a query touches. Resident memory is a bounded LRU page cache (256KB default) plus the scan budget, not the dictionary size. This is what makes Milestone 3 viable without a second, reduced dictionary.
   - **Layout**: `header | page directory (offset+length per page) | pages`. Leaves are chained by `nextLeaf` so a prefix query is one root-to-leaf descent followed by a bounded forward scan; internal pages store each child's *high* key, not its low key, because one pinyin reading can span several leaves and a low-key separator would drop the earlier (higher-scoring) entries. `packages/core/src/data/btree-builder.test.ts` pins that case.
   - **Page sources**: `PageSource` abstracts storage, so the same reader serves the browser (HTTP `Range`, degrading to a single whole-file read if a server ignores `Range`), tests, and an Android `mmap` via `MemoryPageSource`.
   - **Two engines, one ranker**: `LazyPinyinSearchEngine` reads pages per query; `PinyinSearchEngine` keeps the in-memory trie for tests and for callers that already hold the data. Both score through `scoreEntry` in `src/index/ranking.ts` and share one scan budget (`DEFAULT_MAX_MATCHES`, sized above the widest prefix in the corpus so the default path never truncates), so they return identical candidates and totals. The lazy engine breaks score ties deterministically, since trie insertion order is not reproducible from a page scan.
@@ -137,7 +137,7 @@ pinyin-typeduck-windows/
   1. Match quality tier: exact pinyin &rarr; pinyin prefix &rarr; query extends the entry
   2. Words before single characters within the same tier (capped bonus)
   3. Frequency / everyday usage score, then HSK level, as tiebreakers only
-- **Result cap**: The Web hook requests at most 50 candidates, so a broad syllable like `ta` (199 readings) reports 10 pages rather than an unbounded list.
+- **Result cap**: The Web hook requests at most 50 candidates, so a broad syllable like `ta`, which has far more readings than fit one page, reports 10 pages rather than an unbounded list.
 
 ---
 
@@ -219,7 +219,7 @@ As the user types into the composition field:
    - **Git Commit**: `add tests for better coverage` (`e9caa1e`), `code clean up` (`fbdd30a`), `fix timing out tests` (`b822a9a`)
 
 8. **Step 8: Paged B+ Tree Dictionary** (Done — 2026-09-29)
-   - Replace the single-blob dictionary asset with a paged B+ tree (`src/data/btree-codec.ts`, `btree-builder.ts`, `btree-dictionary.ts`, `page-source.ts`) keyed on toneless pinyin, so a client reads a 24-byte header and a page directory rather than materializing 122k entries. See §3.1.
+   - Replace the single-blob dictionary asset with a paged B+ tree (`src/data/btree-codec.ts`, `btree-builder.ts`, `btree-dictionary.ts`, `page-source.ts`) keyed on toneless pinyin, so a client reads a 24-byte header and a page directory rather than materializing the whole corpus. See §3.1.
    - Add `LazyPinyinSearchEngine` alongside the trie engine, with both ranking through the shared `scoreEntry` and sharing one scan budget, so they return identical candidates and totals. Extract `scoreEntry` into `src/index/ranking.ts` and have the trie engine delegate to it.
    - Break score ties deterministically in the lazy engine, since trie insertion order is not reproducible from a page scan.
    - Add `e2e/insert-position.spec.ts`, covering where a committed candidate lands relative to a live caret: click and digit picks at the caret, repeated picks not drifting, two commits landing in order, and a commit landing behind a caret the user moved on purpose.
@@ -239,10 +239,10 @@ As the user types into the composition field:
 11. **Step 11: Windows Input Method** (Done — 2026-09-29)
     - Build Windows as a Rime/Weasel schema rather than the Tauri overlay of Approach A. The working tree is a WSL checkout and neither side has a Rust toolchain, so a Tauri app could not be compiled or verified here at all; Rime is a real registered TSF input method that the OS already knows how to activate, focus and compose, so the work is the part that is PinyinDuck's — the dictionary and its ranking. See `docs/roadmap.md` §2 for the trade-off and `packages/windows/README.md` for install and verification.
     - Add `packages/windows`: `src/rime-dict.ts` emits Rime's `.dict.yaml` format (a YAML header plus a TSV body) from the same B+ tree, and `scripts/build-rime-dict.ts` walks the asset in key order, emitting each homophone cluster as the scan leaves it, so the corpus is never held in memory. Both dictionaries build in ~1s.
-    - Pin the format against librime rather than against the tutorial version of it: the body is TSV (since 1.9), the header declares `columns` explicitly, and `Vocabulary::SortHomophones` is a *stable* sort by weight, which makes the emitted order the tiebreak — so the generator mirrors `scoreEntry` and `compareScored` exactly. Measured over the real asset, 103,521 readings and 121,304 rows agree with the web engine; the 3 that do not are CC-CEDICT's own `ㄏㄤ` / `PO` / `TA` syllable-abbreviation rows, where the Rime file ranks the real character first.
+    - Pin the format against librime rather than against the tutorial version of it: the body is TSV (since 1.9), the header declares `columns` explicitly, and `Vocabulary::SortHomophones` is a *stable* sort by weight, which makes the emitted order the tiebreak — so the generator mirrors `scoreEntry` and `compareScored` exactly. Measured over the real asset, the emitted readings and rows agree with the web engine except for CC-CEDICT's own `ㄏㄤ` / `PO` / `TA` syllable-abbreviation rows, where the Rime file ranks the real character first.
     - Two schemas over two generated dictionaries, switched with `F4` / ``Ctrl+` ``: the traditional one uses CC-CEDICT's own traditional column instead of converting with OpenCC at runtime. `default.custom.yaml` appends both to the scheme switcher, so a Weasel update cannot overwrite them.
     - `scripts/install.ps1` verifies all five files exist before copying anything, clears `%APPDATA%\Rime\build` so a stale compiled table cannot be reused, and prints the deploy step.
-    - Fix the two ranking defects the parity work exposed in `scoreEntry`: `String.length` counts UTF-16 units, so the 205 CC-CEDICT characters outside the BMP were each treated as a two-character word and given the word boost (typing `an1` offered 𩽾 above 安); and one typed tone number awarded the full tone bonus to any longer word whose *first* syllable matched (typing `bian3` offered 彼岸 above 扁). A tone filter now only constrains as many syllables as the query has tones.
+    - Fix the two ranking defects the parity work exposed in `scoreEntry`: `String.length` counts UTF-16 units, so CC-CEDICT characters outside the BMP were each treated as a two-character word and given the word boost (typing `an1` offered 𩽾 above 安); and one typed tone number awarded the full tone bonus to any longer word whose *first* syllable matched (typing `bian3` offered 彼岸 above 扁). A tone filter now only constrains as many syllables as the query has tones.
     - **Git Commit**: `feat(windows): add the PinyinDuck Rime input method`
 
 11b. **Step 11b: Pre-install verification against a real librime** (Done — 2026-09-29)
@@ -262,7 +262,7 @@ As the user types into the composition field:
       `SCHEMA_DETAIL`, `PREEDIT`, `CANDIDATE`, `QUERY_ERROR`) with `log_dir` cleared so
       librime's diagnostics reach the harness's own stderr.
     - `scripts/verify-rime.ts` (`npm run test:rime`) stages the real schemas and the real
-      9.6 MB dictionaries into a temporary user directory, types seven queries through the
+      generated dictionaries into a temporary user directory, types seven queries through the
       engine, compares the candidate lists, and fails on anything librime logged. Missing
       logrime is a *skip* and says so in those words; `--require` turns it into a failure
       for a pre-merge gate. The harness result is parsed and evaluated by `src/rime-verify.ts`,
@@ -271,7 +271,7 @@ As the user types into the composition field:
       the case still runs, a failure is reported as a gap rather than a failure so the suite
       stays green, and a *pass* is reported as "now works, remove the knownGap" so the
       declaration cannot quietly outlive the thing it describes.
-    - `scripts/generated-dicts.test.ts` sweeps all 245,421 emitted rows through
+    - `scripts/generated-dicts.test.ts` sweeps every emitted row through
       `src/rime-format.ts` — an independent reader written against librime's
       `GetColumnIndex` and `LoadDictEntry` rather than against our own writer, so a mistake
       in the writer cannot make the reader agree with it — and asserts no duplicate
@@ -326,11 +326,11 @@ Re-measured on the `pinyin-typeduck-windows` branch after Step 11b:
 | --- | --- | --- |
 | Core unit tests | `npm test -w @pinyinduck/core` | 13 files, 248 tests passed |
 | Core coverage | `npm run test:coverage -w @pinyinduck/core` | gate passes (exit 0) |
-| Windows unit tests + corpus sweep | `npm test -w @pinyinduck/windows` | 6 files, 212 tests passed, including 245,421 emitted rows |
+| Windows unit tests + corpus sweep | `npm test -w @pinyinduck/windows` | 6 files, 212 tests passed, including a sweep of every emitted row |
 | Windows coverage | `npm run test:coverage -w @pinyinduck/windows` | 98.89% statements, 98.57% branches, 100% functions; gate passes (exit 0) |
 | macOS unit tests | `npm test -w @pinyinduck/macos` | 2 files, tests passed |
 | macOS coverage | `npm run test:coverage -w @pinyinduck/macos` | gate passes (exit 0) |
-| Rime dictionary build | `npm run build:rime` | 122,687 rows simplified, 122,734 traditional (656 + 609 duplicate collapses), 17 unreadable readings rejected, ~1s |
+| Rime dictionary build | `npm run build:rime` | Emits a row per reading in both scripts, dropping duplicate collapses and rejecting unreadable readings; runs in about a second |
 | Rime against a real engine | `npm run test:rime` | librime 1.13.1 built from source; 8 of 8 queries as pinned, no known gap, no `Encode failure` in the log |
 | End-to-end tests | `npm run test:e2e` | 72 tests passed |
 | Web coverage | `npm run test:e2e` | 98.93% statements, 99.25% branches, 100% functions |
