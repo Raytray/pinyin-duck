@@ -64,13 +64,17 @@ if [[ ! -f "$LIBRIME_LIB/librime.so" ]]; then
 fi
 LIBRIME_SO="$LIBRIME_LIB/librime.so"
 
-# Compile the harness
-c++ -std=c++17 -O2 \
+# Compile the harness.
+#
+# -Wno-missing-field-initializers: RIME_STRUCT expands to `Type var = {0}`, which warns about
+# every member the macro cannot name. It is librime's idiom, not ours — the same suppression
+# the Windows package's copy of this script uses.
+c++ -std=c++17 -O2 -Wall -Wextra -Wno-missing-field-initializers \
   -I"$LIBRIME_DIR/src" \
   -I"$BUILD_DIR/src" \
   "$HARNESS_SRC" \
   -L"$(dirname "$LIBRIME_SO")" \
-  -llibrime \
+  -lrime \
   -Wl,-rpath,"$(dirname "$LIBRIME_SO")" \
   -o "$HARNESS_BIN"
 

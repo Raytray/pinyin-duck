@@ -70,15 +70,23 @@ function createFakeDeps(
   return { deps, state };
 }
 
-/** The transcript a perfectly behaved harness would emit for `queries`. */
+/**
+ * The transcript a perfectly behaved harness would emit for `queries`.
+ *
+ * Mirrors what rime_smoke.cc actually prints, including the commit and preedit lines, so a
+ * query pinned by `expectCommit` or `expectPreedit` gets a transcript that satisfies it.
+ */
 function transcriptFor(queries: readonly Query[]): string {
   return (
     queries
-      .map(
-        (q) =>
-          `SCHEMA ${q.schema}\nPREEDIT ${q.input}\n` +
-          q.expected.map((c) => `CANDIDATE ${c}\n`).join('')
-      )
+      .map((q) => {
+        const preedit = q.expectPreedit ?? q.input;
+        return (
+          `SCHEMA ${q.schema}\nPREEDIT ${preedit}\n` +
+          (q.expectCommit ? `COMMITTED ${q.expectCommit}\n` : '') +
+          (q.expected ?? []).map((c) => `CANDIDATE ${c}\n`).join('')
+        );
+      })
       .join('') + 'QUIT\n'
   );
 }
@@ -115,6 +123,21 @@ describe('parseOutput', () => {
     const results = parseOutput('SCHEMA pinyinduck\nCANDIDATE \n');
 
     expect(results[0].candidates).toEqual(['']);
+  });
+
+  it('records committed text, which is how a digit query is told apart', () => {
+    // Selecting a candidate removes it from the menu, so `shi2` reports an empty menu. The
+    // committed text is the only thing distinguishing "selected 十" from "matched nothing".
+    const results = parseOutput('SCHEMA pinyinduck\nPREEDIT \nCOMMITTED 十\n');
+
+    expect(results[0].committed).toBe('十');
+    expect(results[0].candidates).toEqual([]);
+  });
+
+  it('leaves committed undefined when nothing was committed', () => {
+    const results = parseOutput('SCHEMA pinyinduck\nPREEDIT shi\nCANDIDATE 是\n');
+
+    expect(results[0].committed).toBeUndefined();
   });
 });
 
@@ -350,7 +373,10 @@ describe('against the real filesystem', () => {
     const tempDir = path.join(root, 'user');
     fs.mkdirSync(tempDir, { recursive: true });
 
-    stageFiles(rimeDir, tempDir);
+    // An empty librimeDir, so this asserts exactly the PinyinDuck staging set. The presets
+    // librime needs to compile the schema are covered separately below, because whether
+    // they are present depends on whether a real librime tree has been cloned.
+    stageFiles(rimeDir, tempDir, undefined, path.join(root, 'no-librime'));
 
     expect(fs.readdirSync(tempDir).sort()).toEqual([
       'default.custom.yaml',
@@ -363,6 +389,27 @@ describe('against the real filesystem', () => {
     ]);
     expect(fs.readFileSync(path.join(tempDir, 'rime.lua'), 'utf8')).toBe('# rime.lua\n');
     expect(fs.existsSync(path.join(tempDir, 'lua', 'pinyinduck_gloss.lua'))).toBe(true);
+  });
+
+  it('stages the librime presets the schema imports', () => {
+    // The schemas declare `punctuator/import_preset: symbols` and
+    // `key_binder/import_preset: default`, so deployment cannot compile them without
+    // librime's own default.yaml and symbols.yaml. Staging them is what keeps a missing
+    // preset from showing up as an empty candidate list.
+    const librimeDir = path.join(root, 'librime');
+    fs.mkdirSync(path.join(librimeDir, 'data', 'minimal'), { recursive: true });
+    for (const file of ['default.yaml', 'symbols.yaml']) {
+      fs.writeFileSync(path.join(librimeDir, 'data', 'minimal', file), `# ${file}\n`);
+    }
+
+    const rimeDir = stagedRime();
+    const tempDir = path.join(root, 'user-with-presets');
+    fs.mkdirSync(tempDir, { recursive: true });
+
+    stageFiles(rimeDir, tempDir, undefined, librimeDir);
+
+    expect(fs.readFileSync(path.join(tempDir, 'default.yaml'), 'utf8')).toBe('# default.yaml\n');
+    expect(fs.readFileSync(path.join(tempDir, 'symbols.yaml'), 'utf8')).toBe('# symbols.yaml\n');
   });
 
   it('reads the real toolchain layout', () => {
@@ -482,6 +529,31 @@ describe('main', () => {
     // Staged into a throwaway directory, which is then cleaned up.
     expect(state.copies).toHaveLength(STAGED.length);
     expect(state.removed).toEqual(state.tempDirs);
+  });
+
+  it('fails when a digit query commits the wrong candidate', async () => {
+    // The menu is empty either way, so only the committed text can catch this.
+    const queries: Query[] = [
+      { schema: 'pinyinduck', input: 'shi2', expectCommit: '十', expected: [] },
+    ];
+    const wrong = 'SCHEMA pinyinduck\nPREEDIT \nCOMMITTED 诗\n';
+    const { deps } = createFakeDeps(harnessReturning({ stdout: wrong }), [...BUILT, ...STAGED]);
+
+    expect(await main({ ...OPTS, queries }, deps)).toBe(1);
+    expect(error).toHaveBeenCalledWith('  expected commit: 十');
+    expect(error).toHaveBeenCalledWith('  actual commit:   诗');
+  });
+
+  it('fails when a partial selection leaves a different buffer', async () => {
+    const queries: Query[] = [
+      { schema: 'pinyinduck', input: 'nihao2', expectPreedit: '你hao', expected: ['好'] },
+    ];
+    const wrong = 'SCHEMA pinyinduck\nPREEDIT hao\nCANDIDATE 好\n';
+    const { deps } = createFakeDeps(harnessReturning({ stdout: wrong }), [...BUILT, ...STAGED]);
+
+    expect(await main({ ...OPTS, queries }, deps)).toBe(1);
+    expect(error).toHaveBeenCalledWith('  expected preedit: 你hao');
+    expect(error).toHaveBeenCalledWith('  actual preedit:   hao');
   });
 
   it('fails and reports both sides when a menu is reordered', async () => {
