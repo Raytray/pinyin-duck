@@ -50,9 +50,9 @@ Two scoping decisions are worth knowing about:
 
 Candidate data comes from the full [CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict)
 corpus, joined with an OpenSubtitles frequency list and the HSK 2012 word list. The
-generated asset is **not committed** — it is 9.12MB of data derived from three upstream
-downloads, and a commit carrying one is a 9MB diff that changes whenever an upstream
-source does. Build it once per clone:
+generated asset is **not committed** — it is several megabytes of data derived from
+three upstream downloads, and a commit carrying one is a multi-megabyte diff that changes
+whenever an upstream source does. Build it once per clone:
 
 ```bash
 npm run build:dict                       # writes packages/web/public/dictionary.btree
@@ -66,10 +66,11 @@ them as its own.
 `npm run build` runs this automatically. Downloads are cached in `packages/core/.cache/`,
 so it is a one-time cost per clone. `npm run dev` and `npm run test:e2e` check for the
 asset first and name it if it is missing, rather than leaving the app on "failed to load"
-or timing out 40 Playwright tests on a file nobody mentioned.
+or timing out the Playwright suite on a file nobody mentioned.
 
-Current output: 125,132 lines parsed into 122,746 unique word/reading pairs
-(26,811 with frequency data, 5,247 on the HSK list), 9.12MB raw and 4.27MB gzipped.
+Each run logs its own output — CC-CEDICT lines parsed, unique word/reading pairs
+emitted, frequency and HSK coverage, and the raw and gzipped asset size — rather than
+this README restating a snapshot that upstream drift will invalidate.
 
 > The builder downloads from live URLs rather than pinning revisions, so a rebuild can
 > legitimately produce a slightly different asset than the one a given clone was last
@@ -86,15 +87,15 @@ npm run build:rime -- --out /tmp/rime   # writes the dictionaries somewhere else
 npm run build:rime -- --btree <path>    # reads a different asset
 ```
 
-The Rime dictionaries are ~9.3MB each and gitignored, so `npm run build` regenerates
+The Rime dictionaries are multi-megabyte and gitignored, so `npm run build` regenerates
 them. Installing them on Windows is one PowerShell script; see
 [packages/windows/README.md](packages/windows/README.md). Installing them on macOS is
 one shell script; see [packages/macos/README.md](packages/macos/README.md).
 
 **The asset is a paged B+ tree, not a blob.** It is keyed on toneless pinyin and split
-into ~1,200 byte-ranged pages, so a client opens it by reading only the 24-byte header
+into byte-ranged pages, so a client opens it by reading only the 24-byte header
 and the page directory and then fetches just the pages a query touches. Resident memory
-is bounded by a 256KB LRU page cache instead of the ~90MB object graph a full parse
+is bounded by a 256KB LRU page cache instead of the large object graph a full parse
 costs, which is what makes the same corpus viable in a low-memory process such as an
 Android keyboard.
 
@@ -200,30 +201,20 @@ Useful variations:
 npm run test:e2e -- --ui          # interactive debugger with time-travel
 npm run test:e2e -- --headed      # watch the browser drive the IME
 npm run test:e2e -- --grep paging # run one area
-E2E_HEADLESS=1 npm run test:e2e   # force headless (see below)
 ```
 
 `CI=1` switches to a single worker with retries and emits a GitHub Actions friendly
 report. Traces, screenshots and video are captured on first-retry failures only, and
 `playwright-report/` holds the HTML report after a local run.
 
-#### Why the suite runs headed
+#### Headless by default
 
-Chromium's headless mode never schedules animation frames in this environment:
-`requestAnimationFrame` never fires, even while the app's infinite CSS animations
-(`cursorBlink`, `statusPulse`) are running, and no launch flag changes that
-(`--disable-gpu`, swiftshader, `--enable-begin-frame-control` and
-`channel: 'chromium'` were all tried).
-
-Playwright's actionability checks implement their "stable" step on top of rAF, so in
-headless mode every `click()` and `hover()` blocks until the test times out — while
-keyboard-driven tests pass, which makes the failure look like an app bug when it is
-not one. A headed browser has a real compositor and produces frames normally.
-
-`playwright.config.ts` therefore runs headed whenever a display is present and falls
-back to headless when there is none, so the suite still works on a machine (or CI
-image) without an X server. `E2E_HEADLESS=1` forces headless and `E2E_HEADLESS=0`
-forces headed, for environments where the default is not what you want.
+The suite runs headless everywhere, so a local run and CI use exactly the same browser
+and compositor. The config used to fall back to a headed browser whenever `DISPLAY` was
+set, which meant a run could pass on a developer machine and fail in CI (or vice versa)
+for reasons unrelated to the code. `npm run test:e2e -- --headed` opens a visible browser
+when you want to watch the IME drive itself; it changes only how the run is displayed,
+not which assertions execute.
 
 ### Code coverage
 
