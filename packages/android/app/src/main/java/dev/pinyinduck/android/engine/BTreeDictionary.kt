@@ -147,8 +147,8 @@ class BTreeDictionary private constructor(
     }
 
     companion object {
-        /** Default resident page-cache budget. Roughly a hundred pages. */
-        const val DEFAULT_PAGE_CACHE_BYTES = 256 * 1024
+        /** Default resident page-cache budget. Roughly a hundred 8 KB pages. */
+        const val DEFAULT_PAGE_CACHE_BYTES = 1024 * 1024
 
         /** Reads the header and directory, leaving the pages on disk. */
         fun open(

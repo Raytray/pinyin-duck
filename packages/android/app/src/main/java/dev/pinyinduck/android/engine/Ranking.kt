@@ -33,6 +33,10 @@ data class ScorableEntry(
     val pinyinNumbers: String,
     val frequency: Int,
     val hskLevel: Int? = null,
+    /** Cached code-point count of [simplified], computed once per entry. */
+    val characterCount: Int = countCharacters(simplified),
+    /** Cached tone digits of [pinyinNumbers], computed once per entry. */
+    val toneDigits: IntArray = toneDigitsOf(pinyinNumbers),
 )
 
 /**
@@ -71,7 +75,7 @@ fun scoreEntry(
     // hands a rare 𬤊 the boost that should go to 你好 — enough to rank it above a common
     // character with the same reading, which is exactly the divergence
     // PinyinEngineParityTest exists to catch.
-    if (isExactPinyin && countCharacters(entry.simplified) > 1) {
+    if (isExactPinyin && entry.characterCount > 1) {
         score += 20000
     }
 
@@ -85,7 +89,7 @@ fun scoreEntry(
     if (hsk != null) score += (7 - hsk) * 5000
 
     if (toneFilterNumbers.isNotEmpty()) {
-        val entryTones = toneDigitsOf(entry.pinyinNumbers)
+        val entryTones = entry.toneDigits
         var toneMatches = 0
         for (i in 0 until minOf(toneFilterNumbers.size, entryTones.size)) {
             if (toneFilterNumbers[i] == entryTones[i]) toneMatches++
