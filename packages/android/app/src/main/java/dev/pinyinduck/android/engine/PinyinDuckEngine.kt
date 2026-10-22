@@ -1,5 +1,7 @@
 package dev.pinyinduck.android.engine
 
+import java.util.PriorityQueue
+
 /**
  * Candidate search over the paged B-tree dictionary.
  *
@@ -69,7 +71,20 @@ class PinyinDuckEngine(
             for (entry in dictionary.lookupExact(firstSyllable)) consider(entry)
         }
 
-        val ranked = chosen.values.sortedWith(SCORED_ORDER)
+        // `chosen` holds one entry per displayed hanzi, which for a broad prefix such as
+        // `s` is several thousand. Sorting all of them only to keep the first `limit` is
+        // wasted work on every keystroke, so rank the full set only when the caller
+        // actually needs all of it; otherwise keep a bounded heap of the top
+        // `offset + limit` entries. The total reported to the UI is the full unique
+        // count, which is independent of that ranking.
+        val uniqueCount = chosen.size
+        val needed = offset + limit
+        val ranked =
+            if (needed >= uniqueCount) {
+                chosen.values.sortedWith(SCORED_ORDER)
+            } else {
+                topK(chosen.values, needed)
+            }
         val candidates =
             if (offset < ranked.size) {
                 ranked
@@ -79,7 +94,33 @@ class PinyinDuckEngine(
                 emptyList()
             }
 
-        return SearchResult(rawQuery, segments, candidates, ranked.size)
+        return SearchResult(rawQuery, segments, candidates, uniqueCount)
+    }
+
+    /**
+     * Keeps only the best [k] entries according to [SCORED_ORDER], without sorting the
+     * whole candidate set. A min-heap keyed on the reverse order holds the current
+     * worst of the leaders at its head, so each new entry is compared once and the
+     * heap never grows past [k].
+     */
+    private fun topK(
+        entries: Collection<ScoredEntry>,
+        k: Int,
+    ): List<ScoredEntry> {
+        if (k <= 0) return emptyList()
+        val heap = PriorityQueue<ScoredEntry>(k, SCORED_ORDER.reversed())
+        for (entry in entries) {
+            if (heap.size < k) {
+                heap.add(entry)
+            } else {
+                val worst = heap.peek()
+                if (worst != null && SCORED_ORDER.compare(entry, worst) < 0) {
+                    heap.poll()
+                    heap.add(entry)
+                }
+            }
+        }
+        return heap.toList().sortedWith(SCORED_ORDER)
     }
 
     private class ScoredEntry(

@@ -10,15 +10,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -35,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,12 +65,26 @@ data class KeyboardCallbacks(
  * The bottom inset is the keyboard's own navigation bar, not the device's: an IME window
  * draws the switch-keyboard globe and the hide-keyboard arrow over its content rather than
  * taking space for them, so the keys have to stop short themselves.
+ *
+ * The device navigation bar inset is not a reliable measure of those icons: on gesture
+ * navigation it is far shorter than the icons' touch targets, which is what left them
+ * overlapping the comma and period keys. A fixed buffer sized to the icons' touch target
+ * clears them on every navigation mode.
  */
 @Composable
 fun PinyinDuckKeyboard(
     state: KeyboardUiState,
     callbacks: KeyboardCallbacks,
 ) {
+    // The globe/hide icons are drawn over the keyboard rather than reserving space, and
+    // their touch targets are taller than the gesture navigation bar inset reports, so
+    // take the larger of the device navigation bar and a fixed 48 dp buffer.
+    val density = LocalDensity.current
+    val bottomBuffer =
+        with(density) {
+            maxOf(WindowInsets.navigationBars.getBottom(this), 48.dp.toPx().toInt()).toDp()
+        }
+
     Column(
         modifier =
             Modifier
@@ -80,7 +92,7 @@ fun PinyinDuckKeyboard(
                 // The background is drawn before the padding, so the keyboard colour reaches
                 // into the strip below the keys rather than leaving the window background there.
                 .background(DuckColors.Background)
-                .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)),
+                .padding(bottom = bottomBuffer),
     ) {
         if (state.expanded) {
             ExpandedCandidates(state, callbacks)
@@ -474,6 +486,9 @@ private fun RowScope.KeyboardKey(
     onRepeat: (() -> Unit)?,
 ) {
     var pressed by remember { mutableStateOf(false) }
+    // Tracks whether the current gesture became a long press, so the release does not
+    // also fire the single-tap action on top of the repeat sequence.
+    var longPressed by remember { mutableStateOf(false) }
 
     val background =
         when (key.style) {
@@ -501,10 +516,16 @@ private fun RowScope.KeyboardKey(
                     Modifier.pointerInput(Unit) {
                         detectTapGestures(
                             onPress = {
+                                longPressed = false
                                 tryAwaitRelease()
-                                onPress()
+                                // Stop the repeat loop the long press may have started.
+                                pressed = false
+                                // A long press already fired its own (repeated) backspaces,
+                                // so the release must not add one more.
+                                if (!longPressed) onPress()
                             },
                             onLongPress = {
+                                longPressed = true
                                 onRepeat()
                                 pressed = true
                             },
