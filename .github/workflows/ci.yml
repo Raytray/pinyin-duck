@@ -19,6 +19,9 @@ jobs:
   # ─── Detect which packages changed ────────────────────────────────────────
   changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       # True when the run was triggered manually; downstream jobs OR this into their
       # own gates so a dispatch runs every package regardless of the diff.
@@ -215,14 +218,6 @@ jobs:
         run: |
           npm run setup:rime -w @pinyinduck/windows
           npm run test:rime -w @pinyinduck/windows
-
-      - name: "[windows] Upload Rime build logs"
-        if: ${{ always() && matrix.package == 'windows' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-rime-build-logs
-          path: packages/windows/tools/.local/*.log
-          if-no-files-found: warn
 
       # ── macOS ──
       # Same shape as the Windows job above. The Rime step runs the non-strict variant:
