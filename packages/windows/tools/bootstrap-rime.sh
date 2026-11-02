@@ -344,7 +344,7 @@ build_harness() {
   g++ -std=c++17 -O2 -Wall -Wextra -Wno-missing-field-initializers \
     -o "${HARNESS}" "${TOOLS_DIR}/rime_smoke.cc" \
     -I "${LIBRIME_DIR}/src" \
-    -L "${LIBRIME_LIB}" -lrime \
+    -L "${LIBRIME_LIB}" -lrime -lunwind \
     -Wl,-rpath,"${LIBRIME_LIB}" \
     -Wl,-rpath,"${boost_libdir}" \
     -Wl,-rpath,"${LUAJIT_LIB}"
