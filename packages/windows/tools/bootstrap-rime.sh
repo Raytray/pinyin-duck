@@ -285,8 +285,10 @@ build_librime_deps() {
     rm -rf "${LIBRIME_DIR}/deps/${dep:?}/build"
   done
   # deps.mk, not the top-level Makefile: the latter is the build wrapper and would
-  # configure librime itself before its dependencies exist.
-  make -C "${LIBRIME_DIR}" -f deps.mk -j"${JOBS}" >"${PREFIX}/deps-build.log" 2>&1 \
+  # configure librime itself before its dependencies exist. Its default MAKEFLAGS
+  # override starts a separate nproc-sized pool in each dependency build, defeating
+  # this jobserver limit and oversubscribing CI. NOPARALLEL keeps the outer pool in charge.
+  make -C "${LIBRIME_DIR}" -f deps.mk -j"${JOBS}" NOPARALLEL=1 >"${PREFIX}/deps-build.log" 2>&1 \
     || { tail -30 "${PREFIX}/deps-build.log"; die "dependency build failed; see ${PREFIX}/deps-build.log"; }
   echo "cxxflags=${CXXFLAGS}" >"${stamp}"
 }
