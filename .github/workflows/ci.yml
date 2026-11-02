@@ -168,6 +168,13 @@ jobs:
           ndk-version: r27c
           cache-key: android-sdk-${{ runner.os }}-${{ hashFiles('packages/android/gradle/wrapper/gradle-wrapper.properties') }}
 
+      # The parity golden file is generated against a specific CC-CEDICT edition.
+      # build:dict downloads a fresh edition, so the golden must be regenerated to
+      # match, otherwise PinyinEngineParityTest fails on any upstream dictionary change.
+      - name: "[android] Regenerate parity golden"
+        if: ${{ matrix.package == 'android' }}
+        run: npm run build:parity -w @pinyinduck/core
+
       - name: "[android] Lint (ktlint via Gradle)"
         if: ${{ matrix.package == 'android' }}
         run: |
