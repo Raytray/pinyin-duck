@@ -205,7 +205,7 @@ export function joinCorpora(
   const hskLevels = parseHskList(hskContent);
 
   const rows: DictionaryRow[] = [];
-  const seen = new Set<string>();
+  const seen = new Map<string, number>();
   let cedictLines = 0;
   let withFrequency = 0;
   let withHsk = 0;
@@ -228,17 +228,9 @@ export function joinCorpora(
     // candidate, but an identical (word, reading) pair must not be repeated.
     const pinyinNumbers = normalizePinyin(parsed.pinyin);
     const key = `${parsed.simplified}|${pinyinNumbers}`;
-    if (seen.has(key)) {
-      dropped++;
-      continue;
-    }
-    seen.add(key);
 
     const frequency = normalizeFrequency(frequencies.get(parsed.simplified) ?? 0, corpusMax);
     const hskLevel = hskLevels.get(parsed.simplified) ?? 0;
-    if (frequency > 0) withFrequency++;
-    if (hskLevel > 0) withHsk++;
-    if ([...parsed.simplified].length === 1) singleChar++;
 
     // Detect surname entries (definitions starting with "surname ") and reduce
     // their frequency so they don't dominate prefix searches. Surnames are extremely
@@ -246,6 +238,39 @@ export function joinCorpora(
     // typing partial pinyin usually want regular vocabulary words first.
     const isSurname = parsed.definitions.some((def) => /^surname\s/i.test(def.trim()));
     const adjustedFrequency = isSurname ? Math.round(frequency * 0.1) : frequency;
+
+    const existingIndex = seen.get(key);
+    if (existingIndex !== undefined) {
+      // Duplicate reading: prefer the non-surname entry, or the one with higher frequency.
+      const existingRow = rows[existingIndex];
+      const existingIsSurname = existingRow[3] === 'surname Neng' || existingRow[3]?.startsWith('surname ');
+      // Row format: [simplified, traditional, pinyinNumbers, shortGloss, frequency, hskLevel]
+      const existingFrequency = existingRow[4];
+
+      if (isSurname && !existingIsSurname) {
+        // New entry is surname, existing is not: keep existing, drop new
+        dropped++;
+        continue;
+      } else if (!isSurname && existingIsSurname) {
+        // New entry is not surname, existing is: replace existing with new
+        rows[existingIndex] = buildDictRow(parsed, adjustedFrequency, hskLevel);
+        continue;
+      } else if (adjustedFrequency > existingFrequency) {
+        // Neither or both are surnames: keep the higher frequency one
+        rows[existingIndex] = buildDictRow(parsed, adjustedFrequency, hskLevel);
+        continue;
+      } else {
+        // Keep existing, drop new
+        dropped++;
+        continue;
+      }
+    }
+
+    // First time seeing this key
+    seen.set(key, rows.length);
+    if (frequency > 0) withFrequency++;
+    if (hskLevel > 0) withHsk++;
+    if ([...parsed.simplified].length === 1) singleChar++;
 
     rows.push(buildDictRow(parsed, adjustedFrequency, hskLevel));
   }
