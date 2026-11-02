@@ -253,6 +253,37 @@ describe('joinCorpora', () => {
     expect(stats.dropped).toBe(1);
   });
 
+  it('reduces frequency by 10x for surname entries', () => {
+    const cedict = '张 张 [Zhang1] /surname Zhang/\n';
+    const frequency = '张 1000\n';
+    const { rows } = joinCorpora(cedict, frequency, '');
+    expect(rows[0][4]).toBe(10000);
+  });
+
+  it('keeps the non-surname entry when a duplicate entry is a surname', () => {
+    const dupe = ['能 能 [neng2] /to be able to/', '能 能 [neng2] /surname Neng/'].join('\n');
+    const { rows, stats } = joinCorpora(dupe, '', '');
+    expect(rows).toHaveLength(1);
+    expect(rows[0][3]).toBe('to be able to');
+    expect(stats.dropped).toBe(1);
+  });
+
+  it('replaces a surname entry when a duplicate non-surname entry appears', () => {
+    const dupe = ['能 能 [neng2] /surname Neng/', '能 能 [neng2] /to be able to/'].join('\n');
+    const { rows } = joinCorpora(dupe, '', '');
+    expect(rows).toHaveLength(1);
+    expect(rows[0][3]).toBe('to be able to');
+  });
+
+  it('replaces an existing entry when a duplicate entry has higher frequency', () => {
+    const dupe = ['单 单 [dan1] /mountain/surname Shan/', '单 单 [dan1] /bill/list/'].join('\n');
+    const frequency = '单 1000\n';
+    const { rows } = joinCorpora(dupe, frequency, '');
+    expect(rows).toHaveLength(1);
+    expect(rows[0][3]).toBe('bill / list');
+    expect(rows[0][4]).toBe(100000);
+  });
+
   it('returns no rows for an empty corpus', () => {
     const { rows, stats } = joinCorpora('', '', '');
     expect(rows).toEqual([]);
