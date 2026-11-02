@@ -11,8 +11,8 @@
 #
 # Everything lands under tools/.local/ and tools/librime/, both gitignored. Nothing is
 # installed, nothing is written outside the package, and no step needs sudo: cmake comes
-# from a PyPI wheel and Boost and LuaJIT from .deb files fetched with `apt-get download`
-# and unpacked with `dpkg-deb -x`.
+# from a PyPI wheel and Boost, libunwind, and LuaJIT from .deb files fetched with
+# `apt-get download` and unpacked with `dpkg-deb -x`.
 #
 # Usage:
 #   npm run setup:rime        # from the repository root
@@ -40,6 +40,8 @@ LIBRIME_LIB="${LIBRIME_BUILD}/lib"
 HARNESS="${PREFIX}/bin/rime_smoke"
 DEB_DIR="${PREFIX}/debs"
 BOOST_DIR="${PREFIX}/boost"
+UNWIND_DIR="${PREFIX}/unwind"
+UNWIND_LIB="${UNWIND_DIR}/usr/lib/x86_64-linux-gnu"
 # LuaJIT and its pkg-config, unpacked from .deb files like Boost. The schema's
 # `lua_filter@pinyinduck_gloss_filter` needs librime's lua plugin, which links against
 # LuaJIT; this is what makes pkg-config find it.
@@ -148,12 +150,47 @@ ensure_boost() {
 }
 
 # --------------------------------------------------------------------------------------
+# libunwind, needed to link and load librime's stacktrace symbols
+# --------------------------------------------------------------------------------------
+ensure_unwind() {
+  if [[ -e "${UNWIND_LIB}/libunwind.so" && -e "${UNWIND_LIB}/libunwind.so.8" ]]; then
+    info "libunwind: cached in ${UNWIND_DIR}"
+  else
+    step "Fetching libunwind development and runtime libraries"
+    mkdir -p "${DEB_DIR}" "${UNWIND_DIR}"
+    (
+      cd "${DEB_DIR}"
+      local runtime_package
+      runtime_package="$(apt-cache depends libunwind-dev 2>/dev/null | awk '/Depends: libunwind[0-9]+/ {print $2; exit}')"
+      [[ -n "${runtime_package}" ]] || die "Could not determine the libunwind runtime package."
+      apt-get download -q libunwind-dev "${runtime_package}" \
+        || die "Could not download the libunwind development and runtime packages."
+      for deb in ./libunwind*.deb; do dpkg-deb -x "${deb}" "${UNWIND_DIR}"; done
+    )
+  fi
+
+  [[ -e "${UNWIND_LIB}/libunwind.so" && -e "${UNWIND_LIB}/libunwind.so.8" ]] \
+    || die "libunwind libraries are missing from ${UNWIND_LIB}."
+  export LD_LIBRARY_PATH="${UNWIND_LIB}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+  info "libunwind: ${UNWIND_LIB}"
+}
+
+# --------------------------------------------------------------------------------------
 # LuaJIT and pkg-config, from .deb files, for librime's lua plugin
 # --------------------------------------------------------------------------------------
 ensure_luajit() {
-  if [[ -f "${LUAJIT_LIB}/libluajit-5.1.so.2" && -x "${LUAJIT_DIR}/usr/bin/pkg-config" ]]; then
-    info "luajit + pkg-config: cached in ${LUAJIT_DIR}"
-    return
+  # Set this before checking the cache: pkg-config is unpacked, not installed, and
+  # needs the colocated libpkgconf shared library to start.
+  export LD_LIBRARY_PATH="${LUAJIT_DIR}/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+
+  local pkgconf="${LUAJIT_DIR}/usr/bin/pkg-config"
+  local pkgconf_version=''
+  if [[ -f "${LUAJIT_LIB}/libluajit-5.1.so.2" && -x "${pkgconf}" ]]; then
+    pkgconf_version="$("${pkgconf}" --version 2>/dev/null)" || pkgconf_version=''
+    if [[ -n "${pkgconf_version}" ]]; then
+      info "luajit + pkg-config: cached in ${LUAJIT_DIR} (pkg-config ${pkgconf_version})"
+      return
+    fi
   fi
 
   local libpkgconf_pkg="${LIBPKGCONF_PKG:-}"
@@ -204,8 +241,6 @@ ensure_luajit() {
   # libpkgconf unpacked into usr/lib/x86_64-linux-gnu, which is not searched by
   # default for an executable run out of the build tree. Exported here, outside the
   # subshell, so it also covers the cmake configure in build_librime and the harness.
-  export LD_LIBRARY_PATH="${LUAJIT_DIR}/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
-
   # The .deb files record /usr as their install prefix; rewrite luajit.pc to the local one
   # so pkg-config reports the headers and library under ${LUAJIT_DIR}.
   local pc="${LUAJIT_LIB}/pkgconfig/luajit.pc"
@@ -217,7 +252,7 @@ ensure_luajit() {
   # non-zero on `--version`. Actually run it, which is the only check that distinguishes
   # all of these from a working pkg-config.
   local pkgconf_version
-  pkgconf_version="$("${LUAJIT_DIR}/usr/bin/pkg-config" --version 2>/dev/null)" \
+  pkgconf_version="$("${pkgconf}" --version 2>/dev/null)" \
     || die "pkg-config at ${LUAJIT_DIR}/usr/bin/pkg-config is present but not runnable. Check that pkgconf (and pkgconf-bin on 24.04+) plus ${libpkgconf_pkg} were fetched, and that LD_LIBRARY_PATH reaches the unpacked library."
   info "pkg-config: ${pkgconf_version}"
   info "luajit: ${LUAJIT_LIB}"
@@ -408,16 +443,18 @@ build_harness() {
   g++ -std=c++17 -O2 -Wall -Wextra -Wno-missing-field-initializers \
     -o "${HARNESS}" "${TOOLS_DIR}/rime_smoke.cc" \
     -I "${LIBRIME_DIR}/src" \
-    -L "${LIBRIME_LIB}" -lrime -lunwind \
+    -L "${LIBRIME_LIB}" -L "${UNWIND_LIB}" -lrime -lunwind \
     -Wl,-rpath,"${LIBRIME_LIB}" \
     -Wl,-rpath,"${boost_libdir}" \
-    -Wl,-rpath,"${LUAJIT_LIB}"
+    -Wl,-rpath,"${LUAJIT_LIB}" \
+    -Wl,-rpath,"${UNWIND_LIB}"
   info "harness: ${HARNESS}"
 }
 
 step "Bootstrapping a headless librime ${RIME_TAG} (no sudo, nothing installed)"
 ensure_cmake
 ensure_boost
+ensure_unwind
 ensure_luajit
 ensure_librime
 ensure_librime_lua
