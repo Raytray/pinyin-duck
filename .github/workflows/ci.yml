@@ -19,6 +19,9 @@ jobs:
   # ─── Detect which packages changed ────────────────────────────────────────
   changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       # True when the run was triggered manually; downstream jobs OR this into their
       # own gates so a dispatch runs every package regardless of the diff.
