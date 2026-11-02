@@ -168,10 +168,7 @@ jobs:
         if: ${{ matrix.package == 'android' }}
         uses: android-actions/setup-android@v4
         with:
-          packages: |
-            platform-tools
-            platforms;android-36
-            ndk;27.2.12479018
+          packages: 'platform-tools platforms;android-36 ndk;27.2.12479018'
 
       # The parity golden file is generated against a specific CC-CEDICT edition.
       # build:dict downloads a fresh edition, so the golden must be regenerated to
