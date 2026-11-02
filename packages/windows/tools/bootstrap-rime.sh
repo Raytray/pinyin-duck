@@ -21,6 +21,8 @@
 #   RIME_TAG       librime version to build. 1.11.2 is what Weasel 0.17.4 bundles, so
 #                  the test runs against the same engine the Windows host will use.
 #   BOOST_SERIES   Boost minor version to fetch, e.g. 1.74. Auto-detected on Ubuntu.
+#   LIBPKGCONF_PKG libpkgconf package name to fetch (e.g. libpkgconf3, libpkgconf7).
+#                  Auto-detected on Ubuntu.
 #   JOBS           parallel compile jobs. Defaults to nproc.
 
 set -euo pipefail
@@ -154,6 +156,15 @@ ensure_luajit() {
     return
   fi
 
+  local libpkgconf_pkg="${LIBPKGCONF_PKG:-}"
+  if [[ -z "${libpkgconf_pkg}" ]]; then
+    libpkgconf_pkg="$(apt-cache depends pkgconf-bin pkgconf libpkgconf-dev 2>/dev/null | awk '/Depends: libpkgconf[0-9]+/ {print $2}' | head -1)"
+  fi
+  if [[ -z "${libpkgconf_pkg}" ]]; then
+    libpkgconf_pkg="$(apt-cache pkgnames libpkgconf 2>/dev/null | grep -E '^libpkgconf[0-9]+$' | sort -V | tail -1)"
+  fi
+  libpkgconf_pkg="${libpkgconf_pkg:-libpkgconf3}"
+
   step "Fetching LuaJIT and pkg-config"
   mkdir -p "${DEB_DIR}" "${LUAJIT_DIR}"
   (
@@ -169,15 +180,15 @@ ensure_luajit() {
     # executable depends on the release:
     #   22.04  `pkgconf` carries the binary; `pkgconf-bin` does not exist.
     #   24.04  `pkgconf` carries only `pkg-config -> pkgconf`; `pkgconf-bin` has the binary.
-    # Both need `libpkgconf3`, and neither binary is static, so an unpacked pkg-config
-    # that cannot locate libpkgconf.so.3 exits 127 on `--version` and FindPkgConfig then
-    # reports that as a missing PKG_CONFIG_EXECUTABLE. Fetch all three, tolerating only
-    # `pkgconf-bin` being absent, which is the 22.04 case.
+    # Both need `libpkgconf3` (or `libpkgconf7` on 26.04), and neither binary is static,
+    # so an unpacked pkg-config that cannot locate libpkgconf.so exits 127 on `--version`
+    # and FindPkgConfig then reports that as a missing PKG_CONFIG_EXECUTABLE. Fetch all three,
+    # tolerating only `pkgconf-bin` being absent, which is the 22.04 case.
     apt-get download -q \
       "luajit" \
       "libluajit-5.1-2" \
       "libluajit-5.1-dev" \
-      "libpkgconf3" \
+      "${libpkgconf_pkg}" \
       "pkgconf" \
       || die "Could not download the LuaJIT and pkg-config packages."
     apt-get download -q "pkgconf-bin" 2>/dev/null \
@@ -185,7 +196,12 @@ ensure_luajit() {
     for deb in ./*.deb; do dpkg-deb -x "${deb}" "${LUAJIT_DIR}"; done
   )
 
-  # libpkgconf.so.3 unpacked into usr/lib/x86_64-linux-gnu, which is not searched by
+  # Ensure pkg-config binary exists if pkgconf was unpacked
+  if [[ -x "${LUAJIT_DIR}/usr/bin/pkgconf" && ! -x "${LUAJIT_DIR}/usr/bin/pkg-config" ]]; then
+    ln -sf pkgconf "${LUAJIT_DIR}/usr/bin/pkg-config"
+  fi
+
+  # libpkgconf unpacked into usr/lib/x86_64-linux-gnu, which is not searched by
   # default for an executable run out of the build tree. Exported here, outside the
   # subshell, so it also covers the cmake configure in build_librime and the harness.
   export LD_LIBRARY_PATH="${LUAJIT_DIR}/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
@@ -202,7 +218,7 @@ ensure_luajit() {
   # all of these from a working pkg-config.
   local pkgconf_version
   pkgconf_version="$("${LUAJIT_DIR}/usr/bin/pkg-config" --version 2>/dev/null)" \
-    || die "pkg-config at ${LUAJIT_DIR}/usr/bin/pkg-config is present but not runnable. Check that pkgconf (and pkgconf-bin on 24.04) plus libpkgconf3 were fetched, and that LD_LIBRARY_PATH reaches the unpacked library."
+    || die "pkg-config at ${LUAJIT_DIR}/usr/bin/pkg-config is present but not runnable. Check that pkgconf (and pkgconf-bin on 24.04+) plus ${libpkgconf_pkg} were fetched, and that LD_LIBRARY_PATH reaches the unpacked library."
   info "pkg-config: ${pkgconf_version}"
   info "luajit: ${LUAJIT_LIB}"
 }
