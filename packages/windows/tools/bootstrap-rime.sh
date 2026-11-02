@@ -261,6 +261,31 @@ ensure_librime() {
 }
 
 # --------------------------------------------------------------------------------------
+# OpenCC 1.1.7's bundled RapidJSON has an invalid assignment operator for GenericStringRef:
+# both members are const, and GCC 15 diagnoses the assignments even though it is unused.
+# A string reference is immutable, so explicitly deleting the operator is the correct fix.
+# --------------------------------------------------------------------------------------
+patch_opencc_rapidjson() {
+  local header="${LIBRIME_DIR}/deps/opencc/deps/rapidjson-1.1.0/rapidjson/document.h"
+  [[ -f "${header}" ]] || die "OpenCC's bundled RapidJSON header is missing: ${header}"
+
+  python3 - "${header}" <<'PY' || die "Could not apply the RapidJSON GCC 15 compatibility fix."
+from pathlib import Path
+import sys
+
+header = Path(sys.argv[1])
+source = header.read_text()
+broken = "    GenericStringRef& operator=(const GenericStringRef& rhs) { s = rhs.s; length = rhs.length; }"
+fixed = "    GenericStringRef& operator=(const GenericStringRef& rhs) = delete;"
+
+if broken in source:
+    header.write_text(source.replace(broken, fixed, 1))
+elif fixed not in source:
+    raise SystemExit(f"unexpected GenericStringRef assignment operator in {header}")
+PY
+}
+
+# --------------------------------------------------------------------------------------
 # The third-party libraries librime expects to find under its own prefix
 # --------------------------------------------------------------------------------------
 build_librime_deps() {
@@ -270,11 +295,10 @@ build_librime_deps() {
   # configure, so exporting it here is enough — and it leaves deps.mk untouched.
   export CXXFLAGS="${CXXFLAGS:-} -fPIC"
 
-  # The stamp records the flags it was built with, not just that a build happened. A bare
-  # marker goes stale the moment the flags change, and the symptom is a link error in a
-  # later step that has nothing to do with the flags.
+  # Include the dependency compatibility fix in the stamp so pre-fix builds are rebuilt.
   local stamp="${LIBRIME_DIR}/.deps-built"
-  if [[ -f "${stamp}" && "$(cat "${stamp}")" == "cxxflags=${CXXFLAGS}" ]]; then
+  local stamp_value="cxxflags=${CXXFLAGS};opencc-rapidjson=immutable-string-ref"
+  if [[ -f "${stamp}" && "$(cat "${stamp}")" == "${stamp_value}" ]]; then
     info "librime dependencies: cached"
     return
   fi
@@ -290,7 +314,7 @@ build_librime_deps() {
   # this jobserver limit and oversubscribing CI. NOPARALLEL keeps the outer pool in charge.
   make -C "${LIBRIME_DIR}" -f deps.mk -j"${JOBS}" NOPARALLEL=1 >"${PREFIX}/deps-build.log" 2>&1 \
     || { tail -30 "${PREFIX}/deps-build.log"; die "dependency build failed; see ${PREFIX}/deps-build.log"; }
-  echo "cxxflags=${CXXFLAGS}" >"${stamp}"
+  echo "${stamp_value}" >"${stamp}"
 }
 
 build_librime() {
@@ -359,6 +383,7 @@ ensure_boost
 ensure_luajit
 ensure_librime
 ensure_librime_lua
+patch_opencc_rapidjson
 build_librime_deps
 build_librime
 build_harness

@@ -216,15 +216,6 @@ jobs:
           npm run setup:rime -w @pinyinduck/windows
           npm run test:rime -w @pinyinduck/windows
 
-      - name: "[windows] Upload Rime build logs"
-        if: ${{ always() && matrix.package == 'windows' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-rime-build-logs
-          path: packages/windows/tools/.local/*.log
-          if-no-files-found: warn
-          include-hidden-files: true
-
       # ── macOS ──
       # Same shape as the Windows job above. The Rime step runs the non-strict variant:
       # it skips cleanly when librime could not be built, so a toolchain problem is
