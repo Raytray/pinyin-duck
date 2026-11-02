@@ -226,7 +226,6 @@ jobs:
           name: windows-rime-build-logs
           path: packages/windows/tools/.local/*.log
           if-no-files-found: warn
-          include-hidden-files: true
 
       # ── macOS ──
       # Same shape as the Windows job above. The Rime step runs the non-strict variant:
