@@ -11,8 +11,8 @@
 #
 # Everything lands under tools/.local/ and tools/librime/, both gitignored. Nothing is
 # installed, nothing is written outside the package, and no step needs sudo: cmake comes
-# from a PyPI wheel and Boost and LuaJIT from .deb files fetched with `apt-get download`
-# and unpacked with `dpkg-deb -x`.
+# from a PyPI wheel and Boost, libunwind, and LuaJIT from .deb files fetched with
+# `apt-get download` and unpacked with `dpkg-deb -x`.
 #
 # Usage:
 #   npm run setup:rime        # from the repository root
@@ -40,6 +40,8 @@ LIBRIME_LIB="${LIBRIME_BUILD}/lib"
 HARNESS="${PREFIX}/bin/rime_smoke"
 DEB_DIR="${PREFIX}/debs"
 BOOST_DIR="${PREFIX}/boost"
+UNWIND_DIR="${PREFIX}/unwind"
+UNWIND_LIB="${UNWIND_DIR}/usr/lib/x86_64-linux-gnu"
 # LuaJIT and its pkg-config, unpacked from .deb files like Boost. The schema's
 # `lua_filter@pinyinduck_gloss_filter` needs librime's lua plugin, which links against
 # LuaJIT; this is what makes pkg-config find it.
@@ -148,12 +150,47 @@ ensure_boost() {
 }
 
 # --------------------------------------------------------------------------------------
+# libunwind, needed to link and load librime's stacktrace symbols
+# --------------------------------------------------------------------------------------
+ensure_unwind() {
+  if [[ -e "${UNWIND_LIB}/libunwind.so" && -e "${UNWIND_LIB}/libunwind.so.8" ]]; then
+    info "libunwind: cached in ${UNWIND_DIR}"
+  else
+    step "Fetching libunwind development and runtime libraries"
+    mkdir -p "${DEB_DIR}" "${UNWIND_DIR}"
+    (
+      cd "${DEB_DIR}"
+      local runtime_package
+      runtime_package="$(apt-cache depends libunwind-dev 2>/dev/null | awk '/Depends: libunwind[0-9]+/ {print $2; exit}')"
+      [[ -n "${runtime_package}" ]] || die "Could not determine the libunwind runtime package."
+      apt-get download -q libunwind-dev "${runtime_package}" \
+        || die "Could not download the libunwind development and runtime packages."
+      for deb in ./libunwind*.deb; do dpkg-deb -x "${deb}" "${UNWIND_DIR}"; done
+    )
+  fi
+
+  [[ -e "${UNWIND_LIB}/libunwind.so" && -e "${UNWIND_LIB}/libunwind.so.8" ]] \
+    || die "libunwind libraries are missing from ${UNWIND_LIB}."
+  export LD_LIBRARY_PATH="${UNWIND_LIB}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+  info "libunwind: ${UNWIND_LIB}"
+}
+
+# --------------------------------------------------------------------------------------
 # LuaJIT and pkg-config, from .deb files, for librime's lua plugin
 # --------------------------------------------------------------------------------------
 ensure_luajit() {
-  if [[ -f "${LUAJIT_LIB}/libluajit-5.1.so.2" && -x "${LUAJIT_DIR}/usr/bin/pkg-config" ]]; then
-    info "luajit + pkg-config: cached in ${LUAJIT_DIR}"
-    return
+  # Set this before checking the cache: pkg-config is unpacked, not installed, and
+  # needs the colocated libpkgconf shared library to start.
+  export LD_LIBRARY_PATH="${LUAJIT_DIR}/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+
+  local pkgconf="${LUAJIT_DIR}/usr/bin/pkg-config"
+  local pkgconf_version=''
+  if [[ -f "${LUAJIT_LIB}/libluajit-5.1.so.2" && -x "${pkgconf}" ]]; then
+    pkgconf_version="$("${pkgconf}" --version 2>/dev/null)" || pkgconf_version=''
+    if [[ -n "${pkgconf_version}" ]]; then
+      info "luajit + pkg-config: cached in ${LUAJIT_DIR} (pkg-config ${pkgconf_version})"
+      return
+    fi
   fi
 
   local libpkgconf_pkg="${LIBPKGCONF_PKG:-}"
@@ -204,8 +241,6 @@ ensure_luajit() {
   # libpkgconf unpacked into usr/lib/x86_64-linux-gnu, which is not searched by
   # default for an executable run out of the build tree. Exported here, outside the
   # subshell, so it also covers the cmake configure in build_librime and the harness.
-  export LD_LIBRARY_PATH="${LUAJIT_DIR}/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
-
   # The .deb files record /usr as their install prefix; rewrite luajit.pc to the local one
   # so pkg-config reports the headers and library under ${LUAJIT_DIR}.
   local pc="${LUAJIT_LIB}/pkgconfig/luajit.pc"
@@ -217,7 +252,7 @@ ensure_luajit() {
   # non-zero on `--version`. Actually run it, which is the only check that distinguishes
   # all of these from a working pkg-config.
   local pkgconf_version
-  pkgconf_version="$("${LUAJIT_DIR}/usr/bin/pkg-config" --version 2>/dev/null)" \
+  pkgconf_version="$("${pkgconf}" --version 2>/dev/null)" \
     || die "pkg-config at ${LUAJIT_DIR}/usr/bin/pkg-config is present but not runnable. Check that pkgconf (and pkgconf-bin on 24.04+) plus ${libpkgconf_pkg} were fetched, and that LD_LIBRARY_PATH reaches the unpacked library."
   info "pkg-config: ${pkgconf_version}"
   info "luajit: ${LUAJIT_LIB}"
@@ -261,6 +296,69 @@ ensure_librime() {
 }
 
 # --------------------------------------------------------------------------------------
+# OpenCC 1.1.7's bundled RapidJSON has an invalid assignment operator for GenericStringRef:
+# both members are const, and GCC 15 diagnoses the assignments even though it is unused.
+# A string reference is immutable, so explicitly deleting the operator is the correct fix.
+# --------------------------------------------------------------------------------------
+patch_opencc_rapidjson() {
+  local header="${LIBRIME_DIR}/deps/opencc/deps/rapidjson-1.1.0/rapidjson/document.h"
+  [[ -f "${header}" ]] || die "OpenCC's bundled RapidJSON header is missing: ${header}"
+
+  python3 - "${header}" <<'PY' || die "Could not apply the RapidJSON GCC 15 compatibility fix."
+from pathlib import Path
+import sys
+
+header = Path(sys.argv[1])
+source = header.read_text()
+broken = "    GenericStringRef& operator=(const GenericStringRef& rhs) { s = rhs.s; length = rhs.length; }"
+fixed = "    GenericStringRef& operator=(const GenericStringRef& rhs) = delete;"
+
+if broken in source:
+    header.write_text(source.replace(broken, fixed, 1))
+elif fixed not in source:
+    raise SystemExit(f"unexpected GenericStringRef assignment operator in {header}")
+PY
+}
+
+patch_yaml_cpp_cstdint() {
+  local source="${LIBRIME_DIR}/deps/yaml-cpp/src/emitterutils.cpp"
+  [[ -f "${source}" ]] || die "yaml-cpp emitter source is missing: ${source}"
+
+  python3 - "${source}" <<'PY' || die "Could not apply the yaml-cpp <cstdint> compatibility fix."
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1])
+contents = source.read_text()
+
+if "#include <cstdint>" not in contents:
+    anchor = "#include <algorithm>\n"
+    if anchor not in contents:
+        raise SystemExit(f"unexpected include list in {source}")
+    source.write_text(contents.replace(anchor, anchor + "#include <cstdint>\n", 1))
+PY
+}
+
+patch_opencc_serialized_values_cstdint() {
+  local source="${LIBRIME_DIR}/deps/opencc/src/SerializedValues.hpp"
+  [[ -f "${source}" ]] || die "OpenCC SerializedValues header is missing: ${source}"
+
+  python3 - "${source}" <<'PY' || die "Could not apply the OpenCC <cstdint> compatibility fix."
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1])
+contents = source.read_text()
+
+if "#include <cstdint>" not in contents:
+    anchor = "#pragma once\n"
+    if anchor not in contents:
+        raise SystemExit(f"unexpected include list in {source}")
+    source.write_text(contents.replace(anchor, anchor + "\n#include <cstdint>\n", 1))
+PY
+}
+
+# --------------------------------------------------------------------------------------
 # The third-party libraries librime expects to find under its own prefix
 # --------------------------------------------------------------------------------------
 build_librime_deps() {
@@ -270,11 +368,10 @@ build_librime_deps() {
   # configure, so exporting it here is enough — and it leaves deps.mk untouched.
   export CXXFLAGS="${CXXFLAGS:-} -fPIC"
 
-  # The stamp records the flags it was built with, not just that a build happened. A bare
-  # marker goes stale the moment the flags change, and the symptom is a link error in a
-  # later step that has nothing to do with the flags.
+  # Include the dependency compatibility fix in the stamp so pre-fix builds are rebuilt.
   local stamp="${LIBRIME_DIR}/.deps-built"
-  if [[ -f "${stamp}" && "$(cat "${stamp}")" == "cxxflags=${CXXFLAGS}" ]]; then
+  local stamp_value="cxxflags=${CXXFLAGS};opencc-rapidjson=immutable-string-ref;yaml-cpp-cstdint=1;opencc-serialized-values-cstdint=1"
+  if [[ -f "${stamp}" && "$(cat "${stamp}")" == "${stamp_value}" ]]; then
     info "librime dependencies: cached"
     return
   fi
@@ -290,7 +387,7 @@ build_librime_deps() {
   # this jobserver limit and oversubscribing CI. NOPARALLEL keeps the outer pool in charge.
   make -C "${LIBRIME_DIR}" -f deps.mk -j"${JOBS}" NOPARALLEL=1 >"${PREFIX}/deps-build.log" 2>&1 \
     || { tail -30 "${PREFIX}/deps-build.log"; die "dependency build failed; see ${PREFIX}/deps-build.log"; }
-  echo "cxxflags=${CXXFLAGS}" >"${stamp}"
+  echo "${stamp_value}" >"${stamp}"
 }
 
 build_librime() {
@@ -346,19 +443,24 @@ build_harness() {
   g++ -std=c++17 -O2 -Wall -Wextra -Wno-missing-field-initializers \
     -o "${HARNESS}" "${TOOLS_DIR}/rime_smoke.cc" \
     -I "${LIBRIME_DIR}/src" \
-    -L "${LIBRIME_LIB}" -lrime -lunwind \
+    -L "${LIBRIME_LIB}" -L "${UNWIND_LIB}" -lrime -lunwind \
     -Wl,-rpath,"${LIBRIME_LIB}" \
     -Wl,-rpath,"${boost_libdir}" \
-    -Wl,-rpath,"${LUAJIT_LIB}"
+    -Wl,-rpath,"${LUAJIT_LIB}" \
+    -Wl,-rpath,"${UNWIND_LIB}"
   info "harness: ${HARNESS}"
 }
 
 step "Bootstrapping a headless librime ${RIME_TAG} (no sudo, nothing installed)"
 ensure_cmake
 ensure_boost
+ensure_unwind
 ensure_luajit
 ensure_librime
 ensure_librime_lua
+patch_opencc_rapidjson
+patch_yaml_cpp_cstdint
+patch_opencc_serialized_values_cstdint
 build_librime_deps
 build_librime
 build_harness
