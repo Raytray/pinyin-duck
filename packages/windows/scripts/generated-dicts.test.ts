@@ -75,8 +75,8 @@ const SPOT_CHECKS: SpotCheck[] = [
     text: '安',
     code: 'an',
     comment: 'ān · surname An',
-    weight: 10978,
-    why: 'must outrank the 205 astral-plane CC-CEDICT characters sharing an',
+    weight: 1098,
+    why: 'must outrank the 205 astral-plane CC-CEDICT characters sharing an; surname weight reduced 10x to deprioritize vs regular vocab',
   },
   {
     script: 'simplified',

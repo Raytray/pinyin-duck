@@ -240,7 +240,14 @@ export function joinCorpora(
     if (hskLevel > 0) withHsk++;
     if ([...parsed.simplified].length === 1) singleChar++;
 
-    rows.push(buildDictRow(parsed, frequency, hskLevel));
+    // Detect surname entries (definitions starting with "surname ") and reduce
+    // their frequency so they don't dominate prefix searches. Surnames are extremely
+    // frequent in subtitle corpora due to person names, but in an IME context users
+    // typing partial pinyin usually want regular vocabulary words first.
+    const isSurname = parsed.definitions.some((def) => /^surname\s/i.test(def.trim()));
+    const adjustedFrequency = isSurname ? Math.round(frequency * 0.1) : frequency;
+
+    rows.push(buildDictRow(parsed, adjustedFrequency, hskLevel));
   }
 
   // Sanity check: the loader derives tone marks and clean pinyin from these columns,
