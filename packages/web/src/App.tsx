@@ -74,18 +74,6 @@ export const App: React.FC = () => {
         </div>
       </main>
 
-      <footer className="app-footer">
-        <div className="footer-content">
-          <p>
-            <strong>PinyinDuck (拼音达克)</strong> &bull; Inspired by TypeDuck. Open-source Mandarin learning input method.
-          </p>
-          <div className="roadmap-tags">
-            <span className="roadmap-tag active">Milestone 1: Web MVP</span>
-            <span className="roadmap-tag upcoming">Milestone 2: Windows Input</span>
-            <span className="roadmap-tag upcoming">Milestone 3: Android IME</span>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };
