@@ -285,6 +285,25 @@ elif fixed not in source:
 PY
 }
 
+patch_yaml_cpp_cstdint() {
+  local source="${LIBRIME_DIR}/deps/yaml-cpp/src/emitterutils.cpp"
+  [[ -f "${source}" ]] || die "yaml-cpp emitter source is missing: ${source}"
+
+  python3 - "${source}" <<'PY' || die "Could not apply the yaml-cpp <cstdint> compatibility fix."
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1])
+contents = source.read_text()
+
+if "#include <cstdint>" not in contents:
+    anchor = "#include <algorithm>\n"
+    if anchor not in contents:
+        raise SystemExit(f"unexpected include list in {source}")
+    source.write_text(contents.replace(anchor, anchor + "#include <cstdint>\n", 1))
+PY
+}
+
 # --------------------------------------------------------------------------------------
 # The third-party libraries librime expects to find under its own prefix
 # --------------------------------------------------------------------------------------
@@ -297,7 +316,7 @@ build_librime_deps() {
 
   # Include the dependency compatibility fix in the stamp so pre-fix builds are rebuilt.
   local stamp="${LIBRIME_DIR}/.deps-built"
-  local stamp_value="cxxflags=${CXXFLAGS};opencc-rapidjson=immutable-string-ref"
+  local stamp_value="cxxflags=${CXXFLAGS};opencc-rapidjson=immutable-string-ref;yaml-cpp-cstdint=1"
   if [[ -f "${stamp}" && "$(cat "${stamp}")" == "${stamp_value}" ]]; then
     info "librime dependencies: cached"
     return
@@ -384,6 +403,7 @@ ensure_luajit
 ensure_librime
 ensure_librime_lua
 patch_opencc_rapidjson
+patch_yaml_cpp_cstdint
 build_librime_deps
 build_librime
 build_harness
