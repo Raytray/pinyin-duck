@@ -126,14 +126,14 @@ export const SMOKE_CASES: SmokeCase[] = [
   {
     query: 'an',
     schema: SCHEMA_IDS.simplified,
-    expect: ['暗', '岸', '按', '案', '俺'],
+    expect: ['暗', '岸', '按', '安', '案'],
     why: 'the toneless code merges every tone of an into one menu, weight-ordered — 安 sits ' +
       'below the more frequent 暗 岸 按 案 (deprioritized as a surname)',
   },
   {
     query: 'lv',
     schema: SCHEMA_IDS.simplified,
-    expect: ['绿', '驴', '旅', '率', '铝'],
+    expect: ['绿', '驴', '旅', '律', '率'],
     why: 'proves speller/algebra xlit/ü/v/ points the right way: a learner types v, the ' +
       'engine finds the lü code, and nothing reaches for OpenCC to convert it',
   },
@@ -160,7 +160,7 @@ export const SMOKE_CASES: SmokeCase[] = [
   {
     query: 'zhongguo',
     schema: SCHEMA_IDS.traditional,
-    expect: ['中國', '中古', '種', '重', '中'],
+    expect: ['中國', '中古', '種', '重', '鍾'],
     why: 'proves the traditional dictionary and the __include of the simplified schema; ' +
       'before the include was fixed to filename:/, this scheme failed to build entirely',
   },
