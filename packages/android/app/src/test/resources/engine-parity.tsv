@@ -7,7 +7,7 @@
 #
 # Pinned because packages/android is a port of this engine. Re-run the generator and
 # commit the result whenever the ranking rules or the dictionary change.
-# entries 122911
+# entries 122746
 # depth 12
 
 >nihao	simplified	38
@@ -18,12 +18,12 @@ segments ni hao
 尼	ní	Buddhist nun / (often used in phonetic spellings)
 妮	nī	girl / phonetic "ni" (in female names) / Taiwan pr.
 泥	ní	mud / clay / paste
-倪	ní	surname Ni
 腻	nì	greasy / soft / unctuous
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
 昵	nì	variant of 暱|昵
 祢	nǐ	you (used to address a deity)
+睨	nì	to look askance at
 
 >nihao	traditional	38
 segments ni hao
@@ -33,12 +33,12 @@ segments ni hao
 尼	ní	Buddhist nun / (often used in phonetic spellings)
 妮	nī	girl / phonetic "ni" (in female names) / Taiwan pr.
 泥	ní	mud / clay / paste
-倪	ní	surname Ni
 膩	nì	greasy / soft / unctuous
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
 昵	nì	variant of 暱|昵
 祢	nǐ	you (used to address a deity)
+睨	nì	to look askance at
 
 >zhongguo	simplified	162
 segments zhong guo
@@ -70,20 +70,20 @@ segments zhong guo
 中國產	zhōng guó chǎn	made in China / home-grown (talent)
 中國長城工業公司	zhōng guó cháng chéng gōng yè gōng sī	China Great Wall Industry Corporation (CGWIC)
 
->shi4	simplified	1709
+>shi4	simplified	1705
 segments shi4
 是	shì	to be (followed by substantives only) / correct; right; true / (…
 试	shì	to test / to try / experiment
 事	shì	matter / thing / item
-室	shì	surname Shi
 式	shì	type / form / pattern
 市	shì	market / city / municipality (administrative unit)
 誓	shì	oath / vow / to swear
-士	shì	surname Shi
 似	shì	used in 似的
 视	shì	variant of 視|视
-世	shì	surname Shi
 饰	shì	decoration / ornament / to decorate
+嗜	shì	(bound form) to have a strong liking for; to be addicted to
+氏	shì	(bound form) family name; surname (as in 王氏 "the Wang clan") / (…
+侍	shì	to serve / to attend upon
 
 >ta	simplified	1476
 segments ta
@@ -115,7 +115,7 @@ segments ta4
 禢	tà	surname Ta
 譶	tà	to talk fast
 
->shi	simplified	1757
+>shi	simplified	1753
 segments shi
 是	shì	to be (followed by substantives only) / correct; right; true / (…
 十	shí	ten / 10
@@ -126,18 +126,18 @@ segments shi
 时	shí	old variant of 時|时
 什	shí	ten (used in fractions, writing checks etc) / assorted / miscell…
 拾	shí	to pick up / to collate or arrange / ten (banker's anti-fraud nu…
-史	shǐ	surname Shi
-室	shì	surname Shi
 屎	shǐ	feces; excrement; a stool / (bound form) secretion (of the ear,…
+式	shì	type / form / pattern
+市	shì	market / city / municipality (administrative unit)
 
->xi'an	simplified	1547
+>xi'an	simplified	1543
 segments xi an
 洗	xiǎn	used in 洗馬|洗马
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
 西安	xī ān	see 西安市 / see 西安區|西安区
 锡安	xī ān	Zion
-咸	xián	surname Xian
 县	xiàn	county / (Japan) prefecture
+咸	xián	surname Xian
 嫌	xián	to dislike / suspicion / resentment
 见	xiàn	to appear / also written 現|现
 弦	xián	bow string / string of musical instrument / watchspring
@@ -145,12 +145,12 @@ segments xi an
 秈	xiān	common rice
 险	xiǎn	danger / dangerous / rugged
 
->lv4	simplified	295
+>lv4	simplified	293
 segments lü4
 绿	lǜ	green / (slang) (derived from 綠帽子|绿帽子) to cheat on (one's spouse…
-律	lǜ	surname Lü
 率	lǜ	(bound form) ratio; rate; proportion
 氯	lǜ	chlorine (chemistry)
+律	lǜ	surname Lü
 卛	lǜ	old variant of 率
 垏	lǜ	(literary) earth ridge between fields / (used in place names)
 嵂	lǜ	to rise sharply / to tower
@@ -214,13 +214,13 @@ segments ni ha
 尼	ní	Buddhist nun / (often used in phonetic spellings)
 妮	nī	girl / phonetic "ni" (in female names) / Taiwan pr.
 泥	ní	mud / clay / paste
-倪	ní	surname Ni
 腻	nì	greasy / soft / unctuous
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
 昵	nì	variant of 暱|昵
+祢	nǐ	you (used to address a deity)
 
->j	simplified	8556
+>j	simplified	8548
 segments j
 叫	jiào	to shout / to call / to order
 今天	jīn tiān	today / the present time; now
@@ -235,7 +235,7 @@ segments j
 介绍	jiè shào	to introduce (sb to sb) / to give a presentation / to present (s…
 件	jiàn	item / component / classifier for events, things, clothes etc
 
->s	simplified	10223
+>s	simplified	10211
 segments s
 是	shì	to be (followed by substantives only) / correct; right; true / (…
 什么	shén me	what? / something; anything
@@ -244,11 +244,11 @@ segments s
 时候	shí hou	time / length of time / moment
 说话	shuō huà	to speak / to say / to talk
 岁	suì	variant of 歲|岁, year / years old
-水	shuǐ	surname Shui / Shui ethnic group
 睡觉	shuì jiào	to go to bed / to sleep
-三	sān	surname San
 书	shū	abbr. for 書經|书经
 少	shǎo	few / less / to lack
+四	sì	four / 4
+商店	shāng diàn	store; shop
 
 >womenshi	simplified	23
 segments wo men shi
@@ -265,17 +265,17 @@ segments wo men shi
 卧	wò	to lie / to crouch
 婐	wǒ	(archaic) maid
 
->xiexie	simplified	70
+>xiexie	simplified	71
 segments xie xie
 谢谢	xiè xie	to thank / thanks / thank you
 泄泻	xiè xiè	(TCM) to have diarrhea
 写	xiě	to write
 些	xiē	classifier indicating a small amount or small number greater tha…
 鞋	xié	shoe
+血	xiě	see 血
 页	xié	head
 歇	xiē	to rest / to take a break / to stop
 斜	xié	inclined / slanting / oblique
-谢	xiè	surname Xie
 屑	xiè	bits / fragments / crumbs
 叶	xié	to be in harmony
 邪	xié	old variant of 邪
@@ -303,12 +303,12 @@ segments xue xi
 学校	xué xiào	school
 血腥	xuè xīng	reeking of blood / bloody (events)
 血型	xuè xíng	blood group / blood type
-雪	xuě	surname Xue
 学衔	xué xián	academic title / rank
 雪线	xuě xiàn	snow line
 血象	xuè xiàng	(medicine) blood count; hemogram
 雪鸮	xuě xiāo	(bird species of China) snowy owl (Bubo scandiacus)
 血小板	xuè xiǎo bǎn	blood platelet
+血细胞	xuè xì bāo	blood cell
 
 >mingtian	simplified	21
 segments ming tian
@@ -317,10 +317,10 @@ segments ming tian
 明天启	míng tiān qǐ	Tianqi Emperor, reign name of fifteenth Ming emperor Zhu Youxiao…
 名	míng	name / noun (part of speech) / place (e.g. among winners)
 命	mìng	life / fate / order or command
-明	míng	Ming Dynasty (1368–1644) / surname Ming / Ming (c. 2000 BC), fou…
 螟	míng	boring insect / snout moth's larva (Aphomia gullaris or Plodia i…
 鸣	míng	to cry (of birds, animals and insects) / to make a sound / to vo…
 眳	míng	space between the eyebrows and the eyelashes
+明	míng	Ming Dynasty (1368–1644) / surname Ming / Ming (c. 2000 BC), fou…
 冥	míng	old variant of 冥
 暝	míng	dark
 朙	míng	old variant of 明
@@ -332,7 +332,7 @@ segments guo jia
 果酱	guǒ jiàng	jam
 过家家	guò jiā jiā	to play house
 国家队	guó jiā duì	national team
-过	guō	surname Guo
+过	guò	to cross / to go over / to pass (time)
 国家安全	guó jiā ān quán	national security
 国家安全部	guó jiā ān quán bù	PRC Ministry of State Security
 国家安全局	guó jiā ān quán jú	National Security Bureau (NSB) (Tw) / National Security Agency (…
@@ -347,8 +347,8 @@ segments zhong wen
 中文标准交换码	zhōng wén biāo zhǔn jiāo huàn mǎ	CSIC, Chinese standard interchange code used from 1992
 重文轻武	zhòng wén qīng wǔ	to value letters and belittle arms (idiom); to stress civil matt…
 重	zhòng	heavy / serious / to attach importance to
+中	zhòng	to hit (a target) / to be struck by (a bullet, illness etc) / to…
 钟	zhōng	surname Zhong
-中	zhōng	(bound form) China; Chinese / surname Zhong
 终	zhōng	end / finish
 忠	zhōng	loyal; devoted; faithful
 冢	zhǒng	mound / burial mound / senior (i.e. eldest child or senior in ra…
@@ -381,7 +381,7 @@ segments suo you
 所	suǒ	actually / place / classifier for houses, small buildings, insti…
 锁	suǒ	to lock; to lock up / a lock (CL:把)
 莎	suō	used in 莎草
-索	suǒ	surname Suo / abbr. for 索馬里|索马里, Somalia
+嗦	suō	to suck / used in 囉嗦|啰嗦 / used in 哆嗦
 
 >gongsi	simplified	39
 segments gong si
