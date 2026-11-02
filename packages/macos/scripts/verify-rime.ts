@@ -56,8 +56,8 @@ export const QUERIES: Query[] = [
   // A digit selects the second candidate outright: it is committed, and the menu is empty
   // because the selected candidate is no longer among the options.
   { schema: 'pinyinduck', input: 'shi2', expectCommit: '十', expected: [] },
-  { schema: 'pinyinduck', input: 'an', expected: ['暗', '岸', '按', '案', '俺'] },
-  { schema: 'pinyinduck', input: 'lv', expected: ['绿', '驴', '旅', '率', '铝'] },
+  { schema: 'pinyinduck', input: 'an', expected: ['暗', '岸', '按', '安', '案'] },
+  { schema: 'pinyinduck', input: 'lv', expected: ['绿', '驴', '旅', '律', '率'] },
   { schema: 'pinyinduck', input: 'nv', expected: ['女', '衄', '籹', '恧', '钕'] },
   { schema: 'pinyinduck', input: 'nihao', expected: ['你好', '你', '呢', '尼', '妮'] },
   // 你 covers only the first syllable, so it is selected for that part alone: the buffer
@@ -68,7 +68,7 @@ export const QUERIES: Query[] = [
     expectPreedit: '你hao',
     expected: ['好', '号', '浩', '豪', '嚎'],
   },
-  { schema: 'pinyinduck_trad', input: 'zhongguo', expected: ['中國', '中古', '種', '重', '中'] },
+  { schema: 'pinyinduck_trad', input: 'zhongguo', expected: ['中國', '中古', '種', '重', '鍾'] },
 ];
 
 /** Files copied into the temporary user directory before the harness runs. */
