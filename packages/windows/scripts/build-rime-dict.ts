@@ -21,6 +21,7 @@ import {
   RIME_SCRIPTS,
   RimeDictWriter,
   formatRow,
+  renderDataCredit,
   renderDictHeader,
   type RimeScript,
 } from '../src/rime-dict.js';
@@ -98,6 +99,8 @@ export function renderGlossSidecar(gloss: Map<string, Map<string, string>>): str
     '-- The data is one tab-and-newline delimited string rather than a table literal: a Lua',
     '-- function can hold at most 65536 constants, and the corpus has far more definitions',
     '-- than that. The string is a single constant; the table is built from it at load.',
+    '--',
+    ...renderDataCredit('--'),
     'local data = ' + luaString(data),
     'local gloss = {}',
     'for text, code, def in data:gmatch("([^\\t]+)\\t([^\\t]+)\\t([^\\n]+)\\n") do',

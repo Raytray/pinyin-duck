@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ScriptType } from '@pinyinduck/core';
 import { Copy, Check, Trash2, Globe2 } from 'lucide-react';
+import { Credits } from './Credits';
 
 interface ToolbarProps {
   script: ScriptType;
@@ -71,6 +72,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <Trash2 size={16} />
           <span>Clear</span>
         </button>
+
+        <Credits />
       </div>
     </header>
   );

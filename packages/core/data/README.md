@@ -16,5 +16,5 @@ the build.
 CC-CEDICT is published by MDBG under the
 [Creative Commons Attribution-ShareAlike 4.0 International License](https://creativecommons.org/licenses/by-sa/4.0/);
 the file's own header has the full notice and credits. The dictionary assets built from
-it are adaptations under the same license. What that requires before the repository or
-the apps are distributed publicly is tracked in #24.
+it are adaptations under the same license. [DATA_LICENSES.md](../../../DATA_LICENSES.md)
+credits every source and lists the files that license covers.

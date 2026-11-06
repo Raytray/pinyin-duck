@@ -1,6 +1,7 @@
 {
   "name": "@pinyinduck/macos",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "Rime/Squirrel schema generator for the PinyinDuck macOS input method",
   "scripts": {

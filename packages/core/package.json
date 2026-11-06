@@ -1,6 +1,7 @@
 {
   "name": "@pinyinduck/core",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "Core Pinyin parsing, CC-CEDICT lookup, and candidate ranking engine for PinyinDuck",
   "main": "./dist/index.js",
