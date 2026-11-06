@@ -284,6 +284,29 @@ describe('joinCorpora', () => {
     expect(rows[0][4]).toBe(100000);
   });
 
+  it('recognizes an existing surname entry whose surname sense is not listed first', () => {
+    // With no frequency data both readings score 0, so only the surname rule can decide.
+    // The shortened gloss "mountain / surname Shan" does not start with "surname ", and
+    // judging the existing row by its gloss used to keep it.
+    const dupe = ['单 单 [dan1] /mountain/surname Shan/', '单 单 [dan1] /bill/list/'].join('\n');
+    const { rows } = joinCorpora(dupe, '', '');
+    expect(rows).toHaveLength(1);
+    expect(rows[0][3]).toBe('bill / list');
+  });
+
+  it('accounts for every CC-CEDICT line as emitted or dropped', () => {
+    const dupes = [
+      '能 能 [neng2] /surname Neng/',
+      '能 能 [neng2] /to be able to/', // replaces the surname row
+      '能 能 [neng2] /surname Neng/', // dropped in favour of the regular row
+      '中 中 [zhong1] /middle/',
+    ].join('\n');
+    const { rows, stats } = joinCorpora(dupes, '', '');
+    expect(rows).toHaveLength(2);
+    expect(stats.dropped).toBe(2);
+    expect(stats.emitted + stats.dropped).toBe(stats.cedictLines);
+  });
+
   it('returns no rows for an empty corpus', () => {
     const { rows, stats } = joinCorpora('', '', '');
     expect(rows).toEqual([]);
