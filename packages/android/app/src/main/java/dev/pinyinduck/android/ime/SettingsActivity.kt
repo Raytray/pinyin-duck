@@ -150,6 +150,40 @@ private fun SettingsScreen(
             color = if (dictionaryStatus is DictionaryStatus.Failed) DuckColors.Accent else DuckColors.PrimaryText,
             fontSize = 13.sp,
         )
+
+        // The APK bundles a CC BY-SA dictionary, and this screen is the one place in the app
+        // a user can read about it, so the credit the license requires lives here.
+        SectionTitle(stringResource(R.string.settings_credits_heading))
+        Text(
+            text = stringResource(R.string.settings_credits_summary),
+            color = DuckColors.SecondaryText,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        Credit(
+            name = stringResource(R.string.settings_credit_cedict_name),
+            detail = stringResource(R.string.settings_credit_cedict_detail),
+        )
+        Credit(
+            name = stringResource(R.string.settings_credit_frequency_name),
+            detail = stringResource(R.string.settings_credit_frequency_detail),
+        )
+        Credit(
+            name = stringResource(R.string.settings_credit_hsk_name),
+            detail = stringResource(R.string.settings_credit_hsk_detail),
+        )
+    }
+}
+
+/** One data source: its name, then who made it, its license and where it lives. */
+@Composable
+private fun Credit(
+    name: String,
+    detail: String,
+) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(name, color = DuckColors.PrimaryText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Text(detail, color = DuckColors.SecondaryText, fontSize = 11.sp)
     }
 }
 

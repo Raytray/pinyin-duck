@@ -26,6 +26,7 @@ import {
   renderGlossSidecar,
   type RimeBuildDeps,
 } from './build-rime-dict.js';
+import { DATA_CREDIT_LINES } from '../src/rime-dict.js';
 
 function createFakeDeps(overrides: Partial<RimeBuildDeps> = {}): RimeBuildDeps {
   const files = new Map<string, string>();
@@ -94,6 +95,13 @@ describe('parseArgs', () => {
 });
 
 describe('renderGlossSidecar', () => {
+  it('credits the data sources and states the CC BY-SA license in its header', () => {
+    const lua = renderGlossSidecar(new Map());
+    for (const line of DATA_CREDIT_LINES) expect(lua).toContain(`-- ${line}`);
+    // Comments only, ahead of the code the filter runs.
+    expect(lua.indexOf('CC BY-SA 4.0')).toBeLessThan(lua.indexOf('local data = '));
+  });
+
   it('renders an empty table for no glosses', () => {
     const result = renderGlossSidecar(new Map());
     expect(result).toContain('local data = ""');

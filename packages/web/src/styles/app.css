@@ -94,6 +94,7 @@ body {
 .toolbar-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -566,4 +567,69 @@ body {
   margin-left: auto;
   font-style: italic;
   font-size: 0.75rem;
+}
+
+/* Credits dialog */
+.credits-dialog {
+  /* The reset above zeroes every margin, which is what centres a modal dialog. */
+  margin: auto;
+  max-width: min(480px, calc(100vw - 32px));
+  padding: 20px 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-main);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.credits-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.credits-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.credits-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.credits-close {
+  display: inline-flex;
+  padding: 4px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.credits-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.credits-list li {
+  display: flex;
+  flex-direction: column;
+}
+
+.credits-list li > a {
+  font-weight: 600;
+}
+
+.credits-list span {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.credits-dialog a {
+  color: var(--color-accent);
 }

@@ -12,6 +12,8 @@ export {
   RimeDictWriter,
   formatRow,
   renderDictHeader,
+  DATA_CREDIT_LINES,
+  renderDataCredit,
   sanitizeField,
   rimeCodes,
   rimeText,

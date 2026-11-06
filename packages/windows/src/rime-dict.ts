@@ -264,6 +264,29 @@ export function rowsForCode(items: CodeEntry[], script: RimeScript): RimeCodeRow
   return { rows, duplicates };
 }
 
+/**
+ * The license and credits every generated Rime file carries, one line per entry.
+ *
+ * The dictionary and the gloss sidecar are adaptations of CC-CEDICT and FrequencyWords,
+ * both CC BY-SA 4.0, and they are copied into a user's Rime folder on their own: the
+ * header is the only place someone holding the file sees where it came from and what they
+ * may do with it. DATA_LICENSES.md at the repository root has the full notices.
+ */
+export const DATA_CREDIT_LINES: readonly string[] = [
+  'License: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/). This file is',
+  'an adaptation of the sources below; see DATA_LICENSES.md in the PinyinDuck repository.',
+  '  CC-CEDICT, by MDBG, CC BY-SA 4.0: https://www.mdbg.net/chinese/dictionary?page=cc-cedict',
+  '  FrequencyWords zh_cn 2018 (OpenSubtitles), by Hermit Dave, CC BY-SA 4.0:',
+  '    https://github.com/hermitdave/FrequencyWords',
+  '  HSK 2012 word list, Copyright (c) 2018 gigacool, MIT:',
+  '    https://github.com/gigacool/hanyu-shuiping-kaoshi',
+];
+
+/** {@link DATA_CREDIT_LINES} as comment lines, behind the given comment marker. */
+export function renderDataCredit(marker: string): string[] {
+  return DATA_CREDIT_LINES.map((line) => `${marker} ${line}`);
+}
+
 /** Renders the YAML header that introduces the body. */
 export function renderDictHeader(meta: RimeDictMeta): string {
   return [
@@ -273,6 +296,9 @@ export function renderDictHeader(meta: RimeDictMeta): string {
     '# Source: the CC-CEDICT B+ tree at packages/web/public/dictionary.btree, joined with',
     '# the OpenSubtitles frequency list and the HSK 2012 word list.',
     `# Entries in the source asset: ${meta.entryCount}.`,
+    '#',
+    ...renderDataCredit('#'),
+    '#',
     '# encoding: utf-8',
     '',
     '---',
