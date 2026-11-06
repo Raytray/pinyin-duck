@@ -43,7 +43,7 @@ BOOST_DIR="${PREFIX}/boost"
 UNWIND_DIR="${PREFIX}/unwind"
 UNWIND_LIB="${UNWIND_DIR}/usr/lib/x86_64-linux-gnu"
 # LuaJIT and its pkg-config, unpacked from .deb files like Boost. The schema's
-# `lua_filter@pinyinduck_gloss_filter` needs librime's lua plugin, which links against
+# `lua_filter@*pinyinduck_gloss_filter` needs librime's lua plugin, which links against
 # LuaJIT; this is what makes pkg-config find it.
 LUAJIT_DIR="${PREFIX}/luajit"
 LUAJIT_LIB="${LUAJIT_DIR}/usr/lib/x86_64-linux-gnu"
@@ -262,7 +262,7 @@ ensure_luajit() {
 # librime's lua plugin, which is a separate repo and not part of its tree
 # --------------------------------------------------------------------------------------
 ensure_librime_lua() {
-  # The plugin is what makes the schema's `lua_filter@pinyinduck_gloss_filter`
+  # The plugin is what makes the schema's `lua_filter@*pinyinduck_gloss_filter`
   # constructible. It is not a submodule of librime, so `--recursive` does not fetch it.
   if [[ -d "${LIBRIME_DIR}/plugins/lua/src" ]]; then
     info "librime-lua plugin: ${LIBRIME_DIR}/plugins/lua (cached)"

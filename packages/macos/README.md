@@ -26,6 +26,8 @@ This generates the Rime dictionaries under `packages/macos/rime/`.
 bash packages/macos/scripts/install.sh
 ```
 
+The installer leaves your own Rime setup in place. If you already have a `default.custom.yaml`, it adds the two PinyinDuck schemes to it and keeps a timestamped `.bak` copy of the original. Running it again changes nothing. It never touches `rime.lua`: the gloss filter is installed as `lua/pinyinduck_gloss_filter.lua`, which needs librime-lua from 2023 or later.
+
 Then deploy the schema in Squirrel and switch to PinyinDuck with `Ctrl+Space`.
 
 ## Use

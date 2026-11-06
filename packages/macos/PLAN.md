@@ -31,7 +31,7 @@ packages/macos/
 │   ├── pinyinduck.schema.yaml       # Simplified schema (macOS-adapted)
 │   ├── pinyinduck_trad.schema.yaml  # Traditional schema
 │   ├── default.custom.yaml          # Squirrel user config patch
-│   ├── rime.lua                     # Lua gloss filter (same as windows)
+│   ├── lua/pinyinduck_gloss_filter.lua  # Lua gloss filter (same as windows)
 │   └── *.dict.yaml                  # Generated, not committed
 └── tools/
     └── bootstrap-rime.sh            # Same as windows (builds librime for testing)
@@ -58,7 +58,7 @@ packages/macos/
 6. **Create `packages/macos/rime/pinyinduck.schema.yaml`** — simplified schema with macOS-specific settings
 7. **Create `packages/macos/rime/pinyinduck_trad.schema.yaml`** — traditional schema
 8. **Create `packages/macos/rime/default.custom.yaml`** — Squirrel user config patch
-9. **Create `packages/macos/rime/rime.lua`** — Lua gloss filter (same as windows)
+9. **Create `packages/macos/rime/lua/pinyinduck_gloss_filter.lua`** — Lua gloss filter (same as windows)
 10. **Create `packages/macos/scripts/install.sh`** — bash installation script
 11. **Create `packages/macos/scripts/verify-rime.ts`** — verification script
 12. **Create `packages/macos/tools/bootstrap-rime.sh`** — librime build script

@@ -172,14 +172,14 @@ describe('stageFiles', () => {
       '/rime/default.custom.yaml',
       '/rime/pinyinduck.dict.yaml',
       '/rime/pinyinduck_trad.dict.yaml',
-      '/rime/rime.lua',
+      '/rime/lua/pinyinduck_gloss_filter.lua',
     ];
     const { deps, state } = createFakeDeps({}, sources);
 
     stageFiles(RIME, TEMP, deps);
 
     expect(state.copies.map(([from]) => from)).toEqual(sources);
-    expect(state.copies.map(([, to]) => to)).toEqual(sources.map((s) => `/tmp/stage/${path.basename(s)}`));
+    expect(state.copies.map(([, to]) => to)).toEqual(sources.map((s) => s.replace('/rime/', '/tmp/stage/')));
   });
 
   it('names the missing file and says how to build it', () => {
@@ -199,7 +199,7 @@ describe('stageFiles', () => {
         '/rime/default.custom.yaml',
         '/rime/pinyinduck.dict.yaml',
         '/rime/pinyinduck_trad.dict.yaml',
-        '/rime/rime.lua',
+        '/rime/lua/pinyinduck_gloss_filter.lua',
         '/rime/lua/pinyinduck_gloss.lua',
       ]
     );
@@ -222,7 +222,7 @@ describe('stageFiles', () => {
         '/rime/default.custom.yaml',
         '/rime/pinyinduck.dict.yaml',
         '/rime/pinyinduck_trad.dict.yaml',
-        '/rime/rime.lua',
+        '/rime/lua/pinyinduck_gloss_filter.lua',
       ]
     );
 
@@ -357,11 +357,11 @@ describe('against the real filesystem', () => {
       'default.custom.yaml',
       'pinyinduck.dict.yaml',
       'pinyinduck_trad.dict.yaml',
-      'rime.lua',
     ]) {
       fs.writeFileSync(path.join(rimeDir, file), `# ${file}\n`);
     }
     fs.mkdirSync(path.join(rimeDir, 'lua'), { recursive: true });
+    fs.writeFileSync(path.join(rimeDir, 'lua', 'pinyinduck_gloss_filter.lua'), '-- filter\n');
     fs.writeFileSync(path.join(rimeDir, 'lua', 'pinyinduck_gloss.lua'), 'return {}\n');
     return rimeDir;
   }
@@ -385,9 +385,8 @@ describe('against the real filesystem', () => {
       'pinyinduck.schema.yaml',
       'pinyinduck_trad.dict.yaml',
       'pinyinduck_trad.schema.yaml',
-      'rime.lua',
     ]);
-    expect(fs.readFileSync(path.join(tempDir, 'rime.lua'), 'utf8')).toBe('# rime.lua\n');
+    expect(fs.readFileSync(path.join(tempDir, 'lua', 'pinyinduck_gloss_filter.lua'), 'utf8')).toBe('-- filter\n');
     expect(fs.existsSync(path.join(tempDir, 'lua', 'pinyinduck_gloss.lua'))).toBe(true);
   });
 
@@ -483,7 +482,7 @@ describe('main', () => {
     '/rime/default.custom.yaml',
     '/rime/pinyinduck.dict.yaml',
     '/rime/pinyinduck_trad.dict.yaml',
-    '/rime/rime.lua',
+    '/rime/lua/pinyinduck_gloss_filter.lua',
   ];
   const OPTS = { rimeDir: '/rime', librimeDir: '/tools/librime', harness: '/tools/rime_smoke' };
 

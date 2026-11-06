@@ -48,8 +48,8 @@ function fakeRimeDir(root: string): void {
   fs.writeFileSync(path.join(root, 'pinyinduck_trad.schema.yaml'), 'schema:\n', 'utf8');
   fs.writeFileSync(path.join(root, 'default.custom.yaml'), 'patch:\n', 'utf8');
   // The Lua gloss filter and the sidecar it reads, which the schema's `lua_filter` needs.
-  fs.writeFileSync(path.join(root, 'rime.lua'), 'pinyinduck_gloss_filter = function() end\n', 'utf8');
   fs.mkdirSync(path.join(root, 'lua'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'lua/pinyinduck_gloss_filter.lua'), 'return { func = function() end }\n', 'utf8');
   fs.writeFileSync(path.join(root, 'lua/pinyinduck_gloss.lua'), 'return {}\n', 'utf8');
   // A compiled build directory, which must never be staged.
   fs.mkdirSync(path.join(root, 'build'), { recursive: true });
@@ -87,7 +87,6 @@ describe('staging a Rime user directory', () => {
       'pinyinduck.schema.yaml',
       'pinyinduck_trad.dict.yaml',
       'pinyinduck_trad.schema.yaml',
-      'rime.lua',
       'symbols.yaml',
     ]);
   });
