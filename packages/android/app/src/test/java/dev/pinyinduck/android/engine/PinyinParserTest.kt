@@ -37,6 +37,28 @@ class PinyinParserTest {
     }
 
     @Test
+    fun backtracksWhenTheLongestFirstSyllableStrandsTheRest() {
+        assertEquals(listOf("jian", "guo"), segmentPinyin("jianguo"))
+        assertEquals(listOf("fan", "guo"), segmentPinyin("fanguo"))
+        assertEquals(listOf("zhu", "nian"), segmentPinyin("zhunian"))
+        assertEquals(listOf("xian", "guo3"), segmentPinyin("xianguo3"))
+    }
+
+    @Test
+    fun keepsTheLongestFirstSplitWhenItIsAlreadyValid() {
+        assertEquals(listOf("xian"), segmentPinyin("xian"))
+        assertEquals(listOf("lian", "ai"), segmentPinyin("lianai"))
+        assertEquals(listOf("hen", "an"), segmentPinyin("henan"))
+    }
+
+    @Test
+    fun splitsTheLongestValidPrefixAndKeepsTheRestVerbatim() {
+        assertEquals(listOf("ni", "hqqq"), segmentPinyin("nihqqq"))
+        assertEquals(listOf("jian", "guo", "qqq"), segmentPinyin("jianguoqqq"))
+        assertEquals(listOf("zhong", "g"), segmentPinyin("zhongg"))
+    }
+
+    @Test
     fun umlautSpellingsAreNormalised() {
         assertEquals("lü", cleanPinyin("lv"))
         assertEquals("lü", cleanPinyin("lu:"))
