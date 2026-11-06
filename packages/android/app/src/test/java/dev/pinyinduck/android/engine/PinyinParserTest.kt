@@ -105,8 +105,22 @@ class PinyinParserTest {
     }
 
     @Test
-    fun toneDigitsAreReadInOrder() {
-        assertEquals(listOf(3, 3).toIntArray().toList(), toneDigitsOf("ni3hao3").toList())
-        assertEquals(emptyList<Int>().toList(), toneDigitsOf("nihao").toList())
+    fun toneDigitsAreAnchoredWhereTheyWereTyped() {
+        assertEquals(listOf(ToneConstraint(2, 3), ToneConstraint(5, 3)), parseToneFilter("ni3hao3"))
+        assertEquals(listOf(ToneConstraint(5, 4)), parseToneFilter("nihao4"))
+        assertEquals(listOf(ToneConstraint(2, 4)), parseToneFilter("lv4"))
+        assertEquals(emptyList<ToneConstraint>(), parseToneFilter("nihao"))
+        assertEquals(emptyList<ToneConstraint>(), parseToneFilter("ni9"))
+    }
+
+    @Test
+    fun storedSyllablesReportWhereTheyEnd() {
+        assertEquals(listOf(ToneConstraint(2, 3), ToneConstraint(5, 3)), syllableToneEnds("ni3 hao3"))
+        assertEquals(listOf(ToneConstraint(2, 4)), syllableToneEnds("lu:4"))
+        assertEquals(listOf(ToneConstraint(2, 0)), syllableToneEnds("an"))
+        assertEquals(
+            listOf(ToneConstraint(2, 3), ToneConstraint(4, 3), ToneConstraint(6, 3)),
+            syllableToneEnds("ka3 er3 · ma3"),
+        )
     }
 }

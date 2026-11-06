@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { PinyinSearchEngine } from './search';
-import { countCharacters } from './ranking';
+import { compareScored, countCharacters } from './ranking';
+import { parseToneFilter, syllableToneEnds } from '../parser/pinyin';
 import type { DictEntry } from '../types.js';
 
 function entry(partial: Partial<DictEntry>): DictEntry {
@@ -190,8 +191,40 @@ describe('PinyinSearchEngine tone filters across word lengths', () => {
       entry({ simplified: '尼好', pinyinClean: 'nihao', pinyinNumbers: 'ni2 hao3', pinyinSyllables: ['ni2', 'hao3'], shortGloss: 'a name' }),
     ]);
 
-    const { candidates } = engine.search('nihao33', { limit: 10 });
+    const { candidates } = engine.search('ni3hao3', { limit: 10 });
     expect(candidates.map((c) => c.hanzi)).toEqual(['你好']);
+  });
+
+  it('applies a tone to the syllable it was typed after, not the first one', () => {
+    const engine = engineOf([
+      entry({ simplified: '你好', pinyinClean: 'nihao', pinyinNumbers: 'ni3 hao3', pinyinSyllables: ['ni3', 'hao3'] }),
+      entry({ simplified: '你号', pinyinClean: 'nihao', pinyinNumbers: 'ni3 hao4', pinyinSyllables: ['ni3', 'hao4'] }),
+      entry({ simplified: '泥号', pinyinClean: 'nihao', pinyinNumbers: 'ni2 hao4', pinyinSyllables: ['ni2', 'hao4'] }),
+    ]);
+
+    // "nihao4" constrains hao. Read by order, the 4 used to land on ni and drop all three.
+    expect(engine.search('nihao4').candidates.map((c) => c.hanzi).sort()).toEqual(['你号', '泥号']);
+    // "ni3hao" constrains ni and says nothing about hao.
+    expect(engine.search('ni3hao').candidates.map((c) => c.hanzi).sort()).toEqual(['你号', '你好']);
+  });
+
+  it('rejects a word whose syllables split the typed one differently', () => {
+    // 彼岸 is bi3 an4: it shares the letters of "bian" but has no syllable ending there.
+    const engine = engineOf([
+      entry({ simplified: '扁', pinyinClean: 'bian', pinyinNumbers: 'bian3', pinyinSyllables: ['bian3'], frequency: 40000 }),
+      entry({ simplified: '彼岸', pinyinClean: 'bian', pinyinNumbers: 'bi3 an4', pinyinSyllables: ['bi3', 'an4'], frequency: 90000 }),
+    ]);
+
+    expect(engine.search('bian3').candidates.map((c) => c.hanzi)).toEqual(['扁']);
+  });
+
+  it('neither rewards nor drops a prefix candidate for a tone typed past its end', () => {
+    const engine = engineOf([
+      entry({ simplified: '你', pinyinClean: 'ni', pinyinNumbers: 'ni3', pinyinSyllables: ['ni3'], frequency: 99000 }),
+      entry({ simplified: '你好', pinyinClean: 'nihao', pinyinNumbers: 'ni3 hao3', pinyinSyllables: ['ni3', 'hao3'] }),
+    ]);
+
+    expect(engine.search('nihao3').candidates.map((c) => c.hanzi)).toEqual(['你好', '你']);
   });
 
   it('drops a shorter word that cannot supply the tone that was typed', () => {
@@ -210,5 +243,53 @@ describe('countCharacters', () => {
     expect(countCharacters('𩽾')).toBe(1);
     expect(countCharacters('𩽾安')).toBe(2);
     expect(countCharacters('')).toBe(0);
+  });
+});
+
+describe('parseToneFilter', () => {
+  it('anchors each tone at the toneless offset where it was typed', () => {
+    expect(parseToneFilter('ni3hao3')).toEqual([{ offset: 2, tone: 3 }, { offset: 5, tone: 3 }]);
+    expect(parseToneFilter('nihao4')).toEqual([{ offset: 5, tone: 4 }]);
+    expect(parseToneFilter("xi1'an1")).toEqual([{ offset: 2, tone: 1 }, { offset: 4, tone: 1 }]);
+    expect(parseToneFilter('lv4')).toEqual([{ offset: 2, tone: 4 }]);
+  });
+
+  it('ignores digits that are not tones', () => {
+    expect(parseToneFilter('ni0')).toEqual([]);
+    expect(parseToneFilter('ni9')).toEqual([]);
+    expect(parseToneFilter('nihao')).toEqual([]);
+  });
+});
+
+describe('syllableToneEnds', () => {
+  it('reports where each stored syllable ends and its tone', () => {
+    expect(syllableToneEnds('ni3 hao3')).toEqual([{ offset: 2, tone: 3 }, { offset: 5, tone: 3 }]);
+    expect(syllableToneEnds('lu:4')).toEqual([{ offset: 2, tone: 4 }]);
+    expect(syllableToneEnds('an')).toEqual([{ offset: 2, tone: 0 }]);
+  });
+
+  it('skips tokens that hold no pinyin letters', () => {
+    expect(syllableToneEnds('ka3 er3 · ma3')).toEqual([
+      { offset: 2, tone: 3 },
+      { offset: 4, tone: 3 },
+      { offset: 6, tone: 3 },
+    ]);
+  });
+});
+
+describe('compareScored', () => {
+  const base = { simplified: '字', pinyinClean: 'zi', pinyinNumbers: 'zi4', frequency: 0 };
+
+  it('orders by score, then frequency, then key, form and reading', () => {
+    const items = [
+      { score: 1, entry: { ...base, simplified: '乙' } },
+      { score: 1, entry: { ...base, simplified: '甲' } },
+      { score: 1, entry: { ...base, pinyinClean: 'za' } },
+      { score: 1, entry: { ...base, frequency: 5 } },
+      { score: 2, entry: { ...base } },
+    ];
+    const order = [...items].sort(compareScored).map((item) => items.indexOf(item));
+    // 'za' sorts before 'zi'; 乙 (U+4E59) sorts before 甲 (U+7532).
+    expect(order).toEqual([4, 3, 2, 0, 1]);
   });
 });

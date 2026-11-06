@@ -126,6 +126,25 @@ describe('LazyPinyinSearchEngine', () => {
     expect(hanziOf(result)).not.toContain('尼');
   });
 
+  it('ranks ties and picks representatives exactly like the trie engine', async () => {
+    // Equal-score readings of one hanzi, plus equal-score distinct hanzi, inserted in an
+    // order that differs from the B-tree's key order.
+    const tied: DictionaryRow[] = [
+      ['甲', '甲', 'ma1', 'a', 100, 0],
+      ['乙', '乙', 'ma1', 'b', 100, 0],
+      ['行', '行', 'hang4', 'row', 100, 0],
+      ['行', '行', 'hang2', 'to walk', 100, 0],
+    ];
+    const { engine } = await engineWith(tied);
+    const trie = new PinyinSearchEngine(decodeDictionary(tied));
+
+    for (const query of ['ma', 'm', 'hang', 'h']) {
+      const lazy = await engine.search(query, { limit: 10 });
+      const eager = trie.search(query, { limit: 10 });
+      expect(lazy.candidates.map((c) => c.id)).toEqual(eager.candidates.map((c) => c.id));
+    }
+  });
+
   it('deduplicates readings that share a displayed form', async () => {
     // 行 under two readings is one candidate, not two.
     const duplicated: DictionaryRow[] = [

@@ -7,6 +7,7 @@
  */
 
 import { Candidate, ScriptType } from '../types.js';
+import { syllableToneEnds, type ToneConstraint } from '../parser/pinyin.js';
 
 /**
  * How many prefix entries one query may consider before the scan stops.
@@ -57,7 +58,7 @@ export interface CandidateSource extends ScorableEntry {
 export function scoreEntry(
   entry: ScorableEntry,
   tonelessQuery: string,
-  toneFilterNumbers: number[]
+  toneFilter: readonly ToneConstraint[]
 ): number {
   let score = 0;
   const isExactPinyin = entry.pinyinClean === tonelessQuery;
@@ -97,30 +98,69 @@ export function scoreEntry(
     score += (7 - entry.hskLevel) * 5000;
   }
 
-  if (toneFilterNumbers.length > 0) {
-    const entryTones = entry.pinyinNumbers.match(/\d/g)?.map(Number) || [];
-    // A tone filter only constrains as many syllables as the query has tones, so it
-    // discriminates between readings of the same length. Scoring a partial overlap let
-    // one typed digit award the full bonus to any longer word: typing "bian3" promoted
-    // 彼岸 (biàn, two syllables) above 扁 (biǎn), because 彼岸's *first* syllable
-    // matched while the character the learner actually asked for did not.
+  if (toneFilter.length > 0) {
+    // Each typed tone constrains the syllable that ends where it was typed: in
+    // "nihao4" the 4 belongs to hao, and in "ni3hao" the 3 belongs to ni. Matching
+    // digits to syllables by order instead read "nihao4" as "ni is fourth tone".
     //
-    // An entry that is shorter than the query has no tone to offer for the syllables
-    // that were typed, so it cannot satisfy the filter and is penalized. An entry that is
-    // longer is left alone: the query says nothing about its extra syllables, and the
-    // match tier and frequency already place a longer word below an exact reading.
-    if (entryTones.length <= toneFilterNumbers.length) {
-      const matches = entryTones.length > 0 &&
-        entryTones.every((tone, index) => tone === toneFilterNumbers[index]);
-      if (matches) {
-        score += toneFilterNumbers.length * 200000; // Heavily favor exact tone match!
+    // Anchoring on the toneless offset also checks the syllable boundary. "bian3" asks
+    // for one syllable "bian"; 彼岸 (bi3 an4) shares the letters but has no syllable
+    // ending at offset 4 with tone 3, so it cannot take the bonus 扁 (biǎn) earns.
+    //
+    // A tone typed beyond the end of the entry says nothing about it: in "nihao3", 你
+    // is a prefix candidate whose own syllable was left untoned, so it is neither
+    // rewarded nor penalized and stays below the word that matches the tone.
+    const ends = syllableToneEnds(entry.pinyinNumbers);
+    let matched = 0;
+    let mismatched = false;
+    for (const constraint of toneFilter) {
+      if (constraint.offset <= 0 || constraint.offset > entry.pinyinClean.length) continue;
+      const syllable = ends.find((end) => end.offset === constraint.offset);
+      if (syllable && syllable.tone === constraint.tone) {
+        matched++;
       } else {
-        score -= 500000; // Penalize mismatch if tone was explicitly typed
+        mismatched = true;
       }
+    }
+    if (mismatched) {
+      score -= 500000; // Penalize mismatch if tone was explicitly typed
+    } else {
+      score += matched * 200000; // Heavily favor exact tone match!
     }
   }
 
   return score;
+}
+
+/** An entry together with its score against the current query. */
+export interface ScoredEntry<E extends ScorableEntry = ScorableEntry> {
+  entry: E;
+  score: number;
+}
+
+/**
+ * The one ordering every engine ranks by: score, then frequency, then key, form and
+ * reading.
+ *
+ * Both TypeScript engines and the Android port sort with this exact chain, and use it
+ * to pick which reading represents a hanzi that appears under several, so the same
+ * query yields the same list in the same order whatever the storage layout. Insertion
+ * or scan order must never decide a tie, because a trie and a B-tree enumerate entries
+ * differently.
+ */
+export function compareScored(a: ScoredEntry, b: ScoredEntry): number {
+  if (a.score !== b.score) return b.score - a.score;
+  if (a.entry.frequency !== b.entry.frequency) return b.entry.frequency - a.entry.frequency;
+  if (a.entry.pinyinClean !== b.entry.pinyinClean) {
+    return a.entry.pinyinClean < b.entry.pinyinClean ? -1 : 1;
+  }
+  if (a.entry.simplified !== b.entry.simplified) {
+    return a.entry.simplified < b.entry.simplified ? -1 : 1;
+  }
+  if (a.entry.pinyinNumbers !== b.entry.pinyinNumbers) {
+    return a.entry.pinyinNumbers < b.entry.pinyinNumbers ? -1 : 1;
+  }
+  return 0;
 }
 
 /** Projects a ranked entry into the candidate shape the UI renders. */

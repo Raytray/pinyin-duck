@@ -35,9 +35,10 @@ data class ScorableEntry(
     val hskLevel: Int? = null,
     /** Cached code-point count of [simplified], computed once per entry. */
     val characterCount: Int = countCharacters(simplified),
-    /** Cached tone digits of [pinyinNumbers], computed once per entry. */
-    val toneDigits: IntArray = toneDigitsOf(pinyinNumbers),
-)
+) {
+    /** Where each stored syllable ends and its tone, computed only when a tone is typed. */
+    val syllableTones: List<ToneConstraint> by lazy(LazyThreadSafetyMode.NONE) { syllableToneEnds(pinyinNumbers) }
+}
 
 /**
  * Scores an entry against a toneless query.
@@ -49,7 +50,7 @@ data class ScorableEntry(
 fun scoreEntry(
     entry: ScorableEntry,
     tonelessQuery: String,
-    toneFilterNumbers: IntArray,
+    toneFilter: List<ToneConstraint>,
 ): Int {
     var score = 0
     val isExactPinyin = entry.pinyinClean == tonelessQuery
@@ -88,17 +89,24 @@ fun scoreEntry(
     val hsk = entry.hskLevel?.takeIf { it != 0 }
     if (hsk != null) score += (7 - hsk) * 5000
 
-    if (toneFilterNumbers.isNotEmpty()) {
-        val entryTones = entry.toneDigits
-        var toneMatches = 0
-        for (i in 0 until minOf(toneFilterNumbers.size, entryTones.size)) {
-            if (toneFilterNumbers[i] == entryTones[i]) toneMatches++
+    if (toneFilter.isNotEmpty()) {
+        // Each typed tone constrains the syllable that ends where it was typed: in
+        // `nihao4` the 4 belongs to hao. Anchoring on the toneless offset also checks the
+        // syllable boundary, so 彼岸 (bi3 an4) cannot satisfy `bian3`. A tone typed past
+        // the end of the entry says nothing about it and is skipped. This mirrors
+        // `scoreEntry` in packages/core/src/index/ranking.ts exactly.
+        var matched = 0
+        var mismatched = false
+        for (constraint in toneFilter) {
+            if (constraint.offset <= 0 || constraint.offset > entry.pinyinClean.length) continue
+            val syllable = entry.syllableTones.firstOrNull { it.offset == constraint.offset }
+            if (syllable != null && syllable.tone == constraint.tone) {
+                matched++
+            } else {
+                mismatched = true
+            }
         }
-        if (toneMatches > 0) {
-            score += toneMatches * 200000
-        } else {
-            score -= 500000
-        }
+        score += if (mismatched) -500000 else matched * 200000
     }
 
     return score

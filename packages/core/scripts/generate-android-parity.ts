@@ -73,6 +73,10 @@ const CASES: ReadonlyArray<{ query: string; script: ScriptType }> = [
   { query: 'suanfa', script: 'simplified' },
   { query: 'suoyou', script: 'simplified' },
   { query: 'gongsi', script: 'simplified' },
+  { query: 'nihao3', script: 'simplified' },
+  { query: 'ni3hao', script: 'simplified' },
+  { query: 'bian3', script: 'simplified' },
+  { query: 'hang', script: 'simplified' },
   { query: 'jianguo', script: 'simplified' },
   { query: 'fanguo', script: 'simplified' },
 ];
