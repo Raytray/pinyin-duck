@@ -49,8 +49,9 @@ packages/android/app/.cxx/
 packages/windows/rime/*.dict.yaml
 
 # The generated Lua gloss sidecar the schema's filter reads. ~15MB, rebuilt by the same
-# build. The hand-written filter itself (rime/rime.lua) is committed next to it.
-packages/windows/rime/lua/
+# build. The hand-written filter itself (rime/lua/pinyinduck_gloss_filter.lua) is
+# committed next to it.
+packages/windows/rime/lua/pinyinduck_gloss.lua
 
 # What `npm run setup:rime` provisions: a 172MB librime clone at the pinned tag 1.13.1,
 # and a local prefix holding cmake, Boost headers and the compiled liblibrime.so plus the
@@ -63,7 +64,7 @@ packages/windows/tools/.local/
 # the same asset. `npm run build:rime` writes both dictionaries and the Lua sidecar from one
 # pass over the B+ tree; `npm run setup:rime` builds librime and the harness into tools/.
 packages/macos/rime/*.dict.yaml
-packages/macos/rime/lua/
+packages/macos/rime/lua/pinyinduck_gloss.lua
 
 # What `npm run setup:rime` provisions for macOS: the librime clone and the compiled
 # rime_smoke harness. bootstrap-rime.sh and rime_smoke.cc next to them *are* committed.

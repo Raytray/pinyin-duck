@@ -3,13 +3,21 @@
   Installs the PinyinDuck Rime schemas into the Weasel user folder.
 
 .DESCRIPTION
-  Copies the two schemas, the default.yaml patch and the generated dictionaries into
-  %APPDATA%\Rime, then makes Weasel rebuild them. Everything is copied from this
+  Copies the two schemas, the Lua gloss filter and the generated dictionaries into
+  %APPDATA%\Rime, and adds the two schemes to the user's default.custom.yaml, then makes
+  Weasel rebuild them. Everything is copied from this
   repository's packages\windows\rime folder, so run `npm run build:rime` first: the
   dictionaries are generated from the shared CC-CEDICT asset and are not committed.
 
   Weasel recompiles a dictionary whenever the .dict.yaml file changes, so reinstalling
   after a rebuild is just this script again.
+
+  The user's own files are left alone. Every file copied has a PinyinDuck name, and
+  default.custom.yaml, which holds the user's scheme list and hotkeys, is merged rather
+  than replaced: an existing one is backed up and gets only the entries it is missing,
+  and one that already has them is not written at all. rime.lua is never touched; the
+  filter is the lua\pinyinduck_gloss_filter.lua module, which the schema loads by name.
+  The merge runs on Node, which `npm run build:rime` needs anyway.
 
 .PARAMETER Deploy
   Try to run Rime's command line deployer if the installed Weasel ships one. Older
@@ -27,6 +35,8 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $SourceDir = Join-Path $PSScriptRoot '..\rime'
+$RepoRoot = Join-Path $PSScriptRoot '..\..\..'
+$MergeScript = Join-Path $PSScriptRoot 'install-default-custom.ts'
 $RimeDir = Join-Path $env:APPDATA 'Rime'
 
 # Both dictionaries and both schemas have to be present together: a schema naming a
@@ -40,7 +50,7 @@ $RequiredFiles = @(
   'default.custom.yaml',
   'pinyinduck.dict.yaml',
   'pinyinduck_trad.dict.yaml',
-  'rime.lua',
+  'lua\pinyinduck_gloss_filter.lua',
   'lua\pinyinduck_gloss.lua'
 )
 
@@ -59,7 +69,7 @@ foreach ($name in $RequiredFiles) {
 if ($missing.Count -gt 0) {
   # The dictionaries and the Lua sidecar are generated together, so this is almost always
   # the cause.
-  $generatedMissing = $missing | Where-Object { $_ -like '*.dict.yaml' -or $_ -like 'lua\*' }
+  $generatedMissing = $missing | Where-Object { $_ -like '*.dict.yaml' -or $_ -eq 'lua\pinyinduck_gloss.lua' }
   if ($generatedMissing.Count -gt 0) {
     Write-Error @"
 The generated files are missing from $SourceDir.
@@ -71,6 +81,11 @@ Run this from the repository root first:
 "@
   }
   Write-Error "Missing file(s): $($missing -join ', ')"
+}
+
+if (-not (Get-Command npx -ErrorAction SilentlyContinue)) {
+  Write-Error ('npx was not found. Node is needed to merge default.custom.yaml; it is the ' +
+    'same Node that ran `npm run build:rime`, so put it on PATH and run this again.')
 }
 
 Write-Host "  source  $SourceDir"
@@ -89,10 +104,30 @@ if (-not (Test-Path $luaDir)) {
 }
 
 foreach ($name in $RequiredFiles) {
+  # Merged below instead of copied, so the user's own entries survive.
+  if ($name -eq 'default.custom.yaml') { continue }
   $source = Join-Path $SourceDir $name
   Copy-Item -Path $source -Destination (Join-Path $RimeDir $name) -Force
   $size = Format-Size (Get-Item $source).Length
-  Write-Host ("  copied  {0,-28} {1,10}" -f $name, $size)
+  Write-Host ("  copied  {0,-32} {1,10}" -f $name, $size)
+}
+
+Push-Location $RepoRoot
+try {
+  & npx --no-install tsx $MergeScript (Join-Path $SourceDir 'default.custom.yaml') (Join-Path $RimeDir 'default.custom.yaml')
+  if ($LASTEXITCODE -ne 0) { Write-Error 'Could not install default.custom.yaml.' }
+} finally {
+  Pop-Location
+}
+
+# Earlier versions of this installer replaced rime.lua with one defining the filter as a
+# global. The schema no longer uses it, but it still loads the 15MB gloss table, so say so
+# rather than edit a file that may hold the user's own components too.
+$userRimeLua = Join-Path $RimeDir 'rime.lua'
+if ((Test-Path $userRimeLua) -and (Select-String -Path $userRimeLua -Pattern 'pinyinduck_gloss_filter' -Quiet)) {
+  Write-Host "  note    $userRimeLua still defines pinyinduck_gloss_filter from an"
+  Write-Host '          earlier install. Nothing uses it now: delete those lines, or the whole'
+  Write-Host '          file if PinyinDuck is the only thing in it.'
 }
 
 # Rime keeps compiled output in a build subfolder. Its checksums would otherwise make

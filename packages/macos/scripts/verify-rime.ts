@@ -78,7 +78,7 @@ const STAGED_FILES = [
   'default.custom.yaml',
   'pinyinduck.dict.yaml',
   'pinyinduck_trad.dict.yaml',
-  'rime.lua',
+  'lua/pinyinduck_gloss_filter.lua',
 ];
 
 /** One query's candidates, as the harness reported them. */
@@ -186,8 +186,8 @@ function stagePresetFiles(
  * Copies the schemas, dictionaries and Lua filter into a throwaway user directory.
  *
  * librime resolves `lua/` relative to its user directory, so the gloss sidecar has to
- * land under `lua/` here for the filter to find it; that is the one path the staged
- * names above do not express directly.
+ * land under `lua/` here for the filter to find it. The filter itself is in `lua/` for the
+ * same reason, which is why that directory is created before anything is copied.
  */
 export function stageFiles(
   rimeDir: string,
@@ -195,6 +195,8 @@ export function stageFiles(
   deps: RimeVerifyDeps = nodeDeps,
   librimeDir: string = LIBRIME_DIR
 ): void {
+  const luaDir = path.join(tempDir, 'lua');
+  deps.mkdir(luaDir);
   for (const file of STAGED_FILES) {
     const src = path.join(rimeDir, file);
     if (!deps.exists(src)) {
@@ -205,8 +207,6 @@ export function stageFiles(
 
   stagePresetFiles(librimeDir, tempDir, deps);
 
-  const luaDir = path.join(tempDir, 'lua');
-  deps.mkdir(luaDir);
   const glossSrc = path.join(rimeDir, 'lua', 'pinyinduck_gloss.lua');
   if (deps.exists(glossSrc)) {
     deps.copyFile(glossSrc, path.join(luaDir, 'pinyinduck_gloss.lua'));

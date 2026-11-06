@@ -1,4 +1,4 @@
--- PinyinDuck gloss filter for the Rime (Squirrel) macOS input method.
+-- PinyinDuck gloss filter for the Rime (Weasel) Windows input method.
 --
 -- Rime's dictionary format has no field a candidate can display the definition from:
 -- librime's EntryCollector reads text/code/weight and discards the comment column. The
@@ -37,8 +37,12 @@ local function resolve_gloss(text, comment, preedit)
   return nil
 end
 
--- Referenced from both schemas as `lua_filter@pinyinduck_gloss_filter`.
-pinyinduck_gloss_filter = function(input)
+-- A module of its own rather than a global in rime.lua, which belongs to the user: Rime
+-- loads exactly one rime.lua per user folder, so installing ours would replace whatever
+-- Lua components they already have. The schema loads this file by name with
+-- `lua_filter@*pinyinduck_gloss_filter` (librime-lua 2023 and later), so rime.lua is
+-- never touched.
+local function filter(input)
   for cand in input:iter() do
     if gloss then
       local resolved = resolve_gloss(cand.text, cand.comment, cand.preedit)
@@ -49,3 +53,5 @@ pinyinduck_gloss_filter = function(input)
     yield(cand)
   end
 end
+
+return { func = filter }
