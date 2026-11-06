@@ -44,7 +44,15 @@ The dictionary uses toneless syllable codes, so a typed number selects a candida
 
 ## Development
 
-The macOS package reuses the same dictionary generator and Rime schema logic as the Windows package.
+The macOS package follows the same Rime pattern as the Windows package. Squirrel (鼠须管) is the macOS frontend for librime, as Weasel (小狼毫) is on Windows, so both share the schema format, the dictionary format and the Lua gloss filter. `src/rime-dict.ts` re-exports the dictionary emitter from `@pinyinduck/windows`; only installation and deployment differ.
+
+| | Windows | macOS |
+|---|---|---|
+| Rime frontend | Weasel (小狼毫) | Squirrel (鼠须管) |
+| Install path | `%APPDATA%\Rime\` | `~/Library/Rime/` |
+| Installer | `install.ps1` | `install.sh` |
+
+Schema generation, the dictionary build, the Lua filter and schema validation against librime all run on Linux. Installing, deploying and composing in real macOS apps need a Mac.
 
 ```bash
 npm test -w @pinyinduck/macos

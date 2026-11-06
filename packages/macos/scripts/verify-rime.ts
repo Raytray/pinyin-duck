@@ -14,6 +14,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { pathToFileURL } from 'url';
 
 const TOOLS_DIR = path.resolve(__dirname, '../tools');
 const RIME_DIR = path.resolve(__dirname, '../rime');
@@ -390,7 +391,9 @@ export async function main(
 }
 
 /* v8 ignore start -- CLI entry point. Runs only under `npm run test:rime`, never on import. */
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL rather than a `file://` template, which never matches a Windows path
+// (`C:\...`) or one with a space in it (%20 in the URL).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main({ strict: process.argv.includes('--require') }).then(
     (code) => {
       process.exitCode = code;

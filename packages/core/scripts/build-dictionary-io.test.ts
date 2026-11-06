@@ -451,7 +451,7 @@ describe('parseArgs', () => {
 });
 
 /**
- * The `import.meta.url === file://${process.argv[1]}` guard is evaluated at import
+ * The `import.meta.url === pathToFileURL(process.argv[1]).href` guard is evaluated at import
  * time, so exercising it means setting argv before a fresh dynamic import. That runs
  * `main()` for real, which is the point: it is the only path that actually parses a
  * command line and reports a failure to the shell.

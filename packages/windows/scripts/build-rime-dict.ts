@@ -15,6 +15,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { pathToFileURL } from 'url';
 import { BTreeDictionary } from '../../core/src/data/btree-dictionary.js';
 import { MemoryPageSource } from '../../core/src/data/page-source.js';
 import {
@@ -309,7 +310,9 @@ export async function main(args: string[], deps: RimeBuildDeps = nodeDeps): Prom
   console.log(`Done in ${((Date.now() - started) / 1000).toFixed(1)}s.`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL rather than a `file://` template, which never matches a Windows path
+// (`C:\...`) or one with a space in it (%20 in the URL).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main(process.argv.slice(2)).catch((err) => {
     console.error(err);
     process.exitCode = 1;

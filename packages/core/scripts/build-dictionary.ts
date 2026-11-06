@@ -27,6 +27,7 @@
 import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { pathToFileURL } from 'url';
 import * as zlib from 'zlib';
 import { pinyinNumbersToMarks, cleanPinyin, normalizePinyin } from '../src/parser/pinyin.js';
 import { formatGloss } from '../src/dictionary/gloss.js';
@@ -421,7 +422,9 @@ async function main() {
   await build(outPath, useCache, format);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL rather than a `file://` template, which never matches a Windows path
+// (`C:\...`) or one with a space in it (%20 in the URL).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((err) => {
     console.error(err);
     process.exitCode = 1;
