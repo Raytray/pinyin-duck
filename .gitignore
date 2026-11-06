@@ -72,5 +72,10 @@ packages/macos/rime/lua/pinyinduck_gloss.lua
 # rime_smoke harness. bootstrap-rime.sh and rime_smoke.cc next to them *are* committed.
 packages/macos/tools/librime/
 packages/macos/tools/rime_smoke
-key.properties
+
+# Android release signing. key.properties holds the keystore passwords; the trailing * also
+# catches editor backups such as key.properties~. Keep the keystore itself outside the repo
+# and point storeFile at its absolute path; these patterns are a backstop, not a home.
+key.properties*
 *.jks
+*.keystore
