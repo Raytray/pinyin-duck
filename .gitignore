@@ -79,3 +79,6 @@ packages/macos/tools/rime_smoke
 key.properties*
 *.jks
 *.keystore
+
+# IDE state
+.idea/
