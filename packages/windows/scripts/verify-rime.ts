@@ -21,6 +21,7 @@ import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { pathToFileURL } from 'url';
 import {
   SMOKE_CASES,
   evaluateSmoke,
@@ -306,7 +307,9 @@ export async function main(args: string[], overrides: Partial<VerifyOptions> = {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL rather than a `file://` template, which never matches a Windows path
+// (`C:\...`) or one with a space in it (%20 in the URL).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main(process.argv.slice(2)).catch((err) => {
     console.error(err);
     process.exitCode = 1;
