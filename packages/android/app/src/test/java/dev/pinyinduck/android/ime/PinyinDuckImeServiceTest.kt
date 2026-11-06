@@ -6,6 +6,7 @@ import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
+import dev.pinyinduck.android.data.DictionaryLoader
 import dev.pinyinduck.android.engine.ScriptType
 import dev.pinyinduck.android.engine.TestDictionary
 import dev.pinyinduck.android.ui.KeyAction
@@ -24,6 +25,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ServiceController
 import org.robolectric.annotation.Config
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * The input method service, driven end to end.
@@ -46,13 +49,43 @@ class PinyinDuckImeServiceTest {
     private var destroyed = false
     private val service get() = controller.get()
 
+    /**
+     * Holds the dictionary load open until a test releases it.
+     *
+     * `ServiceController.create()` drains the main looper, so an ungated load that finishes
+     * quickly lands inside `create()` and the "still loading" tests fail on fast runners.
+     * Gating makes the pre-load state a fact rather than a race: [awaitDictionary] opens it.
+     */
+    private val loadGate = CountDownLatch(1)
+
+    /**
+     * Counted down once the load is running on its IO thread. A scope cancelled before that
+     * point never runs the load at all, so a test about an *in-flight* load waits for this.
+     */
+    private val loadStarted = CountDownLatch(1)
+
+    /** Counted down once the background open has returned, so a test can wait for it. */
+    private val loadReturned = CountDownLatch(1)
+
     @Before
     fun setUp() {
-        controller = Robolectric.buildService(PinyinDuckImeService::class.java).create()
+        controller = Robolectric.buildService(PinyinDuckImeService::class.java)
+        controller.get().openDictionary = { assets ->
+            loadStarted.countDown()
+            try {
+                check(loadGate.await(GATE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) { "the dictionary load gate was never opened" }
+                DictionaryLoader.openFromAssets(assets)
+            } finally {
+                loadReturned.countDown()
+            }
+        }
+        controller.create()
     }
 
     @After
     fun tearDown() {
+        // Free the IO thread before tearing down, so no test leaves a load blocked behind it.
+        loadGate.countDown()
         if (!destroyed) controller.destroy()
     }
 
@@ -151,8 +184,8 @@ class PinyinDuckImeServiceTest {
 
     @Test
     fun aCompositionStartedDuringTheLoadIsRankedWhenTheDictionaryLands() {
-        // Deterministic under Robolectric because the load is a real background thread and the
-        // main looper is not drained until `awaitDictionary`. On a device the same thing happens
+        // Deterministic because `setUp` gates the load and only `awaitDictionary` releases it.
+        // On a device the same thing happens
         // whenever the user types faster than the dictionary maps, which is why it only ever
         // showed up on a fresh entry and could not be reproduced on demand.
         val keys = service.callbacks()
@@ -618,12 +651,16 @@ class PinyinDuckImeServiceTest {
         // switches away. Cancelling the scope must discard the result: no dictionary is
         // installed, the keyboard never claims to be ready, and nothing is resurrected.
         val svc = service
+        assertTrue("the load never started", loadStarted.await(GATE_TIMEOUT_SECONDS, TimeUnit.SECONDS))
         assertTrue("the dictionary should still be loading", svc.uiState.loading)
 
         destroy()
-        // Drain the main looper. Without cancellation the pending continuation would run
-        // here and install the engine; with it, the coroutine is already cancelled and the
-        // continuation throws instead.
+        // Let the load finish only now, after the scope is cancelled, and wait for it so the
+        // assertions below cannot run ahead of it. Then drain the main looper: without
+        // cancellation the continuation would run here and install the engine; with it, the
+        // coroutine is already cancelled and the continuation throws instead.
+        loadGate.countDown()
+        assertTrue("the load never returned", loadReturned.await(GATE_TIMEOUT_SECONDS, TimeUnit.SECONDS))
         shadowOf(Looper.getMainLooper()).idle()
 
         assertTrue("a cancelled load must not clear the loading flag", svc.uiState.loading)
@@ -683,6 +720,7 @@ class PinyinDuckImeServiceTest {
      * has finished.
      */
     private fun awaitDictionary(timeoutMillis: Long = 30_000) {
+        loadGate.countDown()
         val main = shadowOf(Looper.getMainLooper())
         val deadline = System.nanoTime() + timeoutMillis * 1_000_000L
         while (service.uiState.loading && System.nanoTime() < deadline) {
@@ -694,5 +732,10 @@ class PinyinDuckImeServiceTest {
             "the dictionary did not finish loading within ${timeoutMillis}ms",
             service.uiState.loading,
         )
+    }
+
+    private companion object {
+        /** Generous: only reached if a test forgets to release the gate or the load hangs. */
+        const val GATE_TIMEOUT_SECONDS = 30L
     }
 }
