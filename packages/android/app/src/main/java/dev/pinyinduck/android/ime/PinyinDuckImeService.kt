@@ -23,7 +23,6 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import dev.pinyinduck.android.data.DictionaryLoader
 import dev.pinyinduck.android.data.OpenedDictionary
 import dev.pinyinduck.android.ui.KeyAction
-import dev.pinyinduck.android.ui.KeyLayout
 import dev.pinyinduck.android.ui.KeyboardCallbacks
 import dev.pinyinduck.android.ui.PinyinDuckKeyboard
 import dev.pinyinduck.android.ui.PinyinDuckTheme
@@ -91,6 +90,15 @@ class PinyinDuckImeService :
 
     /** Reaches the field the user is typing into. */
     private val editor = EditorSink()
+
+    /**
+     * How the current field is typed into, from its `inputType`.
+     *
+     * `internal` for the same reason as [session]: the test asserts each class of field gets
+     * the right one.
+     */
+    internal var fieldPolicy = FieldPolicy.PINYIN
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -224,7 +232,11 @@ class PinyinDuckImeService :
         // A new field means a new composition. This only clears our own state; anything
         // already committed stays in the editor.
         session?.reset()
-        uiState = uiState.copy(shift = false, expanded = false, layout = KeyLayout.LETTERS)
+        // The field's type decides whether keys compose at all and which page opens: a
+        // password must never pass through composition, and a phone field wants digits.
+        fieldPolicy = FieldPolicy.forInputType(info?.inputType ?: 0)
+        session?.direct = fieldPolicy.direct
+        uiState = uiState.copy(shift = false, expanded = false, layout = fieldPolicy.layout)
     }
 
     override fun onFinishInput() {
@@ -265,6 +277,10 @@ class PinyinDuckImeService :
         event: KeyEvent,
     ): Boolean {
         val session = session ?: return super.onKeyDown(keyCode, event)
+        // In a password, email or number field the keyboard has nothing to compose, so a
+        // physical key goes to the app untouched, with its own case, repeat and modifiers.
+        // Routing it through the session instead would lowercase a shifted letter.
+        if (fieldPolicy.direct) return super.onKeyDown(keyCode, event)
 
         val outcome =
             KeyRouting.route(
