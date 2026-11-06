@@ -82,6 +82,34 @@ describe('Pinyin Edge Cases', () => {
     expect(segmentPinyin('nihqqq')).toEqual(['ni', 'hqqq']);
   });
 
+  it('backtracks when the longest first syllable strands the rest', () => {
+    // Greedy longest-match took "jiang"/"fang"/"zhun" and left a non-syllable behind.
+    expect(segmentPinyin('jianguo')).toEqual(['jian', 'guo']);
+    expect(segmentPinyin('fanguo')).toEqual(['fan', 'guo']);
+    expect(segmentPinyin('zhunian')).toEqual(['zhu', 'nian']);
+    expect(segmentPinyin('xianguo3')).toEqual(['xian', 'guo3']);
+  });
+
+  it('keeps the longest-first split whenever it is already valid', () => {
+    // Ambiguous strings resolve exactly as the greedy pass did.
+    expect(segmentPinyin('xian')).toEqual(['xian']);
+    expect(segmentPinyin('lianai')).toEqual(['lian', 'ai']);
+    expect(segmentPinyin('xianggang')).toEqual(['xiang', 'gang']);
+    expect(segmentPinyin('henan')).toEqual(['hen', 'an']);
+  });
+
+  it('splits the longest valid prefix and keeps the rest verbatim', () => {
+    expect(segmentPinyin('jianguoqqq')).toEqual(['jian', 'guo', 'qqq']);
+    expect(segmentPinyin('zhongg')).toEqual(['zhong', 'g']);
+  });
+
+  it('stays fast on long inputs that need backtracking', () => {
+    const input = 'jianguo'.repeat(200) + 'q';
+    const segments = segmentPinyin(input);
+    expect(segments).toHaveLength(401);
+    expect(segments.at(-1)).toBe('q');
+  });
+
   it('splits on hyphens as well as spaces and apostrophes', () => {
     expect(segmentPinyin('zhong-guo')).toEqual(['zhong', 'guo']);
   });

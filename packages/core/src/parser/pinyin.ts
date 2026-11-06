@@ -143,38 +143,68 @@ export function segmentPinyin(input: string): string[] {
   return segmentContinuousPinyin(cleaned);
 }
 
+const SYLLABLE_CHUNK = /^([a-z\u00FC\u01D7-\u01DC]+)([1-5]?)$/;
+
+/** Longest chunk to try: a 6-letter syllable ("zhuang") plus a tone digit, with headroom. */
+const MAX_SYLLABLE_CHUNK = 8;
+
+function isSyllableChunk(chunk: string): boolean {
+  const match = chunk.match(SYLLABLE_CHUNK);
+  return match !== null && VALID_PINYIN_SYLLABLES.has(match[1]);
+}
+
 /**
- * Greedy forward segmentation for continuous syllables, longest match first.
+ * Segments an unbroken run into syllables, longest match first, backtracking when a
+ * choice strands the rest of the input.
  *
- * `search` cannot fail: when no syllable starts at `index` it emits the remainder
- * verbatim, so every call returns a segmentation and the caller never has to back
- * out of a choice. That makes this a single greedy pass rather than a
- * search-with-backtracking, which is why no memo or retry is needed.
+ * A plain greedy pass cannot back out of a choice, so it split "jianguo" into
+ * jiang + "uo" and "fanguo" into fang + "uo", leaving a non-syllable behind even though
+ * jian + guo and fan + guo exist. Here the first syllable tried is still the longest,
+ * so any input the greedy pass split validly is split exactly the same way; a shorter
+ * syllable is tried only when the longer one leaves a remainder that cannot be split.
+ * Failed positions are memoized, so the search stays linear in the input length.
+ *
+ * When no split covers the whole input, the longest prefix that can be split is split
+ * that way and the remainder is emitted verbatim, so unresolvable input ("qqq",
+ * "nihqqq") still reaches the search engine and can be committed as raw text.
  */
 function segmentContinuousPinyin(text: string): string[] {
-  function search(index: number): string[] {
-    if (index === text.length) return [];
+  const n = text.length;
 
-    // Maximum pinyin syllable length is ~7 chars (e.g. "zhuang4")
-    const maxLen = Math.min(8, text.length - index);
-
-    for (let len = maxLen; len >= 1; len--) {
-      const chunk = text.slice(index, index + len);
-      // Check if chunk is valid syllable (optionally with trailing tone number 1-5)
-      const syllableMatch = chunk.match(/^([a-z\u00FC\u01D7-\u01DC]+)([1-5]?)$/);
-      if (syllableMatch && VALID_PINYIN_SYLLABLES.has(syllableMatch[1])) {
-        return [chunk, ...search(index + len)];
+  // reachable[j]: text[0, j) splits into valid syllables. `end` is the furthest such j.
+  const reachable: boolean[] = new Array(n + 1).fill(false);
+  reachable[0] = true;
+  let end = 0;
+  for (let j = 1; j <= n; j++) {
+    for (let i = Math.max(0, j - MAX_SYLLABLE_CHUNK); i < j; i++) {
+      if (reachable[i] && isSyllableChunk(text.slice(i, j))) {
+        reachable[j] = true;
+        end = j;
+        break;
       }
     }
-
-    // No syllable starts here. Emit the remainder verbatim rather than dropping it,
-    // so unresolvable input ("qqq") still reaches the search engine and can be
-    // committed as raw text. Returning the remainder is also what guarantees `search`
-    // never returns null, so the loop above always commits to its first match.
-    return [text.slice(index)];
   }
 
-  return search(0);
+  const result: string[] = [];
+  const dead = new Set<number>();
+  const split = (index: number): boolean => {
+    if (index === end) return true;
+    if (dead.has(index)) return false;
+    for (let len = Math.min(MAX_SYLLABLE_CHUNK, end - index); len >= 1; len--) {
+      const chunk = text.slice(index, index + len);
+      if (!isSyllableChunk(chunk)) continue;
+      result.push(chunk);
+      if (split(index + len)) return true;
+      result.pop();
+    }
+    dead.add(index);
+    return false;
+  };
+
+  // text[0, end) is splittable by construction, so this always succeeds.
+  split(0);
+  if (end < n) result.push(text.slice(end));
+  return result;
 }
 
 const TONE_CHAR_MAP: Record<string, string> = {
