@@ -259,6 +259,82 @@ jobs:
           npm run setup:rime -w @pinyinduck/macos
           npm run test:rime -w @pinyinduck/macos
 
+  # ─── Installers on their real OS ──────────────────────────────────────────
+  # package-checks verifies the Rime files on Linux, but install.ps1 and install.sh only ever
+  # run on Windows and macOS. Build the files once here, then run each installer on its own OS
+  # against a scratch Rime folder and check what it wrote. No Weasel or Squirrel deploy: this
+  # is about the files, which is where a path, quoting or BSD-vs-GNU slip would break.
+  rime-files:
+    needs: changes
+    if: ${{ needs.changes.outputs.full == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.windows == 'true' || needs.changes.outputs.macos == 'true' || needs.changes.outputs.root == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache dictionary sources
+        uses: actions/cache@v4
+        with:
+          path: packages/core/.cache
+          key: dictionary-sources-${{ hashFiles('packages/core/scripts/sources.ts') }}
+
+      - name: Build dictionary assets
+        run: |
+          npm run build:dict
+          npm run build:rime
+
+      - name: Upload the Rime files
+        uses: actions/upload-artifact@v4
+        with:
+          name: rime-files
+          # Both paths sit under packages/, so the artifact holds windows/rime and macos/rime.
+          path: |
+            packages/windows/rime
+            packages/macos/rime
+          retention-days: 1
+          if-no-files-found: error
+
+  installers:
+    needs: rime-files
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            os: windows-latest
+          - platform: macos
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    name: install (${{ matrix.platform }})
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      # The installers merge default.custom.yaml with `npx tsx`, so they need the repo's
+      # dependencies, not just the files.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the Rime files
+        uses: actions/download-artifact@v4
+        with:
+          name: rime-files
+          path: packages
+
+      - name: Run the installer against a scratch Rime folder
+        run: node scripts/check-rime-install.mjs ${{ matrix.platform }}
+
   # ─── E2E tests (if web, core or root files changed) ──────────────────────────────
   e2e:
     needs: changes
