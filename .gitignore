@@ -74,3 +74,6 @@ packages/macos/tools/librime/
 packages/macos/tools/rime_smoke
 key.properties
 *.jks
+
+# IDE state
+.idea/
