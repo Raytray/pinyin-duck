@@ -26,6 +26,21 @@ packages/android/app/build/outputs/apk/debug/app-debug.apk
 
 If Android SDK is not found, either set `ANDROID_HOME` or add `sdk.dir` in `packages/android/local.properties`.
 
+## Release signing
+
+`./gradlew assembleRelease` signs the APK only when `packages/android/key.properties` exists and names a keystore that is on disk. Without one it produces `app-release-unsigned.apk`.
+
+Keep the keystore outside the repository folder and give its absolute path:
+
+```properties
+storeFile=/home/you/.android/keystores/pinyinduck-release.jks
+storePassword=...
+keyAlias=pinyinduck
+keyPassword=...
+```
+
+`key.properties*`, `*.jks` and `*.keystore` are gitignored as a backstop, but a keystore in the working tree is still one `git add -f` or a missing ignore away from being committed.
+
 ## Install
 
 ```bash
