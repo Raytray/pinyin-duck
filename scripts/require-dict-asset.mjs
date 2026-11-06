@@ -67,10 +67,10 @@ for (const asset of missing) {
   lines.push(`  ${asset.build.padEnd(20)} # ${asset.label}`);
 }
 lines.push('');
-lines.push('None of these are committed: each is ~9MB of data derived from three upstream');
-lines.push('downloads, so a commit carrying one is a 9MB diff that changes whenever an');
-lines.push('upstream source does. The downloads are cached in packages/core/.cache/, so this');
-lines.push('is a one-time cost per clone.');
+lines.push('None of these are committed: each is ~9MB of data derived from three pinned');
+lines.push('downloads, so a commit carrying one is a 9MB diff that changes whenever a source');
+lines.push('is bumped. The downloads are cached in packages/core/.cache/, so this is a');
+lines.push('one-time cost per clone.');
 lines.push('');
 lines.push('Or run `npm run build`, which does both and then builds every workspace.');
 lines.push('');

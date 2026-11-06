@@ -4,15 +4,34 @@
  * These paths are the only ones that touch the network and the filesystem, so they
  * are exercised against an in-memory `fs` and a stubbed `fetch` rather than a real
  * download. The pure parsing and joining logic is covered in build-dictionary.test.ts.
+ *
+ * `./sources` is mocked so the pins are the fixtures' own hashes: the real pins name the
+ * real corpora, which no fixture could match, and the verification is part of what is
+ * under test here.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as zlib from 'zlib';
 import * as path from 'path';
 
-const { fileStore, dirStore } = vi.hoisted(() => ({
+const { fileStore, dirStore, CEDICT, FREQUENCY, HSK } = vi.hoisted(() => ({
   fileStore: new Map<string, string | Uint8Array>(),
   dirStore: new Set<string>(),
+  CEDICT: ['中國 中国 [Zhong1 guo2] /China/', '你好 你好 [Ni3 hao3] /hello/'].join('\n'),
+  FREQUENCY: '中国 7000\n你好 5000\n',
+  HSK: ['1\t1\t你\tyou', '1\t1\t你好\tyouhao', '2\t2\t中国\tchina'].join('\n'),
 }));
+
+vi.mock('./sources', async () => {
+  const { createHash } = await import('crypto');
+  const hash = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+  return {
+    SOURCES: {
+      cedict: { url: 'https://example.test/cedict.txt.gz', cacheName: 'cedict.txt', gzip: true, sha256: hash(CEDICT) },
+      frequency: { url: 'https://example.test/zh_cn_50k.txt', cacheName: 'zh_cn_50k.txt', gzip: false, sha256: hash(FREQUENCY) },
+      hsk: { url: 'https://example.test/hsk.csv', cacheName: 'hsk.csv', gzip: false, sha256: hash(HSK) },
+    },
+  };
+});
 
 // The builder writes either a JSON string or a binary B-tree buffer, so the fake
 // filesystem has to keep both shapes rather than stringifying everything.
@@ -31,7 +50,8 @@ vi.mock('fs', () => ({
   },
 }));
 
-import { build, parseArgs, SOURCE_URLS, type BuildStats } from './build-dictionary';
+import { build, parseArgs, sha256, SOURCE_URLS, type BuildStats } from './build-dictionary';
+import { SOURCES } from './sources';
 import { openBTreeDictionaryFromSource } from '../src/data/btree-dictionary';
 import { MemoryPageSource } from '../src/data/page-source';
 import { LazyPinyinSearchEngine } from '../src/index/lazy-search';
@@ -43,9 +63,8 @@ const CACHE_FILES = {
   hsk: path.join(CACHE_DIR, 'hsk.csv'),
 } as const;
 
-const CEDICT = ['中國 中国 [Zhong1 guo2] /China/', '你好 你好 [Ni3 hao3] /hello/'].join('\n');
-const FREQUENCY = '中国 7000\n你好 5000\n';
-const HSK = ['1\t1\t你\tyou', '1\t1\t你好\tyouhao', '2\t2\t中国\tchina'].join('\n');
+/** The mocked pins, restored after a test that re-pins one. */
+const PINNED_HASHES = Object.fromEntries(Object.entries(SOURCES).map(([k, v]) => [k, v.sha256]));
 
 /** The written asset as text, for the JSON format. */
 function readText(p: string): string {
@@ -61,7 +80,7 @@ function readBytes(p: string): Uint8Array {
   return typeof content === 'string' ? new TextEncoder().encode(content) : content;
 }
 
-/** Minimal stand-in for the parts of `Response` that `fetchWithCache` reads. */
+/** Minimal stand-in for the parts of `Response` that `fetchPinned` reads. */
 function stubResponse(body: string, init: { gzipped?: boolean } = {}) {
   const buffer = Buffer.from(body, 'utf8');
   return {
@@ -115,6 +134,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  for (const [key, hash] of Object.entries(PINNED_HASHES)) {
+    (SOURCES as Record<string, { sha256: string }>)[key].sha256 = hash;
+  }
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   consoleSpy.mockRestore();
@@ -234,6 +256,8 @@ describe('build', () => {
   });
 
   it('refuses to emit an asset when a source contains an unparsable pinyin column', async () => {
+    // Pinned to the bad body, so this reaches the parser rather than the hash check.
+    (SOURCES.cedict as { sha256: string }).sha256 = sha256('中 中 [1] /middle/');
     installFetch({
       ...defaultHandlers(),
       [SOURCE_URLS.cedict]: () => stubResponse('中 中 [1] /middle/', { gzipped: true }),
@@ -242,6 +266,48 @@ describe('build', () => {
 
     await expect(build(out, false)).rejects.toThrow(/unparsable pinyin/);
     expect(fileStore.has(out)).toBe(false);
+  });
+
+  it('downloads again instead of using a cached copy that does not match its pin', async () => {
+    // A cache written by an older, unpinned build holds whatever edition was current then.
+    seedCache();
+    fileStore.set(CACHE_FILES.cedict, '老 老 [lao3] /old edition/');
+    const calls = installFetch(defaultHandlers());
+
+    const stats = await build('/tmp/pinyinduck-stale-cache/dictionary.json', true, 'json');
+
+    expect(calls).toEqual([SOURCE_URLS.cedict]);
+    expect(stats.emitted).toBe(2);
+    expect(fileStore.get(CACHE_FILES.cedict)).toBe(CEDICT);
+    expect(logs.join('\n')).toContain('stale   cedict.txt does not match its pinned SHA-256');
+  });
+
+  it('refuses a download that does not match its pin, and caches nothing', async () => {
+    installFetch({
+      ...defaultHandlers(),
+      [SOURCE_URLS.frequency]: () => stubResponse('中国 1\n'),
+    });
+    const out = '/tmp/pinyinduck-mismatch/dictionary.json';
+
+    const failure = build(out, false);
+
+    await expect(failure).rejects.toThrow(/zh_cn_50k\.txt does not match its pinned SHA-256/);
+    await expect(failure).rejects.toThrow(`expected ${SOURCES.frequency.sha256}`);
+    await expect(failure).rejects.toThrow(`got      ${sha256('中国 1\n')}`);
+    await expect(failure).rejects.toThrow(/scripts\/sources\.ts/);
+    expect(fileStore.has(CACHE_FILES.frequency)).toBe(false);
+    expect(fileStore.has(out)).toBe(false);
+  });
+
+  it('checks a gzipped source after decompressing it', async () => {
+    installFetch({
+      ...defaultHandlers(),
+      [SOURCE_URLS.cedict]: () => stubResponse(`${CEDICT}\n`, { gzipped: true }),
+    });
+
+    await expect(build('/tmp/pinyinduck-gz-mismatch/dictionary.json', false)).rejects.toThrow(
+      /cedict\.txt\.gz does not match/
+    );
   });
 
   it('reports the corpus sizes it joined', async () => {

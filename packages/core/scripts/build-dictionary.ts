@@ -18,12 +18,13 @@
  *   npm run build:dict -- --out <path> # write the asset somewhere else
  *   npm run build:dict -- --format json # emit the whole-dictionary JSON instead
  *
- * Sources:
- *   CC-CEDICT   https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz
+ * Sources (pinned to exact URLs and SHA-256 hashes in ./sources.ts):
+ *   CC-CEDICT   https://www.mdbg.net/chinese/export/cedict/ (a dated copy on this repo's releases)
  *   Frequency   https://github.com/hermitdave/FrequencyWords (2018, zh_cn, 50k)
  *   HSK 2012    https://github.com/gigacool/hanyu-shuiping-kaoshi
  */
 
+import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
@@ -31,12 +32,7 @@ import { pinyinNumbersToMarks, cleanPinyin, normalizePinyin } from '../src/parse
 import { formatGloss } from '../src/dictionary/gloss.js';
 import { DictionaryRow } from '../src/data/dictionary-codec.js';
 import { buildBTree } from '../src/data/btree-builder.js';
-
-const CEDICT_URL =
-  'https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz';
-const FREQUENCY_URL =
-  'https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/zh_cn/zh_cn_50k.txt';
-const HSK_URL = 'https://raw.githubusercontent.com/gigacool/hanyu-shuiping-kaoshi/master/hsk.csv';
+import { SOURCES, type PinnedSource } from './sources.js';
 
 const CACHE_DIR = path.resolve(__dirname, '../.cache');
 const OUT_DIR = path.resolve(__dirname, '../../web/public');
@@ -48,9 +44,9 @@ export type DictionaryFormat = 'btree' | 'json';
 
 /** The three sources a build downloads, in the order they are logged. */
 export const SOURCE_URLS = {
-  cedict: CEDICT_URL,
-  frequency: FREQUENCY_URL,
-  hsk: HSK_URL,
+  cedict: SOURCES.cedict.url,
+  frequency: SOURCES.frequency.url,
+  hsk: SOURCES.hsk.url,
 } as const;
 
 export interface RawCedictLine {
@@ -152,17 +148,33 @@ export function parseHskList(content: string): Map<string, number> {
   return levels;
 }
 
-/** Fetches a URL, transparently reading through the on-disk cache. */
-async function fetchWithCache(
-  url: string,
-  cacheName: string,
-  useCache: boolean
-): Promise<string> {
+/** SHA-256 of a source's text, as lowercase hex. */
+export function sha256(text: string): string {
+  return createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
+/**
+ * Reads a pinned source, from the on-disk cache when it holds the pinned bytes.
+ *
+ * A cached copy is checked against the pin as well as a download. A cache written by an
+ * older, unpinned build holds whatever edition was current then, and trusting it would
+ * make two checkouts of the same commit build different assets; so a copy that does not
+ * match is downloaded again rather than used.
+ *
+ * A download that does not match is an error, not a warning: it means the pinned URL no
+ * longer serves what this commit was built and tested against.
+ */
+async function fetchPinned(source: PinnedSource, useCache: boolean): Promise<string> {
+  const { url, cacheName, gzip } = source;
   const cachePath = path.join(CACHE_DIR, cacheName);
 
   if (useCache && fs.existsSync(cachePath)) {
-    console.log(`  cached  ${cacheName}`);
-    return fs.readFileSync(cachePath, 'utf8');
+    const cached = fs.readFileSync(cachePath, 'utf8');
+    if (sha256(cached) === source.sha256) {
+      console.log(`  cached  ${cacheName}`);
+      return cached;
+    }
+    console.log(`  stale   ${cacheName} does not match its pinned SHA-256; downloading it again`);
   }
 
   console.log(`  fetch   ${cacheName}`);
@@ -171,10 +183,20 @@ async function fetchWithCache(
     throw new Error(`Failed to download ${url}: ${response.status} ${response.statusText}`);
   }
 
-  const isGzip = url.endsWith('.gz');
-  const body = isGzip
+  const body = gzip
     ? zlib.gunzipSync(Buffer.from(await response.arrayBuffer())).toString('utf8')
     : await response.text();
+
+  const actual = sha256(body);
+  if (actual !== source.sha256) {
+    throw new Error(
+      `${url} does not match its pinned SHA-256.\n` +
+        `  expected ${source.sha256}\n` +
+        `  got      ${actual}\n` +
+        'The source changed upstream. To move to it on purpose, follow the steps in ' +
+        'packages/core/scripts/sources.ts.'
+    );
+  }
 
   fs.mkdirSync(CACHE_DIR, { recursive: true });
   fs.writeFileSync(cachePath, body);
@@ -306,9 +328,9 @@ async function build(
   console.log('Building the PinyinDuck dictionary from CC-CEDICT...\n');
 
   const [cedictContent, frequencyContent, hskContent] = await Promise.all([
-    fetchWithCache(CEDICT_URL, 'cedict.txt', useCache),
-    fetchWithCache(FREQUENCY_URL, 'zh_cn_50k.txt', useCache),
-    fetchWithCache(HSK_URL, 'hsk.csv', useCache),
+    fetchPinned(SOURCES.cedict, useCache),
+    fetchPinned(SOURCES.frequency, useCache),
+    fetchPinned(SOURCES.hsk, useCache),
   ]);
 
   const { rows, stats } = joinCorpora(cedictContent, frequencyContent, hskContent);

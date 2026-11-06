@@ -111,6 +111,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The dictionary sources are pinned by URL and SHA-256 in sources.ts and re-verified
+      # on every read, so a cache keyed on that file can never serve the wrong edition; it
+      # only spares mdbg's copy host and GitHub a download per job.
+      - name: Cache dictionary sources
+        uses: actions/cache@v4
+        with:
+          path: packages/core/.cache
+          key: dictionary-sources-${{ hashFiles('packages/core/scripts/sources.ts') }}
+
       # ── Build generated assets (needed by tests) ──
       # macOS emits Rime dictionaries from the same B-tree as Windows, so it needs both
       # the asset and the sibling packages' schemas staged by build:rime.
@@ -170,12 +179,9 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-36 ndk;27.2.12479018'
 
-      # The parity golden file is generated against a specific CC-CEDICT edition.
-      # build:dict downloads a fresh edition, so the golden must be regenerated to
-      # match, otherwise PinyinEngineParityTest fails on any upstream dictionary change.
-      - name: "[android] Regenerate parity golden"
-        if: ${{ matrix.package == 'android' }}
-        run: npm run build:parity -w @pinyinduck/core
+      # No golden regeneration here: build:dict reads pinned, hash-checked sources, so the
+      # committed engine-parity.tsv is the golden for exactly the asset built above, and
+      # PinyinEngineParityTest compares the Kotlin engine against it as committed.
 
       - name: "[android] Lint (ktlint via Gradle)"
         if: ${{ matrix.package == 'android' }}
@@ -271,6 +277,15 @@ jobs:
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
+
+      # The dictionary sources are pinned by URL and SHA-256 in sources.ts and re-verified
+      # on every read, so a cache keyed on that file can never serve the wrong edition; it
+      # only spares mdbg's copy host and GitHub a download per job.
+      - name: Cache dictionary sources
+        uses: actions/cache@v4
+        with:
+          path: packages/core/.cache
+          key: dictionary-sources-${{ hashFiles('packages/core/scripts/sources.ts') }}
 
       - name: Build dictionary assets
         run: |
