@@ -525,4 +525,57 @@ class PinyinDuckSessionTest {
         assertEquals("", pending.buffer)
         assertFalse(pending.hasCandidates)
     }
+
+    // --- direct input (password, email and number fields) ------------------------
+
+    @Test
+    fun directInputCommitsLettersAsTypedWithoutComposing() {
+        session.direct = true
+        type("niHao")
+
+        assertEquals("niHao", editor.committed.toString())
+        assertEquals("", editor.composing)
+        assertEquals("", session.buffer)
+        assertFalse(session.hasCandidates)
+    }
+
+    @Test
+    fun directInputCommitsEveryDigitIncludingToneDigits() {
+        session.direct = true
+        type("shi")
+        (0..9).forEach { session.typeDigit(it) }
+
+        assertEquals("shi0123456789", editor.text)
+        assertFalse(session.isComposing)
+    }
+
+    @Test
+    fun directInputSpaceAndBackspaceActOnTheText() {
+        session.direct = true
+        type("ab")
+        session.space()
+        session.backspace()
+        session.backspace()
+
+        assertEquals("a", editor.text)
+    }
+
+    @Test
+    fun turningDirectInputOnDropsAComposition() {
+        type("ni")
+        session.direct = true
+
+        assertEquals("", session.buffer)
+        assertFalse(session.hasCandidates)
+    }
+
+    @Test
+    fun turningDirectInputOffComposesAgain() {
+        session.direct = true
+        session.direct = false
+        type("ni")
+
+        assertEquals("ni", session.buffer)
+        assertTrue(session.hasCandidates)
+    }
 }
