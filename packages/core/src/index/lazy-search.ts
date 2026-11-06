@@ -16,14 +16,16 @@
  */
 
 import { SearchOptions, SearchResult, ScriptType } from '../types.js';
-import { cleanPinyin, pinyinNumbersToMarks, segmentPinyin } from '../parser/pinyin.js';
+import { cleanPinyin, parseToneFilter, pinyinNumbersToMarks, segmentPinyin } from '../parser/pinyin.js';
 import { BTreeDictionary } from '../data/btree-dictionary.js';
 import type { StoredEntry } from '../data/btree-codec.js';
 import {
   DEFAULT_MAX_MATCHES,
+  compareScored,
   entryToCandidate,
   scoreEntry,
   type ScorableEntry,
+  type ScoredEntry,
 } from './ranking.js';
 
 export interface LazySearchEngineOptions {
@@ -31,29 +33,8 @@ export interface LazySearchEngineOptions {
   maxMatches?: number;
 }
 
-interface ScoredStoredEntry {
-  entry: StoredEntry;
-  score: number;
-}
-
-/**
- * Deterministic ordering for equal scores.
- *
- * The trie engine's tie order falls out of trie insertion order, which a B-tree scan
- * cannot reproduce. Sorting ties by frequency (then key, then form) keeps result
- * ordering stable across clients and build layouts.
- */
-function compareScored(a: ScoredStoredEntry, b: ScoredStoredEntry): number {
-  if (a.score !== b.score) return b.score - a.score;
-  if (a.entry.frequency !== b.entry.frequency) return b.entry.frequency - a.entry.frequency;
-  if (a.entry.key !== b.entry.key) return a.entry.key < b.entry.key ? -1 : 1;
-  if (a.entry.simplified !== b.entry.simplified) {
-    return a.entry.simplified < b.entry.simplified ? -1 : 1;
-  }
-  if (a.entry.pinyinNumbers !== b.entry.pinyinNumbers) {
-    return a.entry.pinyinNumbers < b.entry.pinyinNumbers ? -1 : 1;
-  }
-  return 0;
+interface ScoredStoredEntry extends ScoredEntry {
+  stored: StoredEntry;
 }
 
 export class LazyPinyinSearchEngine {
@@ -84,19 +65,23 @@ export class LazyPinyinSearchEngine {
 
     const segments = segmentPinyin(rawQuery);
     const tonelessQuery = cleanPinyin(rawQuery);
-    const toneFilterNumbers = rawQuery.match(/\d/g)?.map(Number) || [];
-    const hasToneFilter = toneFilterNumbers.length > 0;
+    const toneFilter = parseToneFilter(rawQuery);
+    const hasToneFilter = toneFilter.length > 0;
 
     // Keep the best-scoring entry per displayed hanzi so dedup and ranking happen in
     // one pass, with no full-dictionary materialization.
     const chosen = new Map<string, ScoredStoredEntry>();
 
-    const consider = (entry: StoredEntry): void => {
-      const score = scoreEntry(storedEntryToScorable(entry), tonelessQuery, toneFilterNumbers);
+    const consider = (stored: StoredEntry): void => {
+      const entry = storedEntryToScorable(stored);
+      const score = scoreEntry(entry, tonelessQuery, toneFilter);
       if (hasToneFilter && score <= 0) return;
-      const hanzi = script === 'traditional' ? entry.traditional : entry.simplified;
+      const hanzi = script === 'traditional' ? stored.traditional : stored.simplified;
+      const candidate = { entry, score, stored };
+      // Ties go through the shared order rather than "first seen wins", so the reading
+      // that represents a hanzi does not depend on page scan order.
       const previous = chosen.get(hanzi);
-      if (!previous || score > previous.score) chosen.set(hanzi, { entry, score });
+      if (!previous || compareScored(candidate, previous) < 0) chosen.set(hanzi, candidate);
     };
 
     for (const entry of await this.dictionary.lookupExact(tonelessQuery)) consider(entry);
@@ -121,7 +106,7 @@ export class LazyPinyinSearchEngine {
     const total = ranked.length;
     const candidates = ranked
       .slice(offset, offset + limit)
-      .map((item) => storedEntryToCandidate(item.entry, script, tonelessQuery));
+      .map((item) => storedEntryToCandidate(item.stored, script, tonelessQuery));
 
     return {
       query: rawQuery,
