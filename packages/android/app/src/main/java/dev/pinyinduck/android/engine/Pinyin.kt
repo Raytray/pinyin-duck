@@ -565,42 +565,66 @@ fun segmentPinyin(input: String): List<String> {
     return segmentContinuousPinyin(cleaned)
 }
 
+/** Longest chunk to try: a 6-letter syllable ("zhuang") plus a tone digit, with headroom. */
+private const val MAX_SYLLABLE_CHUNK = 8
+
+private fun isSyllableChunk(chunk: String): Boolean {
+    val match = SYLLABLE_PATTERN.matchEntire(chunk) ?: return false
+    return match.groupValues[1] in VALID_PINYIN_SYLLABLES
+}
+
 /**
- * Greedy forward segmentation, longest match first.
+ * Segments an unbroken run into syllables, longest match first, backtracking when a
+ * choice strands the rest of the input.
  *
- * Search never fails: when no syllable starts at the current index the remainder is
- * emitted verbatim, so unresolvable input such as `qqq` still reaches the search engine
- * and can be committed as raw text. That guarantee is what lets this be a single greedy
- * pass rather than a search with backtracking.
+ * A plain greedy pass split `jianguo` into `jiang` + `uo`, leaving a non-syllable behind
+ * even though `jian` + `guo` exists. The longest syllable is still tried first, so any
+ * input the greedy pass split validly is split the same way; a shorter syllable is tried
+ * only when the longer one leaves a remainder that cannot be split. Failed positions are
+ * memoized, so the search stays linear in the input length.
+ *
+ * When no split covers the whole input, the longest splittable prefix is split and the
+ * remainder is emitted verbatim, so unresolvable input such as `qqq` still reaches the
+ * search engine and can be committed as raw text.
  */
 private fun segmentContinuousPinyin(text: String): List<String> {
-    val syllables = ArrayList<String>()
-    var index = 0
+    val n = text.length
 
-    while (index < text.length) {
-        // The longest Mandarin syllable is 7 letters, plus one tone digit.
-        val maxLength = minOf(8, text.length - index)
-        var matchedLength = -1
-
-        for (length in maxLength downTo 1) {
-            val chunk = text.substring(index, index + length)
-            val match = SYLLABLE_PATTERN.matchEntire(chunk) ?: continue
-            if (match.groupValues[1] in VALID_PINYIN_SYLLABLES) {
-                matchedLength = length
+    // reachable[j]: text[0, j) splits into valid syllables. `end` is the furthest such j.
+    val reachable = BooleanArray(n + 1)
+    reachable[0] = true
+    var end = 0
+    for (j in 1..n) {
+        for (i in maxOf(0, j - MAX_SYLLABLE_CHUNK) until j) {
+            if (reachable[i] && isSyllableChunk(text.substring(i, j))) {
+                reachable[j] = true
+                end = j
                 break
             }
         }
-
-        if (matchedLength < 0) {
-            syllables.add(text.substring(index))
-            break
-        }
-
-        syllables.add(text.substring(index, index + matchedLength))
-        index += matchedLength
     }
 
-    return syllables
+    val result = ArrayList<String>()
+    val dead = HashSet<Int>()
+
+    fun split(index: Int): Boolean {
+        if (index == end) return true
+        if (index in dead) return false
+        for (length in minOf(MAX_SYLLABLE_CHUNK, end - index) downTo 1) {
+            val chunk = text.substring(index, index + length)
+            if (!isSyllableChunk(chunk)) continue
+            result.add(chunk)
+            if (split(index + length)) return true
+            result.removeAt(result.lastIndex)
+        }
+        dead.add(index)
+        return false
+    }
+
+    // text[0, end) is splittable by construction, so this always succeeds.
+    split(0)
+    if (end < n) result.add(text.substring(end))
+    return result
 }
 
 /** Strips tone numbers, diacritics and apostrophes to a toneless pinyin key. */
