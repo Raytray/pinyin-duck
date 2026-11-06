@@ -7,6 +7,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import dev.pinyinduck.android.engine.ScriptType
 import dev.pinyinduck.android.engine.TestDictionary
@@ -79,17 +80,17 @@ class SettingsActivityTest {
         // The asset is mapped on a background dispatcher, so the first frames still say Loading.
         compose.waitUntil(timeoutMillis = 30_000) {
             compose
-                .onAllNodes(hasText("CC-CEDICT", substring = true))
+                .onAllNodes(hasText("CC-CEDICT: ", substring = true))
                 .fetchSemanticsNodes()
                 .isNotEmpty()
         }
         // What this test is actually about is that the screen reports the corpus size rather
         // than sitting on "Loading" or an error, so it pins the shape of the line and reads
-        // the number back out. Hard-coding the number would re-break this every time
-        // CC-CEDICT publishes, since the asset is rebuilt from a live download each run.
+        // the number back out. Hard-coding the number would re-break this every time the
+        // pinned CC-CEDICT edition is bumped.
         val label =
             compose
-                .onAllNodes(hasText("CC-CEDICT", substring = true))
+                .onAllNodes(hasText("CC-CEDICT: ", substring = true))
                 .fetchSemanticsNodes()
                 .single()
                 .config[SemanticsProperties.Text]
@@ -105,6 +106,20 @@ class SettingsActivityTest {
             "expected the full CC-CEDICT corpus, the screen reported $reported",
             reported >= TestDictionary.MIN_ENTRY_COUNT,
         )
+    }
+
+    @Test
+    fun itCreditsEveryDictionarySourceAndItsLicense() {
+        // CC BY-SA 4.0 requires the credit wherever the bundled dictionary goes, and this
+        // screen is the only place in the app a user can see it.
+        compose.onNodeWithText("Credits").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("licensed under CC BY-SA 4.0", substring = true).assertExists()
+        for (source in listOf("CC-CEDICT", "FrequencyWords (OpenSubtitles 2018)", "HSK 2012 word list")) {
+            compose.onNodeWithText(source).performScrollTo().assertIsDisplayed()
+        }
+        for (author in listOf("By MDBG", "By Hermit Dave", "gigacool")) {
+            compose.onNodeWithText(author, substring = true).assertExists()
+        }
     }
 
     @Test

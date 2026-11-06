@@ -1,6 +1,7 @@
 {
   "name": "@pinyinduck/windows",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "Rime/Weasel schema generator for the PinyinDuck Windows input method",
   "scripts": {

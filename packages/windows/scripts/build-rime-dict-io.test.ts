@@ -21,6 +21,7 @@ import {
   type RimeBuildDeps,
   type RimeFileSink,
 } from './build-rime-dict';
+import { DATA_CREDIT_LINES } from '../src/rime-dict';
 
 /** One dictionary row as the dictionary builder takes it. */
 type DictRow = [string, string, string, string, number, number];
@@ -296,6 +297,13 @@ describe('the real filesystem adapter', () => {
 });
 
 describe('renderGlossSidecar', () => {
+  it('credits the data sources and states the CC BY-SA license in its header', () => {
+    const lua = renderGlossSidecar(new Map());
+    for (const line of DATA_CREDIT_LINES) expect(lua).toContain(`-- ${line}`);
+    // Comments only, ahead of the code the filter runs.
+    expect(lua.indexOf('CC BY-SA 4.0')).toBeLessThan(lua.indexOf('local data = '));
+  });
+
   it('emits the data as one delimited string, sorted for reproducibility', () => {
     const gloss = new Map([
       ['你好', new Map([['ni hao', 'nǐ hǎo · hello']])],

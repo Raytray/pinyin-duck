@@ -128,3 +128,33 @@ test('leaves the editor intact when the clipboard write is rejected', async ({ p
   await expect(editor(page)).toHaveValue('你好');
   await expect(copyButton(page)).toBeEnabled();
 });
+
+test('credits the dictionary sources and their licenses', async ({ page }) => {
+  // The page downloads a CC BY-SA dictionary, so the credit has to be reachable from it.
+  const credits = page.getByRole('dialog', { name: 'Credits' });
+  await expect(credits).toBeHidden();
+
+  await page.getByRole('button', { name: 'Credits' }).click();
+  await expect(credits).toBeVisible();
+  await expect(credits).toContainText('licensed under CC BY-SA 4.0');
+  for (const [name, href] of [
+    ['CC-CEDICT', 'https://www.mdbg.net/chinese/dictionary?page=cc-cedict'],
+    ['FrequencyWords (OpenSubtitles 2018)', 'https://github.com/hermitdave/FrequencyWords'],
+    ['HSK 2012 word list', 'https://github.com/gigacool/hanyu-shuiping-kaoshi'],
+  ]) {
+    await expect(credits.getByRole('link', { name, exact: true })).toHaveAttribute('href', href);
+  }
+  await expect(credits).toContainText('MDBG');
+  await expect(credits).toContainText('Hermit Dave');
+  await expect(credits).toContainText('gigacool');
+
+  await credits.getByRole('button', { name: 'Close credits' }).click();
+  await expect(credits).toBeHidden();
+
+  // Escape closes it too, and typing carries on afterwards.
+  await page.getByRole('button', { name: 'Credits' }).click();
+  await page.keyboard.press('Escape');
+  await expect(credits).toBeHidden();
+  await editor(page).pressSequentially('xiexie');
+  await expectCandidates(page, ['谢谢', '泄泻', '写', '些', '鞋']);
+});

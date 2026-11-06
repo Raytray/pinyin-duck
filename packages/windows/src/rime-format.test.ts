@@ -33,6 +33,12 @@ function dict(body = '', overrides: { entryCount?: number; name?: string } = {})
   );
 }
 
+/**
+ * The 1-based line the first body row lands on: the one after the header's closing `...`.
+ * Derived rather than hard-coded, so a change to the header's comments moves it too.
+ */
+const BODY_LINE = dict().split('\n').length;
+
 /** The rows a dictionary of `count` identical entries would produce. */
 function rows(count: number): string {
   return Array.from(
@@ -62,8 +68,9 @@ describe('parseDictHeader', () => {
   it('points the body at the first row after the closing `...`', () => {
     const file = parseDictHeader(dict(rows(1)));
     const [first] = [...iterateRimeRows(dict(rows(1)), file)];
-    expect(file.bodyStartLine).toBe(20);
-    expect(first.line).toBe(20);
+    expect(file.bodyStartLine).toBe(BODY_LINE);
+    expect(first.line).toBe(BODY_LINE);
+    expect(dict(rows(1)).split('\n')[BODY_LINE - 1]).toBe(rows(1));
   });
 
   it('keeps the preamble above the header', () => {
@@ -291,7 +298,7 @@ describe('iterateRimeRows', () => {
   it('walks every row with its real line number', () => {
     const text = dict(rows(3));
     const seen = [...iterateRimeRows(text, parseDictHeader(text))].map((row) => row.line);
-    expect(seen).toEqual([20, 21, 22]);
+    expect(seen).toEqual([BODY_LINE, BODY_LINE + 1, BODY_LINE + 2]);
   });
 
   it('skips blank lines and `#` comments the way Collect does', () => {
@@ -329,6 +336,6 @@ describe('iterateRimeRows', () => {
     const text = dict(['你\tshi4\tshì\t1', '坏行\tshi4', '安\tan1\tān\t2'].join('\n'));
     const walk = () => [...iterateRimeRows(text, parseDictHeader(text))];
     expect(walk).toThrow(RimeFormatError);
-    expect(walk).toThrow(/line 21/);
+    expect(walk).toThrow(new RegExp(`line ${BODY_LINE + 1}\\b`));
   });
 });

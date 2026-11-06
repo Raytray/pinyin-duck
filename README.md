@@ -89,3 +89,10 @@ cd packages/android && ./gradlew check
 - [`packages/windows/README.md`](packages/windows/README.md)
 - [`packages/macos/README.md`](packages/macos/README.md)
 - [`docs/roadmap.md`](docs/roadmap.md)
+
+## License
+
+The code is under the [MIT License](LICENSE). The dictionary is built from CC-CEDICT,
+FrequencyWords and an HSK word list, and the built dictionary files are under
+CC BY-SA 4.0. [DATA_LICENSES.md](DATA_LICENSES.md) credits each source and lists the
+files that license covers.

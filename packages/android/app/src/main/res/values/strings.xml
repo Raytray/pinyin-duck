@@ -17,6 +17,17 @@
     <string name="settings_dictionary_loading">Loading…</string>
     <string name="settings_dictionary_missing">Not loaded. Reinstall the app after running \"npm run build:dict\" at the repository root.</string>
 
+    <!-- Credits. CC BY-SA 4.0 requires the dictionary's sources to be credited wherever it
+         is distributed, and the APK bundles it; see DATA_LICENSES.md. -->
+    <string name="settings_credits_heading">Credits</string>
+    <string name="settings_credits_summary">The dictionary is built from the sources below and is licensed under CC BY-SA 4.0 (creativecommons.org/licenses/by-sa/4.0). PinyinDuck\'s code is under the MIT License.</string>
+    <string name="settings_credit_cedict_name">CC-CEDICT</string>
+    <string name="settings_credit_cedict_detail">By MDBG and contributors · CC BY-SA 4.0\nmdbg.net/chinese/dictionary?page=cc-cedict</string>
+    <string name="settings_credit_frequency_name">FrequencyWords (OpenSubtitles 2018)</string>
+    <string name="settings_credit_frequency_detail">By Hermit Dave · CC BY-SA 4.0\ngithub.com/hermitdave/FrequencyWords</string>
+    <string name="settings_credit_hsk_name">HSK 2012 word list</string>
+    <string name="settings_credit_hsk_detail">© 2018 gigacool · MIT\ngithub.com/gigacool/hanyu-shuiping-kaoshi</string>
+
     <string name="settings_enable_hint">Choose PinyinDuck under Settings → System → Languages &amp; input → On-screen keyboard.</string>
 
     <string name="cd_expand_candidates">Show all candidates</string>

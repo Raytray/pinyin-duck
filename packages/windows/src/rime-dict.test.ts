@@ -23,6 +23,7 @@ import {
   formatRow,
   hskBonus,
   renderDictHeader,
+  DATA_CREDIT_LINES,
   rimeCodes,
   rimeComment,
   rimeToneMarks,
@@ -293,6 +294,18 @@ describe('renderDictHeader', () => {
       .filter((line) => line.startsWith('  - '))
       .map((line) => line.trim().slice(2));
     expect(columns).toEqual([...RIME_COLUMNS]);
+  });
+
+  it('credits the data sources and states the CC BY-SA license', () => {
+    // The file is copied into a Rime folder on its own, so its header is the only notice
+    // its holder sees. CC BY-SA requires the credit and the license to travel with it.
+    for (const line of DATA_CREDIT_LINES) expect(header).toContain(`# ${line}`);
+    expect(header).toContain('CC BY-SA 4.0');
+    expect(header).toMatch(/CC-CEDICT, by MDBG/);
+    expect(header).toMatch(/Hermit Dave/);
+    expect(header).toMatch(/gigacool/);
+    // Still ahead of the YAML document, where librime ignores it.
+    expect(header.indexOf('License:')).toBeLessThan(header.indexOf('---'));
   });
 
   it('sorts by weight and does not pull in the essay vocabulary', () => {
