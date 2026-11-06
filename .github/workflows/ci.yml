@@ -86,7 +86,7 @@ jobs:
   # ─── Per-package checks (parallel matrix) ─────────────────────────────────
   package-checks:
     needs: changes
-    if: ${{ needs.changes.outputs.full == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.android == 'true' || needs.changes.outputs.windows == 'true' || needs.changes.outputs.macos == 'true' }}
+    if: ${{ needs.changes.outputs.full == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.android == 'true' || needs.changes.outputs.windows == 'true' || needs.changes.outputs.macos == 'true' || needs.changes.outputs.root == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -253,10 +253,10 @@ jobs:
           npm run setup:rime -w @pinyinduck/macos
           npm run test:rime -w @pinyinduck/macos
 
-  # ─── E2E tests (only if web or core changed) ──────────────────────────────
+  # ─── E2E tests (if web, core or root files changed) ──────────────────────────────
   e2e:
     needs: changes
-    if: ${{ needs.changes.outputs.full == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.core == 'true' }}
+    if: ${{ needs.changes.outputs.full == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.root == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
