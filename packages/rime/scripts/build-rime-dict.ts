@@ -1,16 +1,20 @@
 /**
- * Generates the Rime dictionary files the Windows input method loads.
+ * Generates everything the Windows and macOS input methods load.
  *
- * Reads the paged B+ tree the rest of the project shares and writes one
- * `<name>.dict.yaml` per script into `packages/windows/rime`, next to the hand-written
- * schemas that reference them. Nothing is materialized: the tree is walked in key order
- * and each code is emitted as soon as the walk leaves it, so peak memory is the largest
- * group of same-reading entries rather than the corpus.
+ * For each platform, writes into `packages/<platform>/rime`:
+ *
+ * - the schemas, `default.custom.yaml` and the Lua filter, rendered from `templates/`, so
+ *   the two platforms differ only where `src/rime-platform.ts` says they do;
+ * - one `<name>.dict.yaml` per script and the Lua gloss sidecar, read from the paged B+
+ *   tree the rest of the project shares. Nothing is materialized: the tree is walked in key
+ *   order and each code is emitted as soon as the walk leaves it, so peak memory is the
+ *   largest group of same-reading entries rather than the corpus.
  *
  * Usage:
- *   npm run build:rime                        # dictionary.btree -> rime/*.dict.yaml
- *   npm run build:rime -- --out <dir>         # write the dictionaries somewhere else
- *   npm run build:rime -- --btree <path>      # read a different asset
+ *   npm run build:rime                                  # every platform
+ *   npm run build:rime -- --platform macos              # one platform
+ *   npm run build:rime -- --platform macos --out <dir>  # write one platform somewhere else
+ *   npm run build:rime -- --btree <path>                # read a different asset
  */
 
 import * as fs from 'fs';
@@ -26,9 +30,22 @@ import {
   renderDictHeader,
   type RimeScript,
 } from '../src/rime-dict.js';
+import {
+  PLATFORM_INFO,
+  RIME_PLATFORMS,
+  TEMPLATE_FILES,
+  isRimePlatform,
+  renderTemplate,
+  type RimePlatform,
+} from '../src/rime-platform.js';
 
 const DEFAULT_BTREE = path.resolve(__dirname, '../../web/public/dictionary.btree');
-const DEFAULT_OUT_DIR = path.resolve(__dirname, '../rime');
+const TEMPLATES_DIR = path.resolve(__dirname, '../templates');
+
+/** Where a platform's installer reads its files from. */
+export function platformRimeDir(platform: RimePlatform): string {
+  return path.resolve(__dirname, '../..', platform, 'rime');
+}
 
 /**
  * Dictionary names.
@@ -41,11 +58,11 @@ export const DICT_NAMES: Record<RimeScript, string> = {
   traditional: 'pinyinduck_trad',
 };
 
-/** Bumped when the emitted layout changes, so Weasel recompiles on update. */
+/** Bumped when the emitted layout changes, so Weasel and Squirrel recompile on update. */
 export const DICT_VERSION = '0.2.0';
 
 /** Rows buffered before a write, to keep 122k rows from becoming 122k syscalls. */
-const FLUSH_INTERVAL = 4096;
+export const FLUSH_INTERVAL = 4096;
 
 /** Escapes a string for a Lua string literal, keeping it on one line. */
 function luaString(value: string): string {
@@ -181,6 +198,31 @@ export interface RimeBuildOptions {
 }
 
 /**
+ * Renders the hand-written files for one platform into `outDir`.
+ *
+ * Templates are read from disk directly rather than through `deps`: they are committed
+ * source, small, and the same in a test as in a build.
+ */
+export function renderPlatformFiles(
+  platform: RimePlatform,
+  outDir: string,
+  deps: RimeBuildDeps = nodeDeps,
+  templatesDir: string = TEMPLATES_DIR
+): string[] {
+  const written: string[] = [];
+  for (const name of TEMPLATE_FILES) {
+    const template = fs.readFileSync(path.join(templatesDir, name), 'utf8');
+    const target = path.join(outDir, name);
+    deps.ensureDir(path.dirname(target));
+    const sink = deps.openFile(target);
+    sink.write(renderTemplate(name, template, platform).replace(/\n$/, ''));
+    sink.close();
+    written.push(target);
+  }
+  return written;
+}
+
+/**
  * Walks the asset once and writes every dictionary from it.
  *
  * A single pass feeds both scripts: the traditional rows are derived from the same
@@ -273,41 +315,70 @@ export async function buildRimeDictionaries(
   return { entryCount, files, scripts, glossEntries: gloss.size, glossFile };
 }
 
+export interface RimeCliOptions {
+  btreePath: string;
+  platforms: RimePlatform[];
+  /** Overrides the output directory. Only accepted with a single platform. */
+  outDir?: string;
+}
+
 /**
  * Resolves the CLI flags into build options.
  *
  * Split out from `main` so the flag handling can be tested without running a build.
  */
-export function parseArgs(args: string[]): RimeBuildOptions {
-  const outIndex = args.indexOf('--out');
-  const btreeIndex = args.indexOf('--btree');
-  return {
-    outDir: outIndex >= 0 && args[outIndex + 1] ? args[outIndex + 1] : DEFAULT_OUT_DIR,
-    btreePath:
-      btreeIndex >= 0 && args[btreeIndex + 1] ? args[btreeIndex + 1] : DEFAULT_BTREE,
+export function parseArgs(args: string[]): RimeCliOptions {
+  const value = (flag: string): string | undefined => {
+    const index = args.indexOf(flag);
+    return index >= 0 && args[index + 1] ? args[index + 1] : undefined;
   };
+
+  const platform = value('--platform');
+  if (platform !== undefined && !isRimePlatform(platform)) {
+    throw new Error(
+      `Unknown platform "${platform}". Expected one of: ${RIME_PLATFORMS.join(', ')}.`
+    );
+  }
+  const platforms: RimePlatform[] = platform ? [platform] : [...RIME_PLATFORMS];
+
+  const outDir = value('--out');
+  if (outDir !== undefined && platforms.length > 1) {
+    throw new Error('--out writes one platform; pass --platform with it.');
+  }
+
+  return { btreePath: value('--btree') ?? DEFAULT_BTREE, platforms, outDir };
 }
 
 /** Builds and reports, so the CLI is a thin wrapper that tests can drive directly. */
 export async function main(args: string[], deps: RimeBuildDeps = nodeDeps): Promise<void> {
-  const { btreePath, outDir } = parseArgs(args);
+  const { btreePath, platforms, outDir: outOverride } = parseArgs(args);
   const started = Date.now();
-  console.log('Building the PinyinDuck Rime dictionaries from the B+ tree asset...\n');
+  console.log('Building the PinyinDuck Rime files from the B+ tree asset...');
 
-  const stats = await buildRimeDictionaries({ btreePath, outDir }, deps);
+  for (const platform of platforms) {
+    const outDir = outOverride ?? platformRimeDir(platform);
+    const { host, userDir, installCommand } = PLATFORM_INFO[platform];
+    console.log(`\n[${platform}] ${host}`);
 
-  console.log(`  source  ${btreePath} (${stats.entryCount} entries)`);
-  for (const script of RIME_SCRIPTS) {
-    const { rows, skipped, unencodable, duplicates } = stats.scripts[script];
-    console.log(
-      `  wrote   ${stats.files[script]} ` +
-        `(${rows} rows, ${duplicates} duplicates dropped, ` +
-        `${unencodable} unreadable readings, ${skipped} missing text)`
-    );
+    for (const file of renderPlatformFiles(platform, outDir, deps)) {
+      console.log(`  wrote   ${file}`);
+    }
+
+    const stats = await buildRimeDictionaries({ btreePath, outDir }, deps);
+    console.log(`  source  ${btreePath} (${stats.entryCount} entries)`);
+    for (const script of RIME_SCRIPTS) {
+      const { rows, skipped, unencodable, duplicates } = stats.scripts[script];
+      console.log(
+        `  wrote   ${stats.files[script]} ` +
+          `(${rows} rows, ${duplicates} duplicates dropped, ` +
+          `${unencodable} unreadable readings, ${skipped} missing text)`
+      );
+    }
+    console.log(`  wrote   ${stats.glossFile} (${stats.glossEntries} definitions)`);
+    console.log(`  next    in packages/${platform}, run \`${installCommand}\` to copy these into ${userDir}`);
   }
-  console.log(`  wrote   ${stats.glossFile} (${stats.glossEntries} definitions)`);
-  console.log('\nNext: run scripts/install.ps1 to copy these into %APPDATA%\\Rime.');
-  console.log(`Done in ${((Date.now() - started) / 1000).toFixed(1)}s.`);
+
+  console.log(`\nDone in ${((Date.now() - started) / 1000).toFixed(1)}s.`);
 }
 
 // pathToFileURL rather than a `file://` template, which never matches a Windows path

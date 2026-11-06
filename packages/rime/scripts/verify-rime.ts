@@ -5,11 +5,13 @@
  * that the body is TSV, that the header must declare a comment column, that
  * `SortHomophones` is a stable sort by weight. Reading a source file is not the same as
  * running it, and a misreading passes every unit test while producing an input method
- * that finds nothing. So this stages the files exactly as `scripts/install.ps1` would,
- * lets librime deploy them, and types at the result.
+ * that finds nothing. So this stages each platform's `rime/` folder exactly as its
+ * installer would, lets librime deploy it, and types at the result. Weasel and Squirrel
+ * bundle the same librime, so one Linux build of it stands in for both.
  *
  *   npm run setup:rime      # once: builds librime and the harness, no sudo
- *   npm run test:rime       # this script
+ *   npm run test:rime       # this script, for every platform
+ *   npm run test:rime -- --platform macos   # one platform
  *   npm run test:rime:strict   # same, but a missing librime is a failure
  *
  * Without a built librime this reports what is missing and exits 0, so it can sit in a
@@ -30,14 +32,19 @@ import {
   type SmokeRecord,
 } from '../src/rime-verify.js';
 import { RIME_SCRIPTS } from '../src/rime-dict.js';
-import { DICT_NAMES } from './build-rime-dict.js';
+import {
+  PLATFORM_INFO,
+  RIME_PLATFORMS,
+  isRimePlatform,
+  type RimePlatform,
+} from '../src/rime-platform.js';
+import { DICT_NAMES, platformRimeDir } from './build-rime-dict.js';
 
 const TOOLS_DIR = path.resolve(__dirname, '../tools');
 const HARNESS = path.join(TOOLS_DIR, '.local/bin/rime_smoke');
 const LIBRIME_DIR = path.join(TOOLS_DIR, 'librime');
 /** Stands in for rime-prelude: the presets `import_preset` and the patch target need. */
 const SHARED_DATA_DIR = path.join(LIBRIME_DIR, 'data/minimal');
-const RIME_DIR = path.resolve(__dirname, '../rime');
 
 /**
  * The only files taken from librime's sample data.
@@ -62,6 +69,8 @@ export interface VerifyOptions {
   require: boolean;
   /** Keep the staged user directory for inspection. */
   keepStaging: boolean;
+  /** Whose `rime/` folder to verify. Defaults to Windows. */
+  platform?: RimePlatform;
   /** Overrides the harness binary. Only the tests set this. */
   harnessPath?: string;
   /** Overrides librime's sample data directory. Only the tests set this. */
@@ -198,7 +207,7 @@ export interface VerifyResult {
 export function verifyRime(options: VerifyOptions): VerifyResult {
   const harness = options.harnessPath ?? HARNESS;
   const sharedDataDir = options.sharedDataDir ?? SHARED_DATA_DIR;
-  const rimeDir = options.rimeDir ?? RIME_DIR;
+  const rimeDir = options.rimeDir ?? platformRimeDir(options.platform ?? 'windows');
 
   const problem = harnessProblem(harness, sharedDataDir);
   if (problem) {
@@ -268,10 +277,22 @@ export function verifyRime(options: VerifyOptions): VerifyResult {
   }
 }
 
-export function parseArgs(args: string[]): VerifyOptions {
+export interface VerifyCliOptions extends VerifyOptions {
+  platforms: RimePlatform[];
+}
+
+export function parseArgs(args: string[]): VerifyCliOptions {
+  const index = args.indexOf('--platform');
+  const platform = index >= 0 ? args[index + 1] : undefined;
+  if (platform !== undefined && !isRimePlatform(platform)) {
+    throw new Error(
+      `Unknown platform "${platform}". Expected one of: ${RIME_PLATFORMS.join(', ')}.`
+    );
+  }
   return {
     require: args.includes('--require'),
     keepStaging: args.includes('--keep-staging'),
+    platforms: platform ? [platform] : [...RIME_PLATFORMS],
   };
 }
 
@@ -284,25 +305,29 @@ export function parseArgs(args: string[]): VerifyOptions {
  * one installed.
  */
 export async function main(args: string[], overrides: Partial<VerifyOptions> = {}): Promise<void> {
-  const options = { ...parseArgs(args), ...overrides };
+  const { platforms, ...parsed } = parseArgs(args);
+  const options = { ...parsed, ...overrides };
   console.log('Verifying the PinyinDuck schemas with a real librime...\n');
 
-  const result = verifyRime(options);
-  console.log(result.output);
+  for (const platform of platforms) {
+    if (platforms.length > 1) console.log(`[${platform}]`);
+    const result = verifyRime({ ...options, platform });
+    console.log(result.output);
 
-  if (result.skipped) {
-    // Said in those words, because a check that exits 0 without running anything reads as
-    // a pass to anything that only looks at the exit code — which is a CI log.
-    console.log('\nThis is a skip, not a pass: no engine ran. Use --require to make it fail.');
-  }
-  if (!result.ok) {
-    process.exitCode = 1;
-    return;
-  }
-  if (!result.skipped) {
+    if (result.skipped) {
+      // Said in those words, because a check that exits 0 without running anything reads as
+      // a pass to anything that only looks at the exit code — which is a CI log.
+      console.log('\nThis is a skip, not a pass: no engine ran. Use --require to make it fail.');
+      // The harness is shared, so every other platform would skip for the same reason.
+      return;
+    }
+    if (!result.ok) {
+      process.exitCode = 1;
+      continue;
+    }
     console.log(
       '\nRime accepts the dictionaries and answers real keystrokes. ' +
-        'See packages/windows/README.md for the Windows-only checks.'
+        `See packages/${platform}/README.md for the checks only a real ${PLATFORM_INFO[platform].os} host can do.\n`
     );
   }
 }

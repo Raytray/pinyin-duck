@@ -5,7 +5,7 @@ import { parse } from 'yaml';
 import { mergeDefaultCustom, RimeUserConfigError } from './rime-user-config';
 
 /** The file the installers ship, so the tests follow it if it changes. */
-const OURS = fs.readFileSync(path.resolve(__dirname, '../rime/default.custom.yaml'), 'utf8');
+const OURS = fs.readFileSync(path.resolve(__dirname, '../templates/default.custom.yaml'), 'utf8');
 
 const PINYINDUCK_SCHEMAS = [{ schema: 'pinyinduck' }, { schema: 'pinyinduck_trad' }];
 const SAVE_OPTIONS = ['ascii_mode', 'ascii_punct', 'full_shape'];

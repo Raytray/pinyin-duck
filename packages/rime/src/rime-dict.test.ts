@@ -1,5 +1,5 @@
 /**
- * Pins the dictionary format the Windows input method depends on.
+ * Pins the dictionary format the Windows and macOS input methods depend on.
  *
  * These assertions are about a file format this repository does not control and cannot
  * run end to end here: librime reads the body as TSV, resolves columns by name, and

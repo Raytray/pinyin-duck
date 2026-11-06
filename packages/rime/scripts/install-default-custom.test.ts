@@ -4,7 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { backupSuffix, installDefaultCustom, main } from './install-default-custom';
 
-const OURS_PATH = path.resolve(__dirname, '../rime/default.custom.yaml');
+const OURS_PATH = path.resolve(__dirname, '../templates/default.custom.yaml');
 const NOW = new Date(2026, 10, 6, 13, 45, 2);
 
 describe('installDefaultCustom', () => {

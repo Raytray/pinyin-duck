@@ -18,7 +18,7 @@ npm run build:dict
 npm run build:rime
 ```
 
-This generates the Rime dictionaries under `packages/windows/rime/`.
+This generates everything under `packages/windows/rime/`: the schemas, rendered from `packages/rime/templates/`, and the dictionaries. Nothing in that folder is committed.
 
 ## Install
 
@@ -46,14 +46,15 @@ The dictionary uses toneless syllable codes, so a typed number selects a candida
 
 ## Development
 
-The Windows package is generated from the shared core engine and Rime schema templates.
+This package holds only the Windows installer. The schemas, the dictionary emitter, the Lua filter and the librime checks are shared with macOS in [`packages/rime`](../rime/README.md), so a change to any of them goes there.
 
 ```bash
-npm test -w @pinyinduck/windows
+npm test -w @pinyinduck/rime
 npm run build:rime
+npm run test:rime
 ```
 
-See the package source for the dictionary emitter and install script.
+`npm run test:rime` drives a Linux build of librime, the same engine Weasel bundles. Installing, deploying and typing into real Windows apps need a Windows machine.
 
 ## Troubleshooting
 

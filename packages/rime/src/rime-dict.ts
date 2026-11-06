@@ -1,7 +1,8 @@
 /**
- * Emitter for the Rime dictionary files behind the PinyinDuck Windows input method.
+ * Emitter for the Rime dictionary files behind the PinyinDuck Windows and macOS input methods.
  *
- * Windows gets PinyinDuck through Rime/Weasel, so the dictionary has to be re-expressed
+ * Both get PinyinDuck through Rime (Weasel on Windows, Squirrel on macOS), so the dictionary
+ * has to be re-expressed
  * in the format librime compiles. A `.dict.yaml` file is a YAML header followed by a
  * TSV body, one row per entry:
  *

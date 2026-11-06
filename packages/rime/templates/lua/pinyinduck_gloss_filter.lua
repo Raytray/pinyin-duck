@@ -1,4 +1,4 @@
--- PinyinDuck gloss filter for the Rime (Squirrel) macOS input method.
+-- PinyinDuck gloss filter for the Rime ({{HOST}}) {{OS}} input method.
 --
 -- Rime's dictionary format has no field a candidate can display the definition from:
 -- librime's EntryCollector reads text/code/weight and discards the comment column. The
