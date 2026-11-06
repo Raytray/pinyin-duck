@@ -1,5 +1,6 @@
 package dev.pinyinduck.android.ime
 
+import android.content.res.AssetManager
 import android.inputmethodservice.InputMethodService
 import android.view.KeyEvent
 import android.view.View
@@ -65,6 +66,16 @@ class PinyinDuckImeService :
     private val dictionaryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var dictionary: OpenedDictionary? = null
+
+    /**
+     * How [loadDictionary] opens the dictionary, run on [dictionaryScope]'s IO thread.
+     *
+     * `internal` so `PinyinDuckImeServiceTest` can hold the load open. Robolectric drains the
+     * main looper inside `ServiceController.create()`, so on a fast machine a real load lands
+     * before the test's first line and "the dictionary is still loading" becomes a race the
+     * test loses. Set it before `create()`; it is read once, in [onCreate].
+     */
+    internal var openDictionary: (AssetManager) -> OpenedDictionary = { DictionaryLoader.openFromAssets(it) }
 
     // `internal` rather than `private` so `PinyinDuckImeServiceTest` can assert on the state
     // the wiring produces. This is the app's only entry point, and it is where a broken
@@ -142,7 +153,7 @@ class PinyinDuckImeService :
      */
     private fun loadDictionary() {
         dictionaryScope.launch {
-            val result = runCatching { DictionaryLoader.openFromAssets(assets) }
+            val result = runCatching { openDictionary(assets) }
             withContext(Dispatchers.Main) {
                 result
                     .onSuccess { opened ->
