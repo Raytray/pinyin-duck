@@ -77,8 +77,8 @@ class PinyinDuckImeServiceTest {
 
         assertFalse(service.uiState.loading)
         assertNull(service.uiState.dictionaryError)
-        // A floor rather than an exact count: the asset is regenerated from a live CC-CEDICT
-        // download on every CI run, so the entry count legitimately changes over time.
+        // A floor rather than an exact count, so a deliberate CC-CEDICT bump does not have to
+        // edit this test. See TestDictionary.MIN_ENTRY_COUNT.
         assertTrue(
             "the dictionary reported ${service.uiState.dictionaryEntries} entries",
             service.uiState.dictionaryEntries >= TestDictionary.MIN_ENTRY_COUNT,

@@ -1,0 +1,3 @@
+# The committed CC-CEDICT edition is pinned by SHA-256 and has CRLF line endings, as MDBG
+# publishes it. Never convert them, or the build rejects the checkout.
+packages/core/data/cedict_1_0_ts_utf-8_mdbg.txt -text
