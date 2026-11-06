@@ -62,7 +62,7 @@ engine:
     # the definition survives deduplication. Without librime-lua, or without the sidecar,
     # the filter is absent and candidates show their spelling instead — the schema still
     # works, it just has no definitions.
-    - lua_filter@pinyinduck_gloss_filter
+    - lua_filter@*pinyinduck_gloss_filter
     - uniquifier
 
 speller:
