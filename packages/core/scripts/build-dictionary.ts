@@ -1,8 +1,8 @@
 /**
  * CC-CEDICT + Frequency + HSK Dictionary Builder
  *
- * Downloads CC-CEDICT, the OpenSubtitles Chinese frequency list, and the HSK 2012
- * word list; joins them on the simplified form; and emits the B-tree asset that
+ * Reads CC-CEDICT (committed under packages/core/data/) and downloads the OpenSubtitles
+ * Chinese frequency list and the HSK 2012 word list; joins them on the simplified form; and emits the B-tree asset that
  * `@pinyinduck/core` loads lazily at runtime.
  *
  * The default output is a paged B+ tree (`dictionary.btree`) keyed on toneless
@@ -18,8 +18,8 @@
  *   npm run build:dict -- --out <path> # write the asset somewhere else
  *   npm run build:dict -- --format json # emit the whole-dictionary JSON instead
  *
- * Sources (pinned to exact URLs and SHA-256 hashes in ./sources.ts):
- *   CC-CEDICT   https://www.mdbg.net/chinese/export/cedict/ (a dated copy on this repo's releases)
+ * Sources (each pinned by SHA-256 in ./sources.ts):
+ *   CC-CEDICT   https://www.mdbg.net/chinese/export/cedict/ (a dated copy in packages/core/data/)
  *   Frequency   https://github.com/hermitdave/FrequencyWords (2018, zh_cn, 50k)
  *   HSK 2012    https://github.com/gigacool/hanyu-shuiping-kaoshi
  */
@@ -32,9 +32,10 @@ import { pinyinNumbersToMarks, cleanPinyin, normalizePinyin } from '../src/parse
 import { formatGloss } from '../src/dictionary/gloss.js';
 import { DictionaryRow } from '../src/data/dictionary-codec.js';
 import { buildBTree } from '../src/data/btree-builder.js';
-import { SOURCES, type PinnedSource } from './sources.js';
+import { SOURCES, type PinnedSource, type VendoredSource } from './sources.js';
 
-const CACHE_DIR = path.resolve(__dirname, '../.cache');
+const PACKAGE_DIR = path.resolve(__dirname, '..');
+const CACHE_DIR = path.join(PACKAGE_DIR, '.cache');
 const OUT_DIR = path.resolve(__dirname, '../../web/public');
 const DEFAULT_OUT = path.join(OUT_DIR, 'dictionary.btree');
 const DEFAULT_JSON_OUT = path.join(OUT_DIR, 'dictionary.json');
@@ -42,9 +43,8 @@ const DEFAULT_JSON_OUT = path.join(OUT_DIR, 'dictionary.json');
 /** Asset layouts the builder can emit. */
 export type DictionaryFormat = 'btree' | 'json';
 
-/** The three sources a build downloads, in the order they are logged. */
+/** The two sources a build downloads. CC-CEDICT is committed rather than downloaded. */
 export const SOURCE_URLS = {
-  cedict: SOURCES.cedict.url,
   frequency: SOURCES.frequency.url,
   hsk: SOURCES.hsk.url,
 } as const;
@@ -154,18 +154,21 @@ export function sha256(text: string): string {
 }
 
 /**
- * Reads a pinned source, from the on-disk cache when it holds the pinned bytes.
+ * Reads a pinned source: a committed file from the repository, a downloaded one from the
+ * on-disk cache when it holds the pinned bytes, and otherwise from the network.
  *
- * A cached copy is checked against the pin as well as a download. A cache written by an
- * older, unpinned build holds whatever edition was current then, and trusting it would
- * make two checkouts of the same commit build different assets; so a copy that does not
- * match is downloaded again rather than used.
+ * Every read is checked against the pin. A cache written by an older, unpinned build holds
+ * whatever edition was current then, and trusting it would make two checkouts of the same
+ * commit build different assets; so a cached copy that does not match is downloaded again
+ * rather than used.
  *
- * A download that does not match is an error, not a warning: it means the pinned URL no
- * longer serves what this commit was built and tested against.
+ * A committed file or a download that does not match is an error, not a warning: it means
+ * the bytes are no longer what this commit was built and tested against.
  */
-async function fetchPinned(source: PinnedSource, useCache: boolean): Promise<string> {
-  const { url, cacheName, gzip } = source;
+async function readPinned(source: PinnedSource, useCache: boolean): Promise<string> {
+  if ('file' in source) return readVendored(source);
+
+  const { url, cacheName } = source;
   const cachePath = path.join(CACHE_DIR, cacheName);
 
   if (useCache && fs.existsSync(cachePath)) {
@@ -183,10 +186,7 @@ async function fetchPinned(source: PinnedSource, useCache: boolean): Promise<str
     throw new Error(`Failed to download ${url}: ${response.status} ${response.statusText}`);
   }
 
-  const body = gzip
-    ? zlib.gunzipSync(Buffer.from(await response.arrayBuffer())).toString('utf8')
-    : await response.text();
-
+  const body = await response.text();
   const actual = sha256(body);
   if (actual !== source.sha256) {
     throw new Error(
@@ -201,6 +201,25 @@ async function fetchPinned(source: PinnedSource, useCache: boolean): Promise<str
   fs.mkdirSync(CACHE_DIR, { recursive: true });
   fs.writeFileSync(cachePath, body);
   return body;
+}
+
+/** Reads a source committed under `packages/core/`, checked against its pin. */
+function readVendored(source: VendoredSource): string {
+  const filePath = path.join(PACKAGE_DIR, source.file);
+  console.log(`  local   ${source.file}`);
+  const text = fs.readFileSync(filePath, 'utf8');
+  const actual = sha256(text);
+  if (actual !== source.sha256) {
+    throw new Error(
+      `packages/core/${source.file} does not match its pinned SHA-256.\n` +
+        `  expected ${source.sha256}\n` +
+        `  got      ${actual}\n` +
+        'It must stay byte-for-byte as published; a changed line ending is enough to break ' +
+        'it (see .gitattributes). To move to a new edition on purpose, follow the steps in ' +
+        'packages/core/scripts/sources.ts.'
+    );
+  }
+  return text;
 }
 
 export interface BuildStats {
@@ -328,9 +347,9 @@ async function build(
   console.log('Building the PinyinDuck dictionary from CC-CEDICT...\n');
 
   const [cedictContent, frequencyContent, hskContent] = await Promise.all([
-    fetchPinned(SOURCES.cedict, useCache),
-    fetchPinned(SOURCES.frequency, useCache),
-    fetchPinned(SOURCES.hsk, useCache),
+    readPinned(SOURCES.cedict, useCache),
+    readPinned(SOURCES.frequency, useCache),
+    readPinned(SOURCES.hsk, useCache),
   ]);
 
   const { rows, stats } = joinCorpora(cedictContent, frequencyContent, hskContent);

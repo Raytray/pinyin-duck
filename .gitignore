@@ -15,8 +15,9 @@ playwright/.cache/
 coverage/
 packages/core/coverage/
 
-# Downloaded CC-CEDICT / frequency / HSK sources, re-fetchable with build:dict. Pinned by
-# URL and SHA-256 in packages/core/scripts/sources.ts, so a copy here is always checked.
+# Downloaded frequency and HSK sources, re-fetchable with build:dict. Pinned by URL and
+# SHA-256 in packages/core/scripts/sources.ts, so a copy here is always checked. CC-CEDICT
+# is not here: it is committed under packages/core/data/.
 packages/core/.cache/
 
 # The generated dictionary assets. Both are produced by `npm run build:dict` from the

@@ -1,5 +1,5 @@
 /**
- * Covers the download, cache and file-writing half of the dictionary builder.
+ * Covers the source-reading, cache and file-writing half of the dictionary builder.
  *
  * These paths are the only ones that touch the network and the filesystem, so they
  * are exercised against an in-memory `fs` and a stubbed `fetch` rather than a real
@@ -10,7 +10,6 @@
  * under test here.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import * as zlib from 'zlib';
 import * as path from 'path';
 
 const { fileStore, dirStore, CEDICT, FREQUENCY, HSK } = vi.hoisted(() => ({
@@ -26,9 +25,9 @@ vi.mock('./sources', async () => {
   const hash = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
   return {
     SOURCES: {
-      cedict: { url: 'https://example.test/cedict.txt.gz', cacheName: 'cedict.txt', gzip: true, sha256: hash(CEDICT) },
-      frequency: { url: 'https://example.test/zh_cn_50k.txt', cacheName: 'zh_cn_50k.txt', gzip: false, sha256: hash(FREQUENCY) },
-      hsk: { url: 'https://example.test/hsk.csv', cacheName: 'hsk.csv', gzip: false, sha256: hash(HSK) },
+      cedict: { file: 'data/cedict.txt', sha256: hash(CEDICT) },
+      frequency: { url: 'https://example.test/zh_cn_50k.txt', cacheName: 'zh_cn_50k.txt', sha256: hash(FREQUENCY) },
+      hsk: { url: 'https://example.test/hsk.csv', cacheName: 'hsk.csv', sha256: hash(HSK) },
     },
   };
 });
@@ -57,8 +56,9 @@ import { MemoryPageSource } from '../src/data/page-source';
 import { LazyPinyinSearchEngine } from '../src/index/lazy-search';
 
 const CACHE_DIR = path.resolve(__dirname, '../.cache');
+/** Where the mocked CC-CEDICT pin points: the committed copy, never downloaded. */
+const CEDICT_FILE = path.resolve(__dirname, '../data/cedict.txt');
 const CACHE_FILES = {
-  cedict: path.join(CACHE_DIR, 'cedict.txt'),
   frequency: path.join(CACHE_DIR, 'zh_cn_50k.txt'),
   hsk: path.join(CACHE_DIR, 'hsk.csv'),
 } as const;
@@ -80,19 +80,14 @@ function readBytes(p: string): Uint8Array {
   return typeof content === 'string' ? new TextEncoder().encode(content) : content;
 }
 
-/** Minimal stand-in for the parts of `Response` that `fetchPinned` reads. */
-function stubResponse(body: string, init: { gzipped?: boolean } = {}) {
-  const buffer = Buffer.from(body, 'utf8');
-  return {
-    ok: true,
-    status: 200,
-    statusText: 'OK',
-    text: async () => body,
-    arrayBuffer: async () => {
-      const gz = init.gzipped ? zlib.gzipSync(buffer) : buffer;
-      return gz.buffer.slice(gz.byteOffset, gz.byteOffset + gz.byteLength) as ArrayBuffer;
-    },
-  };
+/** Minimal stand-in for the parts of `Response` that `readPinned` reads. */
+function stubResponse(body: string) {
+  return { ok: true, status: 200, statusText: 'OK', text: async () => body };
+}
+
+/** A failed response with the given status. */
+function failedResponse(status: number, statusText: string) {
+  return { ok: false, status, statusText, text: async () => '' };
 }
 
 /** Routes each source URL to its fixture body, and records every call. */
@@ -109,14 +104,12 @@ function installFetch(handlers: Record<string, () => unknown>) {
 }
 
 const defaultHandlers = () => ({
-  [SOURCE_URLS.cedict]: () => stubResponse(CEDICT, { gzipped: true }),
   [SOURCE_URLS.frequency]: () => stubResponse(FREQUENCY),
   [SOURCE_URLS.hsk]: () => stubResponse(HSK),
 });
 
 /** Seeds the on-disk cache as if a previous build had downloaded the sources. */
 function seedCache() {
-  fileStore.set(CACHE_FILES.cedict, CEDICT);
   fileStore.set(CACHE_FILES.frequency, FREQUENCY);
   fileStore.set(CACHE_FILES.hsk, HSK);
 }
@@ -127,6 +120,8 @@ let consoleSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   fileStore.clear();
   dirStore.clear();
+  // The committed CC-CEDICT is part of every checkout.
+  fileStore.set(CEDICT_FILE, CEDICT);
   logs = [];
   consoleSpy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
     logs.push(args.join(' '));
@@ -143,15 +138,14 @@ afterEach(() => {
 });
 
 describe('build', () => {
-  it('downloads all three sources and writes the joined rows to the output path', async () => {
+  it('reads the committed CC-CEDICT, downloads the other two and writes the joined rows', async () => {
     const calls = installFetch(defaultHandlers());
     const out = '/tmp/pinyinduck-test/dictionary.json';
 
     const stats: BuildStats = await build(out, false, 'json');
 
-    expect(calls).toEqual(
-      expect.arrayContaining([SOURCE_URLS.cedict, SOURCE_URLS.frequency, SOURCE_URLS.hsk])
-    );
+    expect(calls.sort()).toEqual([SOURCE_URLS.frequency, SOURCE_URLS.hsk].sort());
+    expect(logs.join('\n')).toContain('local   data/cedict.txt');
     const rows = JSON.parse(readText(out));
     expect(rows).toHaveLength(2);
     expect(rows[0][0]).toBe('中国');
@@ -169,14 +163,17 @@ describe('build', () => {
     expect(fileStore.has(out)).toBe(true);
   });
 
-  it('gunzips the CC-CEDICT download rather than treating it as plain text', async () => {
+  it('refuses a committed CC-CEDICT that no longer matches its pin', async () => {
+    // What a checkout that converted line endings would hand the build.
+    fileStore.set(CEDICT_FILE, CEDICT.replace(/\n/g, '\r\n'));
     installFetch(defaultHandlers());
-    const out = '/tmp/pinyinduck-gzip/dictionary.json';
+    const out = '/tmp/pinyinduck-vendored-mismatch/dictionary.json';
 
-    await build(out, false, 'json');
+    const failure = build(out, false);
 
-    // A binary gzip payload parsed as UTF-8 would yield no usable CC-CEDICT lines.
-    expect(JSON.parse(readText(out))).toHaveLength(2);
+    await expect(failure).rejects.toThrow(/packages\/core\/data\/cedict\.txt does not match its pinned SHA-256/);
+    await expect(failure).rejects.toThrow(/\.gitattributes/);
+    expect(fileStore.has(out)).toBe(false);
   });
 
   it('caches every downloaded source for the next build', async () => {
@@ -184,9 +181,10 @@ describe('build', () => {
 
     await build('/tmp/pinyinduck-cache/dictionary.json', false);
 
-    expect(fileStore.get(CACHE_FILES.cedict)).toBe(CEDICT);
     expect(fileStore.get(CACHE_FILES.frequency)).toBe(FREQUENCY);
     expect(fileStore.get(CACHE_FILES.hsk)).toBe(HSK);
+    // The committed copy is read in place, not duplicated into the cache.
+    expect(fileStore.has(path.join(CACHE_DIR, 'cedict.txt'))).toBe(false);
   });
 
   it('reads through the cache without hitting the network when sources are present', async () => {
@@ -197,7 +195,7 @@ describe('build', () => {
 
     expect(calls).toEqual([]);
     expect(stats.emitted).toBe(2);
-    expect(logs.join('\n')).toContain('cached  cedict.txt');
+    expect(logs.join('\n')).toContain('cached  zh_cn_50k.txt');
   });
 
   it('re-downloads instead of reading the cache when caching is disabled', async () => {
@@ -206,8 +204,8 @@ describe('build', () => {
 
     await build('/tmp/pinyinduck-stale/dictionary.json', false);
 
-    expect(calls).toHaveLength(3);
-    expect(logs.join('\n')).not.toContain('cached  cedict.txt');
+    expect(calls).toHaveLength(2);
+    expect(logs.join('\n')).not.toContain('cached  zh_cn_50k.txt');
   });
 
   it('downloads only the sources that are missing from the cache', async () => {
@@ -216,21 +214,14 @@ describe('build', () => {
 
     const stats = await build('/tmp/pinyinduck-partial/dictionary.json', true);
 
-    expect(calls).toEqual(expect.arrayContaining([SOURCE_URLS.cedict, SOURCE_URLS.frequency]));
-    expect(calls).not.toContain(SOURCE_URLS.hsk);
+    expect(calls).toEqual([SOURCE_URLS.frequency]);
     expect(stats.emitted).toBe(2);
   });
 
   it('fails loudly when a source cannot be downloaded', async () => {
     installFetch({
       ...defaultHandlers(),
-      [SOURCE_URLS.hsk]: () => ({
-        ok: false,
-        status: 404,
-        statusText: 'Not Found',
-        text: async () => '',
-        arrayBuffer: async () => new ArrayBuffer(0),
-      }),
+      [SOURCE_URLS.hsk]: () => failedResponse(404, 'Not Found'),
     });
 
     await expect(build('/tmp/pinyinduck-missing/dictionary.json', false)).rejects.toThrow(
@@ -241,13 +232,7 @@ describe('build', () => {
   it('does not write a partial asset when a source fails', async () => {
     installFetch({
       ...defaultHandlers(),
-      [SOURCE_URLS.cedict]: () => ({
-        ok: false,
-        status: 500,
-        statusText: 'Server Error',
-        text: async () => '',
-        arrayBuffer: async () => new ArrayBuffer(0),
-      }),
+      [SOURCE_URLS.frequency]: () => failedResponse(500, 'Server Error'),
     });
     const out = '/tmp/pinyinduck-partial-write/dictionary.json';
 
@@ -258,10 +243,8 @@ describe('build', () => {
   it('refuses to emit an asset when a source contains an unparsable pinyin column', async () => {
     // Pinned to the bad body, so this reaches the parser rather than the hash check.
     (SOURCES.cedict as { sha256: string }).sha256 = sha256('中 中 [1] /middle/');
-    installFetch({
-      ...defaultHandlers(),
-      [SOURCE_URLS.cedict]: () => stubResponse('中 中 [1] /middle/', { gzipped: true }),
-    });
+    fileStore.set(CEDICT_FILE, '中 中 [1] /middle/');
+    installFetch(defaultHandlers());
     const out = '/tmp/pinyinduck-invalid/dictionary.json';
 
     await expect(build(out, false)).rejects.toThrow(/unparsable pinyin/);
@@ -271,15 +254,15 @@ describe('build', () => {
   it('downloads again instead of using a cached copy that does not match its pin', async () => {
     // A cache written by an older, unpinned build holds whatever edition was current then.
     seedCache();
-    fileStore.set(CACHE_FILES.cedict, '老 老 [lao3] /old edition/');
+    fileStore.set(CACHE_FILES.frequency, '老 1\n');
     const calls = installFetch(defaultHandlers());
 
     const stats = await build('/tmp/pinyinduck-stale-cache/dictionary.json', true, 'json');
 
-    expect(calls).toEqual([SOURCE_URLS.cedict]);
+    expect(calls).toEqual([SOURCE_URLS.frequency]);
     expect(stats.emitted).toBe(2);
-    expect(fileStore.get(CACHE_FILES.cedict)).toBe(CEDICT);
-    expect(logs.join('\n')).toContain('stale   cedict.txt does not match its pinned SHA-256');
+    expect(fileStore.get(CACHE_FILES.frequency)).toBe(FREQUENCY);
+    expect(logs.join('\n')).toContain('stale   zh_cn_50k.txt does not match its pinned SHA-256');
   });
 
   it('refuses a download that does not match its pin, and caches nothing', async () => {
@@ -297,17 +280,6 @@ describe('build', () => {
     await expect(failure).rejects.toThrow(/scripts\/sources\.ts/);
     expect(fileStore.has(CACHE_FILES.frequency)).toBe(false);
     expect(fileStore.has(out)).toBe(false);
-  });
-
-  it('checks a gzipped source after decompressing it', async () => {
-    installFetch({
-      ...defaultHandlers(),
-      [SOURCE_URLS.cedict]: () => stubResponse(`${CEDICT}\n`, { gzipped: true }),
-    });
-
-    await expect(build('/tmp/pinyinduck-gz-mismatch/dictionary.json', false)).rejects.toThrow(
-      /cedict\.txt\.gz does not match/
-    );
   });
 
   it('reports the corpus sizes it joined', async () => {
@@ -558,13 +530,7 @@ describe('command line entry point', () => {
     });
     installFetch({
       ...defaultHandlers(),
-      [SOURCE_URLS.hsk]: () => ({
-        ok: false,
-        status: 503,
-        statusText: 'Service Unavailable',
-        text: async () => '',
-        arrayBuffer: async () => new ArrayBuffer(0),
-      }),
+      [SOURCE_URLS.hsk]: () => failedResponse(503, 'Service Unavailable'),
     });
 
     await runAsScript(['--out', '/tmp/pinyinduck-cli-fail/dictionary.json']);

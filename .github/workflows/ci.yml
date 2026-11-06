@@ -111,9 +111,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # The dictionary sources are pinned by URL and SHA-256 in sources.ts and re-verified
-      # on every read, so a cache keyed on that file can never serve the wrong edition; it
-      # only spares mdbg's copy host and GitHub a download per job.
+      # The two downloaded dictionary sources are pinned by URL and SHA-256 in sources.ts
+      # and re-verified on every read, so a cache keyed on that file can never serve the
+      # wrong version; it only spares GitHub a download per job. CC-CEDICT is committed.
       - name: Cache dictionary sources
         uses: actions/cache@v4
         with:
@@ -278,9 +278,9 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      # The dictionary sources are pinned by URL and SHA-256 in sources.ts and re-verified
-      # on every read, so a cache keyed on that file can never serve the wrong edition; it
-      # only spares mdbg's copy host and GitHub a download per job.
+      # The two downloaded dictionary sources are pinned by URL and SHA-256 in sources.ts
+      # and re-verified on every read, so a cache keyed on that file can never serve the
+      # wrong version; it only spares GitHub a download per job. CC-CEDICT is committed.
       - name: Cache dictionary sources
         uses: actions/cache@v4
         with:
