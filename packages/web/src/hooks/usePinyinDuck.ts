@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
+  DictionaryChangedError,
   LazyPinyinSearchEngine,
   openBTreeDictionary,
   DEFAULT_BTREE_URL,
@@ -203,9 +204,15 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
 
       const promise = current
         .search(query, { script: forScript, limit: CANDIDATE_LIMIT, offset: 0 })
-        .catch(() => {
+        .catch((err: unknown) => {
           // A failed page read is not recoverable mid-session; the open effect
           // already reports a bad asset, so treat the query as having no matches.
+          // A rebuilt asset is the exception the open effect cannot see: say so, or
+          // every later query would silently come back empty.
+          if (err instanceof DictionaryChangedError) {
+            setDictionaryError(err.message);
+            setDictionaryStatus('error');
+          }
           return EMPTY_RESULT;
         });
       searchRunRef.current = { key, promise };
