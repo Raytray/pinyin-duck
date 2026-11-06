@@ -1,6 +1,7 @@
 package dev.pinyinduck.android.ime
 
 import android.os.Looper
+import android.text.InputType
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import androidx.compose.ui.platform.ComposeView
@@ -449,6 +450,118 @@ class PinyinDuckImeServiceTest {
         assertFalse(service.uiState.shift)
         assertFalse(service.uiState.expanded)
         assertEquals(KeyLayout.LETTERS, service.uiState.layout)
+    }
+
+    // --- field types -------------------------------------------------------------
+
+    /** Starts a field declaring [inputType], the way the platform does on focus. */
+    private fun focusField(inputType: Int) {
+        service.onStartInput(EditorInfo().also { it.inputType = inputType }, restarting = false)
+    }
+
+    /**
+     * Taps [text] on the on-screen keyboard and asserts none of it was composed.
+     *
+     * The composition is what would expose a password, so the check is that the buffer never
+     * held anything and no candidates were ever ranked, rather than what reached the editor,
+     * which Robolectric cannot observe.
+     */
+    private fun assertTypedDirectly(text: String) {
+        val keys = service.callbacks()
+        for (char in text) {
+            if (char.isDigit()) keys.onKey(KeyAction.Digit(char - '0')) else keys.onKey(KeyAction.Letter(char))
+            assertEquals("'$char' was composed", "", service.uiState.buffer)
+            assertTrue("'$char' produced candidates", service.uiState.candidates.isEmpty())
+        }
+    }
+
+    @Test
+    fun aPlainTextFieldComposesPinyin() {
+        awaitDictionary()
+        focusField(InputType.TYPE_CLASS_TEXT)
+
+        service.callbacks().onKey(KeyAction.Letter('n'))
+
+        assertFalse(service.fieldPolicy.direct)
+        assertEquals(KeyLayout.LETTERS, service.uiState.layout)
+        assertEquals("n", service.uiState.buffer)
+        assertTrue(service.uiState.candidates.isNotEmpty())
+    }
+
+    @Test
+    fun passwordFieldsAreTypedWithoutCompositionOrCandidates() {
+        awaitDictionary()
+        for (type in listOf(
+            InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD,
+            InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
+            InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD,
+        )) {
+            focusField(type)
+            assertTrue("inputType $type", service.fieldPolicy.direct)
+            assertEquals(KeyLayout.LETTERS, service.uiState.layout)
+            assertTypedDirectly("nihao123")
+        }
+    }
+
+    @Test
+    fun aNumericPasswordOpensOnDigitsAndIsTypedDirectly() {
+        awaitDictionary()
+        focusField(InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD)
+
+        assertEquals(KeyLayout.NUMBERS, service.uiState.layout)
+        assertTypedDirectly("1234")
+    }
+
+    @Test
+    fun numberPhoneAndDateFieldsOpenOnTheNumberPage() {
+        awaitDictionary()
+        for (type in listOf(
+            InputType.TYPE_CLASS_NUMBER,
+            InputType.TYPE_CLASS_PHONE,
+            InputType.TYPE_CLASS_DATETIME,
+        )) {
+            focusField(type)
+            assertEquals("inputType $type", KeyLayout.NUMBERS, service.uiState.layout)
+            assertTypedDirectly("12")
+        }
+    }
+
+    @Test
+    fun emailAndUrlFieldsAreTypedDirectly() {
+        awaitDictionary()
+        for (type in listOf(
+            InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
+            InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS,
+            InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI,
+        )) {
+            focusField(type)
+            assertEquals("inputType $type", KeyLayout.LETTERS, service.uiState.layout)
+            assertTypedDirectly("xian")
+        }
+    }
+
+    @Test
+    fun aDirectFieldLeavesHardwareKeysToTheApp() {
+        awaitDictionary()
+        focusField(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+
+        // Not consumed, so the app receives the key with its own case and modifiers; the
+        // session would have lowercased a shifted letter.
+        assertFalse(service.onKeyDown(KeyEvent.KEYCODE_N, unowned(KeyEvent.KEYCODE_N, 'N', shift = true)))
+        assertFalse(service.onKeyDown(KeyEvent.KEYCODE_SPACE, unowned(KeyEvent.KEYCODE_SPACE, ' ')))
+        assertEquals("", service.uiState.buffer)
+    }
+
+    @Test
+    fun leavingAPasswordFieldForATextFieldComposesAgain() {
+        awaitDictionary()
+        focusField(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        focusField(InputType.TYPE_CLASS_TEXT)
+
+        type("ni")
+
+        assertEquals("ni", service.uiState.buffer)
+        assertTrue(service.uiState.candidates.isNotEmpty())
     }
 
     @Test

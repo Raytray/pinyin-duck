@@ -64,6 +64,21 @@ class PinyinDuckSession(
 
     val isComposing: Boolean get() = buffer.isNotEmpty()
 
+    /**
+     * Whether keys skip composition and go straight to the editor, as in a password, email
+     * or number field (see [FieldPolicy]).
+     *
+     * While set, letters and digits are committed as typed, case included, so nothing ever
+     * enters [buffer] and no candidates are ranked: a password is never shown as composing
+     * text or offered back as a suggestion. Turning it on drops any composition in progress
+     * without touching the editor, the same as [reset].
+     */
+    var direct: Boolean = false
+        set(value) {
+            field = value
+            if (value && isComposing) reset()
+        }
+
     /** Whether anything is selected or offered. */
     val hasCandidates: Boolean get() = candidates.isNotEmpty()
 
@@ -92,7 +107,7 @@ class PinyinDuckSession(
 
     /** Appends a letter to the composition, or inserts it directly when not composing. */
     fun typeLetter(letter: Char) {
-        if (!isComposing && !isPinyinLetter(letter)) {
+        if (direct || (!isComposing && !isPinyinLetter(letter))) {
             sink.commitText(letter.toString())
             return
         }
@@ -116,6 +131,10 @@ class PinyinDuckSession(
      * number row is free to carry tone numbers instead.
      */
     fun typeDigit(digit: Int) {
+        if (direct) {
+            sink.commitText(digit.toString())
+            return
+        }
         if (!isComposing || digit !in 1..5) {
             if (isComposing) {
                 // A non-tone digit cannot continue the pinyin, so the composition ends:
