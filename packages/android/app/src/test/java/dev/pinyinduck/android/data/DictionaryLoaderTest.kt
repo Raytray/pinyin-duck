@@ -27,8 +27,8 @@ class DictionaryLoaderTest {
     @Test
     fun itOpensTheShippedDictionary() {
         DictionaryLoader.openFromAssets(assets).use { opened ->
-            // A floor, not the exact size: the asset is rebuilt from a live CC-CEDICT download,
-            // so the count moves whenever upstream publishes. See TestDictionary.MIN_ENTRY_COUNT.
+            // A floor, not the exact size, so a deliberate CC-CEDICT bump does not have to edit
+            // this test. See TestDictionary.MIN_ENTRY_COUNT.
             assertTrue(
                 "expected the full CC-CEDICT corpus, found ${opened.entryCount}",
                 opened.entryCount >= TestDictionary.MIN_ENTRY_COUNT,

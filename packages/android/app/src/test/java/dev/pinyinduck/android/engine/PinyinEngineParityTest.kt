@@ -39,10 +39,10 @@ class PinyinEngineParityTest {
                     SearchOptions(script = case.script, limit = case.hanzi.size),
                 )
 
-            // `total` is deliberately not compared for equality. The golden is generated
-            // against a live CC-CEDICT download, so an upstream edition that adds a word
-            // matching one of these queries changes the count while leaving the ranking
-            // rules — the thing this test exists to protect — untouched. What must hold is
+            // `total` is deliberately not compared for equality. The sources are pinned, but
+            // bumping CC-CEDICT to a new edition (packages/core/scripts/sources.ts) can add a
+            // word matching one of these queries, which changes the count while leaving the
+            // ranking rules — the thing this test exists to protect — untouched. What must hold is
             // that the engine found at least the candidates the golden pins, and that the
             // ranked order, tone marks and glosses are byte-identical.
             assertTrue(
