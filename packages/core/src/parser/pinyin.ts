@@ -206,3 +206,58 @@ export function cleanPinyin(pinyin: string): string {
     .replace(/[^a-z\u00FC]/g, '');
 }
 
+
+/**
+ * A tone typed in a query, anchored where its syllable ends.
+ *
+ * `offset` counts toneless pinyin letters before the digit, so in `nihao4` the 4 sits
+ * at offset 5 and constrains the syllable ending there (`hao`), not the first one.
+ */
+export interface ToneConstraint {
+  offset: number;
+  tone: number;
+}
+
+/** Same normalization as `cleanPinyin`, one character at a time. */
+function tonelessLetter(char: string): string | null {
+  const base = TONE_CHAR_MAP[char] ?? char;
+  return /^[a-z\u00FC]$/.test(base) ? base : null;
+}
+
+/**
+ * Reads the tone digits (1-5) typed in a query, each anchored at the toneless offset
+ * where it was typed. Offsets line up with `cleanPinyin(query)`, which is the key the
+ * engines search on. Digits outside 1-5 are not tones and are ignored.
+ */
+export function parseToneFilter(query: string): ToneConstraint[] {
+  const normalized = query.toLowerCase().replace(/u:/g, 'ü').replace(/v/g, 'ü');
+  const constraints: ToneConstraint[] = [];
+  let offset = 0;
+  for (const char of normalized) {
+    if (char >= '1' && char <= '5') {
+      constraints.push({ offset, tone: Number(char) });
+    } else if (tonelessLetter(char) !== null) {
+      offset++;
+    }
+  }
+  return constraints;
+}
+
+/**
+ * The syllables of a stored numbered reading (e.g. `ni3 hao3`), each as the toneless
+ * offset where it ends plus its tone (0 when the syllable carries no digit). Offsets
+ * line up with `cleanPinyin(pinyinNumbers)`, the entry's search key. Tokens with no
+ * pinyin letters (CC-CEDICT's `·` and `,`) are not syllables and are skipped.
+ */
+export function syllableToneEnds(pinyinNumbers: string): ToneConstraint[] {
+  const ends: ToneConstraint[] = [];
+  let offset = 0;
+  for (const token of pinyinNumbers.split(/[\s'’-]+/)) {
+    const letters = cleanPinyin(token).length;
+    if (letters === 0) continue;
+    offset += letters;
+    const digit = token.match(/([1-5])$/);
+    ends.push({ offset, tone: digit ? Number(digit[1]) : 0 });
+  }
+  return ends;
+}

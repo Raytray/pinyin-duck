@@ -464,7 +464,7 @@ private val SYLLABLE_PATTERN = Regex("^([$SYLLABLE_LETTERS]+)([1-5]?)$")
 private val SYLLABLE_SEPARATORS = Regex("[ \t'’-]")
 
 /** Any digit, matching the `\d` the TypeScript ranker scans a query with. */
-private val DIGIT = Regex("\\d")
+private val SYLLABLE_SEPARATORS_RUN = Regex("[\\s'’-]+")
 
 /**
  * Normalizes pinyin text by converting umlaut variants (`u:` or `v`) to `ü`, collapsing
@@ -614,10 +614,57 @@ fun cleanPinyin(pinyin: String): String {
     return builder.toString()
 }
 
-/** The tone digits present in a query, in order, e.g. `ni3hao3` yields `[3, 3]`. */
-internal fun toneDigitsOf(input: String): IntArray =
-    DIGIT
-        .findAll(input)
-        .map { it.value.toInt() }
-        .toList()
-        .toIntArray()
+/**
+ * A tone typed in a query, anchored where its syllable ends.
+ *
+ * [offset] counts toneless pinyin letters before the digit, so in `nihao4` the 4 sits at
+ * offset 5 and constrains the syllable ending there (`hao`), not the first one. The same
+ * shape describes a stored syllable, with [tone] 0 when it carries no digit.
+ */
+data class ToneConstraint(
+    val offset: Int,
+    val tone: Int,
+)
+
+/** Same normalization as [cleanPinyin], one character at a time. */
+private fun isTonelessLetter(char: Char): Boolean {
+    val mapped = TONE_CHAR_MAP[char] ?: char
+    return mapped in 'a'..'z' || mapped == 'ü'
+}
+
+/**
+ * Reads the tone digits (1-5) typed in a query, each anchored at the toneless offset where
+ * it was typed. Offsets line up with [cleanPinyin] of the query, the key the engine
+ * searches on. Digits outside 1-5 are not tones and are ignored.
+ */
+fun parseToneFilter(input: String): List<ToneConstraint> {
+    val normalized = input.lowercase().replace("u:", "ü").replace('v', 'ü')
+    val constraints = ArrayList<ToneConstraint>()
+    var offset = 0
+    for (char in normalized) {
+        if (char in '1'..'5') {
+            constraints.add(ToneConstraint(offset, char - '0'))
+        } else if (isTonelessLetter(char)) {
+            offset++
+        }
+    }
+    return constraints
+}
+
+/**
+ * The syllables of a stored numbered reading (e.g. `ni3 hao3`), each as the toneless offset
+ * where it ends plus its tone (0 when the syllable has no digit). Tokens with no pinyin
+ * letters (CC-CEDICT's `·` and `,`) are not syllables and are skipped.
+ */
+fun syllableToneEnds(pinyinNumbers: String): List<ToneConstraint> {
+    val ends = ArrayList<ToneConstraint>()
+    var offset = 0
+    for (token in SYLLABLE_SEPARATORS_RUN.split(pinyinNumbers)) {
+        val letters = cleanPinyin(token).length
+        if (letters == 0) continue
+        offset += letters
+        val last = token.lastOrNull()
+        ends.add(ToneConstraint(offset, if (last != null && last in '1'..'5') last - '0' else 0))
+    }
+    return ends
+}

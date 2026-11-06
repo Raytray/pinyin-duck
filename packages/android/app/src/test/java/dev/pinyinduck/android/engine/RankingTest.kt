@@ -39,15 +39,15 @@ class RankingTest {
         // Without it they tie exactly.
         assertEquals(
             "an astral single character must not be scored as a two-character word",
-            scoreEntry(common, "shi", intArrayOf()),
-            scoreEntry(rare, "shi", intArrayOf()),
+            scoreEntry(common, "shi", emptyList()),
+            scoreEntry(rare, "shi", emptyList()),
         )
 
         // A genuine two-character word with the same reading still earns the boost.
         val word = entry("试图", pinyinClean = "shit", pinyinNumbers = "shi4")
         assertTrue(
             "a real two-character word must still outrank a single character",
-            scoreEntry(word, "shit", intArrayOf()) > scoreEntry(common, "shi", intArrayOf()),
+            scoreEntry(word, "shit", emptyList()) > scoreEntry(common, "shi", emptyList()),
         )
     }
 
@@ -60,7 +60,33 @@ class RankingTest {
 
         assertTrue(
             "a rare astral character must not outrank a common one for the same reading",
-            scoreEntry(rare, "shi", intArrayOf(4)) <= scoreEntry(common, "shi", intArrayOf(4)),
+            scoreEntry(rare, "shi", parseToneFilter("shi4")) <= scoreEntry(common, "shi", parseToneFilter("shi4")),
+        )
+    }
+
+    @Test
+    fun aToneConstrainsTheSyllableItWasTypedAfter() {
+        val niHao4 = entry("你号", pinyinClean = "nihao", pinyinNumbers = "ni3 hao4")
+        val niHao3 = entry("你好", pinyinClean = "nihao", pinyinNumbers = "ni3 hao3")
+        assertTrue(scoreEntry(niHao4, "nihao", parseToneFilter("nihao4")) > 0)
+        assertTrue(scoreEntry(niHao3, "nihao", parseToneFilter("nihao4")) < 0)
+        assertTrue(scoreEntry(niHao4, "nihao", parseToneFilter("ni3hao")) > 0)
+    }
+
+    @Test
+    fun aWordThatSplitsTheTypedSyllableDifferentlyIsRejected() {
+        val bian = entry("扁", pinyinClean = "bian", pinyinNumbers = "bian3")
+        val biAn = entry("彼岸", pinyinClean = "bian", pinyinNumbers = "bi3 an4", frequency = 90000)
+        assertTrue(scoreEntry(bian, "bian", parseToneFilter("bian3")) > 0)
+        assertTrue(scoreEntry(biAn, "bian", parseToneFilter("bian3")) < 0)
+    }
+
+    @Test
+    fun aToneTypedPastTheEndOfAPrefixEntryIsIgnored() {
+        val ni = entry("你", pinyinClean = "ni", pinyinNumbers = "ni3")
+        assertEquals(
+            scoreEntry(ni, "nihao", emptyList()),
+            scoreEntry(ni, "nihao", parseToneFilter("nihao3")),
         )
     }
 

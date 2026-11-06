@@ -37,8 +37,8 @@ class PinyinDuckEngine(
 
         val segments = segmentPinyin(rawQuery)
         val tonelessQuery = cleanPinyin(rawQuery)
-        val toneFilterNumbers = toneDigitsOf(rawQuery)
-        val hasToneFilter = toneFilterNumbers.isNotEmpty()
+        val toneFilter = parseToneFilter(rawQuery)
+        val hasToneFilter = toneFilter.isNotEmpty()
 
         // Keep the best-scoring entry per displayed hanzi, so dedup and ranking happen in
         // one pass with no full-dictionary materialization. Insertion order is preserved
@@ -46,11 +46,14 @@ class PinyinDuckEngine(
         val chosen = LinkedHashMap<String, ScoredEntry>()
 
         fun consider(entry: StoredEntry) {
-            val score = scoreEntry(entry.toScorable(), tonelessQuery, toneFilterNumbers)
+            val score = scoreEntry(entry.toScorable(), tonelessQuery, toneFilter)
             if (hasToneFilter && score <= 0) return
             val hanzi = if (options.script == ScriptType.TRADITIONAL) entry.traditional else entry.simplified
+            val candidate = ScoredEntry(entry, score)
+            // Ties go through SCORED_ORDER rather than "first seen wins", so the reading that
+            // represents a hanzi does not depend on page scan order.
             val previous = chosen[hanzi]
-            if (previous == null || score > previous.score) chosen[hanzi] = ScoredEntry(entry, score)
+            if (previous == null || SCORED_ORDER.compare(candidate, previous) < 0) chosen[hanzi] = candidate
         }
 
         for (entry in dictionary.lookupExact(tonelessQuery)) consider(entry)

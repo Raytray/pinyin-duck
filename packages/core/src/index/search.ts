@@ -5,9 +5,9 @@ import {
   SearchResult,
   ScriptType,
 } from '../types.js';
-import { cleanPinyin, segmentPinyin } from '../parser/pinyin.js';
+import { cleanPinyin, parseToneFilter, segmentPinyin } from '../parser/pinyin.js';
 import { PinyinTrie } from './trie.js';
-import { DEFAULT_MAX_MATCHES, entryToCandidate, scoreEntry } from './ranking.js';
+import { DEFAULT_MAX_MATCHES, compareScored, entryToCandidate, scoreEntry } from './ranking.js';
 
 export class PinyinSearchEngine {
   private trie: PinyinTrie = new PinyinTrie();
@@ -48,9 +48,9 @@ export class PinyinSearchEngine {
     const segments = segmentPinyin(rawQuery);
     const tonelessQuery = cleanPinyin(rawQuery);
 
-    // Extract tone filters if present (e.g. "ni3" -> { tone: 3 })
-    const toneFilterNumbers = rawQuery.match(/\d/g)?.map(Number) || [];
-    const hasToneFilter = toneFilterNumbers.length > 0;
+    // Extract tone filters if present (e.g. "ni3" -> tone 3 on the syllable ending at 2)
+    const toneFilter = parseToneFilter(rawQuery);
+    const hasToneFilter = toneFilter.length > 0;
 
     // Retrieve matching candidates from Trie
     const exactMatches = this.trie.searchExact(tonelessQuery);
@@ -89,7 +89,7 @@ export class PinyinSearchEngine {
     // Score and rank candidates
     const scored = allEntries.map((entry) => ({
       entry,
-      score: scoreEntry(entry, tonelessQuery, toneFilterNumbers),
+      score: scoreEntry(entry, tonelessQuery, toneFilter),
     }));
 
     // Filter out candidates with severe tone penalties if we have matching ones
@@ -97,9 +97,12 @@ export class PinyinSearchEngine {
       ? scored.filter((s) => s.score > 0)
       : scored;
 
-    filteredScored.sort((a, b) => b.score - a.score);
+    // The shared order, not insertion order, settles ties, so this engine and the lazy
+    // B-tree engine agree on both the ranking and which reading represents a hanzi.
+    filteredScored.sort(compareScored);
 
-    // Deduplicate by displayed Hanzi text according to script
+    // Deduplicate by displayed Hanzi text according to script, keeping the first
+    // (best-ranked) reading of each
     const seenHanzi = new Set<string>();
     const candidates: Candidate[] = [];
 
