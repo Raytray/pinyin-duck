@@ -310,6 +310,23 @@ describe('parseArgs', () => {
   const defaultBtree = path.resolve(__dirname, '../../web/public/dictionary.btree');
   const defaultJson = path.resolve(__dirname, '../../web/public/dictionary.json');
 
+  it('does not read the first argument as a format when --format is absent', () => {
+    expect(parseArgs(['json'])).toEqual({ outPath: defaultBtree, useCache: true, format: 'btree' });
+    expect(parseArgs(['json', '--no-cache'])).toEqual({
+      outPath: defaultBtree,
+      useCache: false,
+      format: 'btree',
+    });
+  });
+
+  it('accepts an explicit --format btree', () => {
+    expect(parseArgs(['--format', 'btree'])).toEqual({
+      outPath: defaultBtree,
+      useCache: true,
+      format: 'btree',
+    });
+  });
+
   it('defaults to the B-tree web asset path and the download cache', () => {
     expect(parseArgs([])).toEqual({ outPath: defaultBtree, useCache: true, format: 'btree' });
   });

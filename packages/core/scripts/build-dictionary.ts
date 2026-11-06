@@ -205,6 +205,9 @@ export function joinCorpora(
   const hskLevels = parseHskList(hskContent);
 
   const rows: DictionaryRow[] = [];
+  // Whether each emitted row came from a surname entry, judged on its full definition
+  // list. A row only keeps the shortened gloss, so this cannot be recovered from the row.
+  const rowIsSurname: boolean[] = [];
   const seen = new Map<string, number>();
   let cedictLines = 0;
   let withFrequency = 0;
@@ -242,10 +245,11 @@ export function joinCorpora(
     const existingIndex = seen.get(key);
     if (existingIndex !== undefined) {
       // Duplicate reading: prefer the non-surname entry, or the one with higher frequency.
-      const existingRow = rows[existingIndex];
-      const existingIsSurname = existingRow[3] === 'surname Neng' || existingRow[3]?.startsWith('surname ');
+      // The existing entry is judged by the same rule as the new one (any definition
+      // starting "surname "), not by its shortened gloss, which may not start with it.
+      const existingIsSurname = rowIsSurname[existingIndex];
       // Row format: [simplified, traditional, pinyinNumbers, shortGloss, frequency, hskLevel]
-      const existingFrequency = existingRow[4];
+      const existingFrequency = rows[existingIndex][4];
 
       if (isSurname && !existingIsSurname) {
         // New entry is surname, existing is not: keep existing, drop new
@@ -254,10 +258,13 @@ export function joinCorpora(
       } else if (!isSurname && existingIsSurname) {
         // New entry is not surname, existing is: replace existing with new
         rows[existingIndex] = buildDictRow(parsed, adjustedFrequency, hskLevel);
+        rowIsSurname[existingIndex] = false;
+        dropped++;
         continue;
       } else if (adjustedFrequency > existingFrequency) {
         // Neither or both are surnames: keep the higher frequency one
         rows[existingIndex] = buildDictRow(parsed, adjustedFrequency, hskLevel);
+        dropped++;
         continue;
       } else {
         // Keep existing, drop new
@@ -273,6 +280,7 @@ export function joinCorpora(
     if ([...parsed.simplified].length === 1) singleChar++;
 
     rows.push(buildDictRow(parsed, adjustedFrequency, hskLevel));
+    rowIsSurname.push(isSurname);
   }
 
   // Sanity check: the loader derives tone marks and clean pinyin from these columns,
@@ -351,7 +359,10 @@ export interface BuildOptions {
 export function parseArgs(args: string[]): BuildOptions {
   const outIndex = args.indexOf('--out');
   const formatIndex = args.indexOf('--format');
-  const format: DictionaryFormat = args[formatIndex + 1] === 'json' ? 'json' : 'btree';
+  // Only read a value when the flag is present: with no --format, indexOf is -1 and
+  // args[0] would be mistaken for its value. An unknown value still means B-tree.
+  const format: DictionaryFormat =
+    formatIndex >= 0 && args[formatIndex + 1] === 'json' ? 'json' : 'btree';
   return {
     useCache: !args.includes('--no-cache'),
     format,
