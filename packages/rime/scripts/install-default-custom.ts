@@ -2,9 +2,10 @@
  * Installs PinyinDuck's `default.custom.yaml` into a Rime user folder without replacing
  * the user's own.
  *
- * Called by both installers (`install.ps1` here and `packages/macos/scripts/install.sh`):
+ * Called by both installers (`packages/windows/scripts/install.ps1` and
+ * `packages/macos/scripts/install.sh`):
  *
- *   tsx packages/windows/scripts/install-default-custom.ts <ours> <target>
+ *   tsx packages/rime/scripts/install-default-custom.ts <ours> <target>
  *
  * - No file at <target>: ours is copied as it is.
  * - A file that already has every PinyinDuck entry: nothing is written, so rerunning the

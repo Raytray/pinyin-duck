@@ -7,7 +7,7 @@
 # step.
 #
 # Switch between the two with the Rime scheme switcher (F4, or Ctrl+`), the same way a
-# Windows user switches between 拼音 and 英文.
+# {{OS}} user switches between 拼音 and 英文.
 
 # `filename:/` is the form librime's config compiler documents for including another
 # file's root. The more familiar `schema_id://` does not resolve here: it refers to a
