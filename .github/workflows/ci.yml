@@ -36,6 +36,8 @@ jobs:
       android: ${{ steps.filter.outputs.android }}
       rime: ${{ steps.filter.outputs.rime }}
       root: ${{ steps.filter.outputs.root }}
+      # JSON list of the package-checks matrix entries to run, e.g. ["web","rime"].
+      packages: ${{ steps.matrix.outputs.packages }}
     steps:
       - uses: actions/checkout@v5
 
@@ -67,6 +69,32 @@ jobs:
               - 'e2e/**'
               - 'playwright.config.ts'
 
+      # Turns the filter outputs into the package-checks matrix, so a change to one package
+      # runs only that package's entry. A core or root change runs everything: every package
+      # builds on core, and root holds the lockfile and shared config. A manual dispatch skips
+      # the filter, so FULL stands in for it.
+      - name: Pick the package-checks matrix
+        id: matrix
+        env:
+          FULL: ${{ steps.manual.outputs.full }}
+          CORE: ${{ steps.filter.outputs.core }}
+          ROOT: ${{ steps.filter.outputs.root }}
+          WEB: ${{ steps.filter.outputs.web }}
+          ANDROID: ${{ steps.filter.outputs.android }}
+          RIME: ${{ steps.filter.outputs.rime }}
+        run: |
+          packages=()
+          if [[ "$FULL" == true || "$CORE" == true || "$ROOT" == true ]]; then
+            packages=(core web android rime)
+          else
+            [[ "$WEB" == true ]] && packages+=(web)
+            [[ "$ANDROID" == true ]] && packages+=(android)
+            [[ "$RIME" == true ]] && packages+=(rime)
+          fi
+          json=$(jq -cn '$ARGS.positional' --args "${packages[@]}")
+          echo "packages=$json" >> "$GITHUB_OUTPUT"
+          echo "package-checks will run: $json"
+
   # ─── Root-level checks (lint + typecheck) ─────────────────────────────────
   root-checks:
     runs-on: ubuntu-latest
@@ -90,16 +118,12 @@ jobs:
   # ─── Per-package checks (parallel matrix) ─────────────────────────────────
   package-checks:
     needs: changes
-    if: ${{ needs.changes.outputs.full == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.android == 'true' || needs.changes.outputs.rime == 'true' || needs.changes.outputs.root == 'true' }}
+    if: ${{ needs.changes.outputs.packages != '[]' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        package:
-          - core
-          - web
-          - android
-          - rime
+        package: ${{ fromJSON(needs.changes.outputs.packages) }}
 
     name: ${{ matrix.package }}
 
@@ -127,7 +151,6 @@ jobs:
       # rime emits both platforms' dictionaries from the B-tree; Android also needs the
       # dictionary.btree for its asset sync.
       - name: Build dictionary assets
-        if: ${{ matrix.package == 'core' || matrix.package == 'web' || matrix.package == 'android' || matrix.package == 'rime' }}
         run: |
           npm run build:dict
           npm run build:rime
@@ -236,7 +259,8 @@ jobs:
   # is about the files, which is where a path, quoting or BSD-vs-GNU slip would break.
   rime-files:
     needs: changes
-    if: ${{ needs.changes.outputs.full == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.windows == 'true' || needs.changes.outputs.macos == 'true' || needs.changes.outputs.root == 'true' }}
+    # Same decision as the rime matrix entry, so the installers run whenever the files do.
+    if: ${{ contains(fromJSON(needs.changes.outputs.packages), 'rime') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
