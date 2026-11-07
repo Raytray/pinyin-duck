@@ -37,7 +37,7 @@ jobs:
       rime: ${{ steps.filter.outputs.rime }}
       root: ${{ steps.filter.outputs.root }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Detect manual dispatch
         id: manual
@@ -71,9 +71,9 @@ jobs:
   root-checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -104,9 +104,9 @@ jobs:
     name: ${{ matrix.package }}
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -118,7 +118,7 @@ jobs:
       # and re-verified on every read, so a cache keyed on that file can never serve the
       # wrong version; it only spares GitHub a download per job. CC-CEDICT is committed.
       - name: Cache dictionary sources
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: packages/core/.cache
           key: dictionary-sources-${{ hashFiles('packages/core/scripts/sources.ts') }}
@@ -169,7 +169,7 @@ jobs:
       # ── Android ──
       - name: Setup Java
         if: ${{ matrix.package == 'android' }}
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -239,9 +239,9 @@ jobs:
     if: ${{ needs.changes.outputs.full == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.windows == 'true' || needs.changes.outputs.macos == 'true' || needs.changes.outputs.root == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -250,7 +250,7 @@ jobs:
         run: npm ci
 
       - name: Cache dictionary sources
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: packages/core/.cache
           key: dictionary-sources-${{ hashFiles('packages/core/scripts/sources.ts') }}
@@ -261,7 +261,7 @@ jobs:
           npm run build:rime
 
       - name: Upload the Rime files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rime-files
           # Both paths sit under packages/, so the artifact holds windows/rime and macos/rime.
@@ -284,9 +284,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: install (${{ matrix.platform }})
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -297,7 +297,7 @@ jobs:
         run: npm ci
 
       - name: Download the Rime files
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: rime-files
           path: packages
@@ -311,9 +311,9 @@ jobs:
     if: ${{ needs.changes.outputs.full == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.root == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -328,7 +328,7 @@ jobs:
       # and re-verified on every read, so a cache keyed on that file can never serve the
       # wrong version; it only spares GitHub a download per job. CC-CEDICT is committed.
       - name: Cache dictionary sources
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: packages/core/.cache
           key: dictionary-sources-${{ hashFiles('packages/core/scripts/sources.ts') }}
@@ -343,7 +343,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: playwright-report/
