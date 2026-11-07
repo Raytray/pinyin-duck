@@ -39,7 +39,7 @@ function fakeLibrimeData(root: string): void {
   fs.writeFileSync(path.join(root, 'cangjie5.schema.yaml'), 'schema:\n', 'utf8');
 }
 
-/** A stand-in for `packages/windows/rime`, with the two dictionaries present. */
+/** A stand-in for a platform's `rime/` folder, with the two dictionaries present. */
 function fakeRimeDir(root: string): void {
   fs.mkdirSync(root, { recursive: true });
   fs.writeFileSync(path.join(root, 'pinyinduck.dict.yaml'), '是\tshi\t0\n', 'utf8');
@@ -318,6 +318,7 @@ describe('a deploy that never finishes', () => {
     fs.chmodSync(harness, 0o755);
 
     const result = verifyRime({
+      platform: 'windows',
       require: false,
       keepStaging: false,
       harnessPath: harness,
@@ -409,6 +410,7 @@ describe('verifyRime end to end, against a stub harness', () => {
 
   const run = (harness: string, overrides: Record<string, unknown> = {}) =>
     verifyRime({
+      platform: 'windows',
       require: false,
       keepStaging: false,
       harnessPath: harness,
@@ -487,6 +489,7 @@ describe('verifyRime without a built librime', () => {
     // still runs this script, and a check that reports success without running anything is
     // worse than no check.
     const result = verifyRime({
+      platform: 'windows',
       require: false,
       keepStaging: false,
       harnessPath: path.join(tmp, 'absent'),
@@ -500,6 +503,7 @@ describe('verifyRime without a built librime', () => {
 
   it('fails the same case under --require, for a pre-merge gate', () => {
     const result = verifyRime({
+      platform: 'windows',
       require: true,
       keepStaging: false,
       harnessPath: path.join(tmp, 'absent'),
@@ -521,9 +525,44 @@ describe('verifyRime without a built librime', () => {
     const harness = path.join(tmp, 'rime_smoke');
     fs.writeFileSync(harness, '', 'utf8');
 
-    const result = verifyRime({ require: false, keepStaging: false, harnessPath: harness, sharedDataDir, rimeDir });
+    const result = verifyRime({
+      platform: 'windows',
+      require: false,
+      keepStaging: false,
+      harnessPath: harness,
+      sharedDataDir,
+      rimeDir,
+    });
     expect(result.ok).toBe(false);
     expect(result.skipped).toBe(false);
+    expect(result.output).toMatch(/npm run build:rime/);
+  });
+
+  it('refuses a folder with dictionaries but no schema, and names what is missing', () => {
+    // What a pull from before the templates leaves behind: git deletes the once-tracked
+    // schemas, while the ignored dictionaries from an earlier build stay on disk. Staged as
+    // is, librime would deploy nothing and every query would fail with no hint why.
+    const rimeDir = path.join(tmp, 'rime');
+    fakeRimeDir(rimeDir);
+    fs.rmSync(path.join(rimeDir, 'pinyinduck.schema.yaml'));
+    fs.rmSync(path.join(rimeDir, 'lua/pinyinduck_gloss_filter.lua'));
+    const sharedDataDir = path.join(tmp, 'minimal');
+    fakeLibrimeData(sharedDataDir);
+    const harness = path.join(tmp, 'rime_smoke');
+    fs.writeFileSync(harness, '', 'utf8');
+
+    const result = verifyRime({
+      platform: 'windows',
+      require: false,
+      keepStaging: false,
+      harnessPath: harness,
+      sharedDataDir,
+      rimeDir,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.output).toContain('pinyinduck.schema.yaml');
+    expect(result.output).toContain('lua/pinyinduck_gloss_filter.lua');
+    expect(result.output).not.toContain('pinyinduck_trad.schema.yaml');
     expect(result.output).toMatch(/npm run build:rime/);
   });
 });
@@ -532,7 +571,26 @@ describe('parseArgs', () => {
   it('defaults to a skip rather than a failure', () => {
     // Both flags are opt-in. A contributor without a C++ toolchain runs this on purpose,
     // and failing them for that would teach them not to run it.
-    expect(parseArgs([])).toEqual({ require: false, keepStaging: false });
+    expect(parseArgs([])).toEqual({
+      require: false,
+      keepStaging: false,
+      platforms: ['windows', 'macos'],
+    });
+  });
+
+  it('narrows the run to one platform, and refuses one it does not know', () => {
+    expect(parseArgs(['--platform', 'macos']).platforms).toEqual(['macos']);
+    expect(() => parseArgs(['--platform', 'linux'])).toThrow(/Unknown platform "linux"/);
+  });
+
+  it('does not read the next flag as the platform', () => {
+    // `--platform --require` once failed with `Unknown platform "--require"`.
+    expect(parseArgs(['--platform', '--require'])).toEqual({
+      require: true,
+      keepStaging: false,
+      platforms: ['windows', 'macos'],
+    });
+    expect(parseArgs(['--platform=macos']).platforms).toEqual(['macos']);
   });
 
   it('reads the two flags, and ignores anything it does not know', () => {
@@ -541,10 +599,12 @@ describe('parseArgs', () => {
     expect(parseArgs(['--require', '--keep-staging'])).toEqual({
       require: true,
       keepStaging: true,
+      platforms: ['windows', 'macos'],
     });
     expect(parseArgs(['--user-dir=/tmp/somewhere-else'])).toEqual({
       require: false,
       keepStaging: false,
+      platforms: ['windows', 'macos'],
     });
   });
 });
@@ -581,6 +641,20 @@ describe('main', () => {
     expect(process.exitCode).toBeUndefined();
     expect(output()).toMatch(/Verifying the PinyinDuck schemas with a real librime/);
     expect(output()).toMatch(/Rime accepts the dictionaries/);
+    // Both platforms are checked by default, each pointed at its own README.
+    expect(output()).toMatch(/packages\/windows\/README\.md/);
+    expect(output()).toMatch(/packages\/macos\/README\.md/);
+  });
+
+  it('checks only the platform it is given', async () => {
+    await main(['--platform', 'macos'], {
+      harnessPath: writeStubHarness(tmp),
+      sharedDataDir: librimeData,
+      rimeDir,
+    });
+    expect(process.exitCode).toBeUndefined();
+    expect(output()).toMatch(/packages\/macos\/README\.md/);
+    expect(output()).not.toMatch(/packages\/windows\/README\.md/);
   });
 
   it('sets a failing exit code when a query is wrong', async () => {
@@ -605,6 +679,8 @@ describe('main', () => {
     });
     expect(process.exitCode).toBeUndefined();
     expect(output()).toMatch(/This is a skip, not a pass/);
+    // The harness is shared, so one skip notice covers every platform.
+    expect(output().match(/This is a skip, not a pass/g)).toHaveLength(1);
   });
 
   it('keeps the staged directories when asked, and removes them otherwise', async () => {

@@ -18,7 +18,7 @@ npm run build:dict
 npm run build:rime
 ```
 
-This generates the Rime dictionaries under `packages/macos/rime/`.
+This generates everything under `packages/macos/rime/`: the schemas, rendered from `packages/rime/templates/`, and the dictionaries. Nothing in that folder is committed.
 
 ## Install
 
@@ -44,7 +44,7 @@ The dictionary uses toneless syllable codes, so a typed number selects a candida
 
 ## Development
 
-The macOS package follows the same Rime pattern as the Windows package. Squirrel (鼠须管) is the macOS frontend for librime, as Weasel (小狼毫) is on Windows, so both share the schema format, the dictionary format and the Lua gloss filter. `src/rime-dict.ts` re-exports the dictionary emitter from `@pinyinduck/windows`; only installation and deployment differ.
+Squirrel (鼠须管) is the macOS frontend for librime, as Weasel (小狼毫) is on Windows, so both share the schema format, the dictionary format and the Lua gloss filter. All of that lives in [`packages/rime`](../rime/README.md); this package holds only the macOS installer.
 
 | | Windows | macOS |
 |---|---|---|
@@ -55,11 +55,10 @@ The macOS package follows the same Rime pattern as the Windows package. Squirrel
 Schema generation, the dictionary build, the Lua filter and schema validation against librime all run on Linux. Installing, deploying and composing in real macOS apps need a Mac.
 
 ```bash
-npm test -w @pinyinduck/macos
+npm test -w @pinyinduck/rime
 npm run build:rime
+npm run test:rime
 ```
-
-See `packages/macos/scripts` for generation and install logic.
 
 ## Troubleshooting
 

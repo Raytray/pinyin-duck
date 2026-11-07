@@ -8,15 +8,16 @@
 # Two things about this schema are worth reading before changing either. One is that
 # `speller/alphabet` below has no digits, and why. The other is how the English definition
 # reaches the candidate list, which is a Lua filter rather than a dictionary field — see
-# the note on `filters` and ../README.md, "Where the definition comes from".
+# the note on `filters` and packages/rime/README.md, "Where the definition comes from".
 #
 # The dictionary this schema reads is generated from @pinyinduck/core, not hand-written:
 #
 #     npm run build:rime        # writes rime/pinyinduck.dict.yaml
 #     npm run test:rime         # types into a real librime and checks the answers
-#     powershell -File scripts/install.ps1
+#     {{INSTALL_COMMAND}}
 #
-# See ../README.md for the full install and verification steps.
+# See packages/{{PLATFORM}}/README.md for the install steps and packages/rime/README.md
+# for how the files are built and verified.
 
 schema:
   schema_id: pinyinduck
@@ -132,7 +133,7 @@ translator:
   # showing the candidate's own code back to the user — `shi`, identical for all five of
   # 是 试 事 室 式, and carrying none of the English gloss. The column is still written to
   # the dictionary, so a librime that grows a definition field will deliver it without a
-  # rebuild. See ../README.md, "Where the definition comes from".
+  # rebuild. See packages/rime/README.md, "Where the definition comes from".
   always_show_comments: true
   preedit_format:
     # Echo the standard spelling of what was typed as v.

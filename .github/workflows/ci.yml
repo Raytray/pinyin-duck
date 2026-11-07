@@ -29,8 +29,7 @@ jobs:
       core: ${{ steps.filter.outputs.core }}
       web: ${{ steps.filter.outputs.web }}
       android: ${{ steps.filter.outputs.android }}
-      windows: ${{ steps.filter.outputs.windows }}
-      macos: ${{ steps.filter.outputs.macos }}
+      rime: ${{ steps.filter.outputs.rime }}
       root: ${{ steps.filter.outputs.root }}
     steps:
       - uses: actions/checkout@v5
@@ -50,9 +49,9 @@ jobs:
               - 'packages/web/**'
             android:
               - 'packages/android/**'
-            windows:
+            rime:
+              - 'packages/rime/**'
               - 'packages/windows/**'
-            macos:
               - 'packages/macos/**'
             root:
               - 'package.json'
@@ -86,7 +85,7 @@ jobs:
   # ─── Per-package checks (parallel matrix) ─────────────────────────────────
   package-checks:
     needs: changes
-    if: ${{ needs.changes.outputs.full == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.android == 'true' || needs.changes.outputs.windows == 'true' || needs.changes.outputs.macos == 'true' || needs.changes.outputs.root == 'true' }}
+    if: ${{ needs.changes.outputs.full == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.android == 'true' || needs.changes.outputs.rime == 'true' || needs.changes.outputs.root == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -95,8 +94,7 @@ jobs:
           - core
           - web
           - android
-          - windows
-          - macos
+          - rime
 
     name: ${{ matrix.package }}
 
@@ -121,11 +119,10 @@ jobs:
           key: dictionary-sources-${{ hashFiles('packages/core/scripts/sources.ts') }}
 
       # ── Build generated assets (needed by tests) ──
-      # macOS emits Rime dictionaries from the same B-tree as Windows, so it needs both
-      # the asset and the sibling packages' schemas staged by build:rime.
-      # Android also needs the dictionary.btree for its asset sync.
+      # rime emits both platforms' dictionaries from the B-tree; Android also needs the
+      # dictionary.btree for its asset sync.
       - name: Build dictionary assets
-        if: ${{ matrix.package == 'core' || matrix.package == 'web' || matrix.package == 'android' || matrix.package == 'windows' || matrix.package == 'macos' }}
+        if: ${{ matrix.package == 'core' || matrix.package == 'web' || matrix.package == 'android' || matrix.package == 'rime' }}
         run: |
           npm run build:dict
           npm run build:rime
@@ -201,63 +198,31 @@ jobs:
           cd packages/android
           ./gradlew jacocoTestReport
 
-      # ── Windows ──
-      - name: "[windows] Lint"
-        if: ${{ matrix.package == 'windows' }}
-        run: npx oxlint packages/windows
+      # ── Rime (Windows + macOS) ──
+      # One package builds and checks both platforms' files: they share the emitter, the
+      # templates and the librime harness, and differ only in what the platform table says.
+      - name: "[rime] Lint"
+        if: ${{ matrix.package == 'rime' }}
+        run: npx oxlint packages/rime
 
-      - name: "[windows] Typecheck"
-        if: ${{ matrix.package == 'windows' }}
-        run: npm run typecheck -w @pinyinduck/windows
+      - name: "[rime] Typecheck"
+        if: ${{ matrix.package == 'rime' }}
+        run: npm run typecheck -w @pinyinduck/rime
 
-      - name: "[windows] Test + Coverage"
-        if: ${{ matrix.package == 'windows' }}
-        run: npm run test:coverage -w @pinyinduck/windows
+      - name: "[rime] Test + Coverage"
+        if: ${{ matrix.package == 'rime' }}
+        run: npm run test:coverage -w @pinyinduck/rime
 
-      - name: "[windows] Update apt package lists"
-        if: ${{ matrix.package == 'windows' }}
+      - name: "[rime] Update apt package lists"
+        if: ${{ matrix.package == 'rime' }}
         run: sudo apt-get update
 
-      - name: "[windows] Rime verification"
-        if: ${{ matrix.package == 'windows' }}
+      # Builds librime once and types into both the Windows and the macOS rime/ folder.
+      - name: "[rime] Rime verification"
+        if: ${{ matrix.package == 'rime' }}
         run: |
-          npm run setup:rime -w @pinyinduck/windows
-          npm run test:rime -w @pinyinduck/windows
-
-      # ── macOS ──
-      # Same shape as the Windows job above. The Rime step runs the non-strict variant:
-      # it skips cleanly when librime could not be built, so a toolchain problem is
-      # visible in the log without turning every commit red.
-      - name: "[macos] Lint"
-        if: ${{ matrix.package == 'macos' }}
-        run: npm run lint -w @pinyinduck/macos
-
-      - name: "[macos] Typecheck"
-        if: ${{ matrix.package == 'macos' }}
-        run: npm run typecheck -w @pinyinduck/macos
-
-      - name: "[macos] Test + Coverage"
-        if: ${{ matrix.package == 'macos' }}
-        run: npm run test:coverage -w @pinyinduck/macos
-
-      - name: "[macos] Install Rime build dependencies"
-        if: ${{ matrix.package == 'macos' }}
-        # librime 1.13.1's CMakeLists does find_package(... REQUIRED) for Boost regex,
-        # YamlCpp, LevelDb, Marisa and Opencc. Boost alone is not enough: configure aborts
-        # at cmake/FindYamlCpp.cmake ("Could not find yaml-cpp library") without the rest.
-        # libyaml-cpp-dev on ubuntu-latest carries yaml-cpp 0.7, which satisfies the 0.5+
-        # node/node.h API that FindYamlCpp.cmake requires.
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake libboost-dev libboost-regex-dev \
-            libgoogle-glog-dev libyaml-cpp-dev libleveldb-dev libmarisa-dev libopencc-dev \
-            libluajit-5.1-dev pkg-config
-
-      - name: "[macos] Rime verification"
-        if: ${{ matrix.package == 'macos' }}
-        run: |
-          npm run setup:rime -w @pinyinduck/macos
-          npm run test:rime -w @pinyinduck/macos
+          npm run setup:rime
+          npm run test:rime
 
   # ─── E2E tests (if web, core or root files changed) ──────────────────────────────
   e2e:
