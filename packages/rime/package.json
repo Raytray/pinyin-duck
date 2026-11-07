@@ -1,9 +1,9 @@
 {
-  "name": "@pinyinduck/windows",
+  "name": "@pinyinduck/rime",
   "version": "0.1.0",
   "license": "MIT",
   "private": true,
-  "description": "Rime/Weasel schema generator for the PinyinDuck Windows input method",
+  "description": "Shared Rime schema templates, dictionary emitter and librime checks for the PinyinDuck Windows (Weasel) and macOS (Squirrel) input methods",
   "scripts": {
     "build": "tsc",
     "lint": "oxlint .",

@@ -11,8 +11,9 @@ length, frequency, and HSK level.
 | `packages/core` | Dictionary engine, pinyin parser, search, ranking, and asset generation. |
 | `packages/web` | Browser-based IME playground. |
 | `packages/android` | Android keyboard app. |
-| `packages/windows` | Windows IME via Rime/Weasel. |
-| `packages/macos` | macOS IME via Rime/Squirrel. |
+| `packages/rime` | Shared Rime schema templates, dictionary emitter and librime checks for Windows and macOS. |
+| `packages/windows` | Windows IME via Rime/Weasel: the installer. |
+| `packages/macos` | macOS IME via Rime/Squirrel: the installer. |
 
 ## Architecture
 
@@ -86,6 +87,7 @@ cd packages/android && ./gradlew check
 ## Package docs
 
 - [`packages/android/README.md`](packages/android/README.md)
+- [`packages/rime/README.md`](packages/rime/README.md)
 - [`packages/windows/README.md`](packages/windows/README.md)
 - [`packages/macos/README.md`](packages/macos/README.md)
 - [`docs/roadmap.md`](docs/roadmap.md)

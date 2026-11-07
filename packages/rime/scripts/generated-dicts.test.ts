@@ -12,8 +12,8 @@
  * the properties that have to hold at full scale. It also re-runs the build and compares
  * byte for byte, which is what catches a hand-edited dictionary or a stale artifact.
  *
- * The dictionaries are generated and gitignored, so a fresh clone skips this file. Run
- * `npm run build:rime` first.
+ * Every platform's files are generated and gitignored, so a fresh clone skips this file.
+ * Run `npm run build:rime` first.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -22,9 +22,20 @@ import * as path from 'path';
 import { createHash } from 'crypto';
 import { RIME_COLUMNS, RIME_SCRIPTS, type RimeScript } from '../src/rime-dict';
 import { iterateRimeRows, parseDictHeader } from '../src/rime-format';
-import { DICT_NAMES, DICT_VERSION, buildRimeDictionaries, type RimeBuildDeps } from './build-rime-dict';
+import { TEMPLATE_FILES, renderTemplate, RIME_PLATFORMS } from '../src/rime-platform';
+import {
+  DICT_NAMES,
+  DICT_VERSION,
+  buildRimeDictionaries,
+  platformRimeDir,
+  type RimeBuildDeps,
+} from './build-rime-dict';
 
-const RIME_DIR = path.resolve(__dirname, '../rime');
+/**
+ * The sweep reads the Windows copy. The macOS copy is built from the same asset by the same
+ * code, so it is only compared against this one byte for byte, below.
+ */
+const RIME_DIR = platformRimeDir('windows');
 const BTREE = path.resolve(__dirname, '../../web/public/dictionary.btree');
 
 /** A row that must be in the file exactly as written, with the reason it matters. */
@@ -276,6 +287,9 @@ describeBuilt('the generated dictionaries', () => {
       exists: () => true,
       readAsset: (p) => new Uint8Array(fs.readFileSync(p)),
       ensureDir: () => {},
+      copyFile: () => {
+        throw new Error('buildRimeDictionaries writes every file itself; it never copies');
+      },
       openFile: (p) => {
         const hash = createHash('sha256');
         captured.set(p, hash);
@@ -378,6 +392,45 @@ describeBuilt('the generated dictionaries', () => {
         found,
         `${check.text} (${check.code}) in ${check.script} changed — ${check.why}`
       ).toEqual({ comment: check.comment, weight: check.weight });
+    }
+  });
+});
+
+describe('every platform\'s rime folder', () => {
+  const templatesDir = path.resolve(__dirname, '../templates');
+
+  for (const platform of RIME_PLATFORMS) {
+    const dir = platformRimeDir(platform);
+    const built = fs.existsSync(path.join(dir, 'pinyinduck.schema.yaml'));
+    const itBuilt = built ? it : it.skip;
+
+    // A stale copy is what the templates exist to prevent: a schema edited in one platform
+    // folder and not the other. Since the folders are generated, this catches a template
+    // edited without a rebuild, or a platform file edited by hand.
+    itBuilt(`${platform}: the rendered files match the templates`, () => {
+      for (const name of TEMPLATE_FILES) {
+        const template = fs.readFileSync(path.join(templatesDir, name), 'utf8');
+        const onDisk = fs.readFileSync(path.join(dir, name), 'utf8');
+        expect(onDisk, `${platform}/rime/${name}`).toBe(renderTemplate(name, template, platform));
+      }
+    });
+  }
+
+  // build:rime walks the asset once and copies the output to the second platform, so these
+  // are the files that copy is responsible for.
+  const generated = [
+    ...RIME_SCRIPTS.map((script) => `${DICT_NAMES[script]}.dict.yaml`),
+    'lua/pinyinduck_gloss.lua',
+  ];
+  const generatedIn = (platform: 'windows' | 'macos', name: string) =>
+    path.join(platformRimeDir(platform), name);
+  const bothBuilt = generated.every(
+    (name) => fs.existsSync(generatedIn('windows', name)) && fs.existsSync(generatedIn('macos', name))
+  );
+  (bothBuilt ? it : it.skip)('macos: the generated files are byte for byte the Windows ones', () => {
+    for (const name of generated) {
+      const mac = fs.readFileSync(generatedIn('macos', name));
+      expect(mac.equals(fs.readFileSync(generatedIn('windows', name))), name).toBe(true);
     }
   });
 });

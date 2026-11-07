@@ -1,5 +1,5 @@
 /**
- * Coverage configuration for `@pinyinduck/windows`.
+ * Coverage configuration for `@pinyinduck/rime`.
  *
  * The package is a dictionary emitter rather than a runtime library, so almost all of
  * it is formatting decisions that have to stay pinned: a weight formula that drifts

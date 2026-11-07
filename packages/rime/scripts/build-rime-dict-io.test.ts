@@ -17,11 +17,14 @@ import {
   buildRimeDictionaries,
   main,
   parseArgs,
+  platformRimeDir,
   renderGlossSidecar,
+  renderPlatformFiles,
   type RimeBuildDeps,
   type RimeFileSink,
 } from './build-rime-dict';
 import { DATA_CREDIT_LINES } from '../src/rime-dict';
+import { TEMPLATE_FILES } from '../src/rime-platform';
 
 /** One dictionary row as the dictionary builder takes it. */
 type DictRow = [string, string, string, string, number, number];
@@ -74,6 +77,11 @@ function fakeFs(asset: Uint8Array | null): FakeFs {
         dirs.add(p);
       },
       openFile,
+      copyFile: (from, to) => {
+        const text = files.get(from);
+        if (text === undefined) throw new Error(`ENOENT: ${from}`);
+        files.set(to, text);
+      },
     },
   };
 }
@@ -345,20 +353,72 @@ describe('renderGlossSidecar', () => {
 });
 
 describe('parseArgs', () => {
-  it('defaults to the shared asset and the rime folder', () => {
+  it('defaults to the shared asset and every platform', () => {
     const options = parseArgs([]);
     expect(options.btreePath).toContain(path.join('web', 'public', 'dictionary.btree'));
-    expect(options.outDir).toContain(path.join('windows', 'rime'));
+    expect(options.platforms).toEqual(['windows', 'macos']);
+    expect(options.outDir).toBeUndefined();
   });
 
-  it('accepts an explicit output directory and asset', () => {
-    const options = parseArgs(['--out', '/tmp/rime', '--btree', '/tmp/other.btree']);
-    expect(options).toEqual({ btreePath: '/tmp/other.btree', outDir: '/tmp/rime' });
+  it('accepts one platform, an explicit output directory and an asset', () => {
+    const options = parseArgs([
+      '--platform',
+      'macos',
+      '--out',
+      '/tmp/rime',
+      '--btree',
+      '/tmp/other.btree',
+    ]);
+    expect(options).toEqual({
+      btreePath: '/tmp/other.btree',
+      platforms: ['macos'],
+      outDir: '/tmp/rime',
+    });
+  });
+
+  it('refuses an unknown platform', () => {
+    expect(() => parseArgs(['--platform', 'linux'])).toThrow(/Unknown platform "linux"/);
+  });
+
+  it('refuses one output directory for several platforms', () => {
+    // Both would write the same file names into it, and the second would win silently.
+    expect(() => parseArgs(['--out', '/tmp/rime'])).toThrow(/--platform/);
   });
 
   it('ignores a flag with no value rather than writing to undefined', () => {
     expect(parseArgs(['--out'])).toEqual(parseArgs([]));
     expect(parseArgs(['--btree'])).toEqual(parseArgs([]));
+    expect(parseArgs(['--platform'])).toEqual(parseArgs([]));
+  });
+
+  it('does not take the next flag as a value', () => {
+    // `--out --platform macos` once set the output directory to the literal "--platform".
+    expect(() => parseArgs(['--out', '--platform', 'macos'])).not.toThrow();
+    expect(parseArgs(['--out', '--platform', 'macos']).outDir).toBeUndefined();
+    expect(parseArgs(['--platform=macos', '--out=/tmp/rime'])).toMatchObject({
+      platforms: ['macos'],
+      outDir: '/tmp/rime',
+    });
+  });
+});
+
+describe('platformRimeDir', () => {
+  it('is the rime folder of the platform package', () => {
+    expect(platformRimeDir('windows')).toMatch(/packages[\\/]windows[\\/]rime$/);
+    expect(platformRimeDir('macos')).toMatch(/packages[\\/]macos[\\/]rime$/);
+  });
+});
+
+describe('renderPlatformFiles', () => {
+  it('renders every template into the output directory', () => {
+    const written = renderPlatformFiles('macos', OUT_DIR, fsState.deps);
+    expect(written.map((file) => path.relative(OUT_DIR, file))).toEqual(
+      TEMPLATE_FILES.map((name) => path.join(...name.split('/')))
+    );
+    const schema = fsState.files.get(path.join(OUT_DIR, 'pinyinduck.schema.yaml'))!;
+    expect(schema).toContain('bash scripts/install.sh');
+    expect(schema).not.toContain('{{');
+    expect(fsState.dirs.has(path.join(OUT_DIR, 'lua'))).toBe(true);
   });
 });
 
@@ -369,11 +429,38 @@ describe('cli output', () => {
       logs.push(args.join(' '));
     });
 
-    await main(['--out', OUT_DIR, '--btree', '/asset.btree'], fsState.deps);
+    await main(
+      ['--platform', 'windows', '--out', OUT_DIR, '--btree', '/asset.btree'],
+      fsState.deps
+    );
 
     const output = logs.join('\n');
     expect(output).toContain('pinyinduck.dict.yaml');
+    expect(output).toContain('pinyinduck.schema.yaml');
     expect(output).toContain('install.ps1');
+    expect(output).not.toContain('install.sh');
+    vi.restoreAllMocks();
+  });
+
+  it('builds every platform when none is named', async () => {
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logs.push(args.join(' '));
+    });
+
+    await main(['--btree', '/asset.btree'], fsState.deps);
+
+    const output = logs.join('\n');
+    expect(output).toContain('[windows] Weasel');
+    expect(output).toContain('[macos] Squirrel');
+    // Walked once: the second platform gets copies, not a second pass over the asset.
+    expect(logs.filter((line) => line.includes('source ')).length).toBe(1);
+    for (const name of ['pinyinduck.dict.yaml', 'pinyinduck_trad.dict.yaml', 'lua/pinyinduck_gloss.lua']) {
+      const win = fsState.files.get(path.join(platformRimeDir('windows'), name));
+      const mac = fsState.files.get(path.join(platformRimeDir('macos'), name));
+      expect(win, name).toBeDefined();
+      expect(mac, name).toBe(win);
+    }
     vi.restoreAllMocks();
   });
 });

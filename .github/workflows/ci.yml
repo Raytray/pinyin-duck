@@ -8,6 +8,11 @@ on:
   # green run always means "every package checked", not "the files I touched checked".
   workflow_dispatch:
 
+# Read-only by default. A job that needs more asks for it in its own `permissions:` block,
+# which replaces this one for that job (see `changes`).
+permissions:
+  contents: read
+
 concurrency:
   # Manual dispatches get their own group. Dispatching on a branch that also has
   # push activity would otherwise share a group with it, and cancel-in-progress
@@ -29,10 +34,9 @@ jobs:
       core: ${{ steps.filter.outputs.core }}
       web: ${{ steps.filter.outputs.web }}
       android: ${{ steps.filter.outputs.android }}
-      windows: ${{ steps.filter.outputs.windows }}
-      macos: ${{ steps.filter.outputs.macos }}
+      rime: ${{ steps.filter.outputs.rime }}
       root: ${{ steps.filter.outputs.root }}
-      # JSON list of the package-checks matrix entries to run, e.g. ["windows","macos"].
+      # JSON list of the package-checks matrix entries to run, e.g. ["web","rime"].
       packages: ${{ steps.matrix.outputs.packages }}
     steps:
       - uses: actions/checkout@v5
@@ -41,7 +45,7 @@ jobs:
         id: manual
         run: echo "full=${{ github.event_name == 'workflow_dispatch' }}" >> "$GITHUB_OUTPUT"
 
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         if: ${{ github.event_name != 'workflow_dispatch' }}
         with:
@@ -52,9 +56,9 @@ jobs:
               - 'packages/web/**'
             android:
               - 'packages/android/**'
-            windows:
+            rime:
+              - 'packages/rime/**'
               - 'packages/windows/**'
-            macos:
               - 'packages/macos/**'
             root:
               - 'package.json'
@@ -66,11 +70,9 @@ jobs:
               - 'playwright.config.ts'
 
       # Turns the filter outputs into the package-checks matrix, so a change to one package
-      # runs only that package's entry. Widened where packages depend on each other:
-      #   core or root files -> everything (every package builds on core, and root holds the
-      #                         lockfile and shared config)
-      #   windows            -> windows + macos (macos imports the windows emitter and its
-      #                         default.custom.yaml merge script)
+      # runs only that package's entry. A core or root change runs everything: every package
+      # builds on core, and root holds the lockfile and shared config. A manual dispatch skips
+      # the filter, so FULL stands in for it.
       - name: Pick the package-checks matrix
         id: matrix
         env:
@@ -79,22 +81,17 @@ jobs:
           ROOT: ${{ steps.filter.outputs.root }}
           WEB: ${{ steps.filter.outputs.web }}
           ANDROID: ${{ steps.filter.outputs.android }}
-          WINDOWS: ${{ steps.filter.outputs.windows }}
-          MACOS: ${{ steps.filter.outputs.macos }}
+          RIME: ${{ steps.filter.outputs.rime }}
         run: |
           packages=()
           if [[ "$FULL" == true || "$CORE" == true || "$ROOT" == true ]]; then
-            packages=(core web android windows macos)
+            packages=(core web android rime)
           else
             [[ "$WEB" == true ]] && packages+=(web)
             [[ "$ANDROID" == true ]] && packages+=(android)
-            [[ "$WINDOWS" == true ]] && packages+=(windows macos)
-            [[ "$MACOS" == true && "$WINDOWS" != true ]] && packages+=(macos)
+            [[ "$RIME" == true ]] && packages+=(rime)
           fi
-          json='[]'
-          if (( ${#packages[@]} > 0 )); then
-            json="[$(printf '"%s",' "${packages[@]}" | sed 's/,$//')]"
-          fi
+          json=$(jq -cn '$ARGS.positional' --args "${packages[@]}")
           echo "packages=$json" >> "$GITHUB_OUTPUT"
           echo "package-checks will run: $json"
 
@@ -151,9 +148,8 @@ jobs:
           key: dictionary-sources-${{ hashFiles('packages/core/scripts/sources.ts') }}
 
       # ── Build generated assets (needed by tests) ──
-      # macOS emits Rime dictionaries from the same B-tree as Windows, so it needs both
-      # the asset and the sibling packages' schemas staged by build:rime.
-      # Android also needs the dictionary.btree for its asset sync.
+      # rime emits both platforms' dictionaries from the B-tree; Android also needs the
+      # dictionary.btree for its asset sync.
       - name: Build dictionary assets
         run: |
           npm run build:dict
@@ -204,7 +200,7 @@ jobs:
 
       - name: Setup Android SDK
         if: ${{ matrix.package == 'android' }}
-        uses: android-actions/setup-android@v4
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
           packages: 'platform-tools platforms;android-36 ndk;27.2.12479018'
 
@@ -230,63 +226,108 @@ jobs:
           cd packages/android
           ./gradlew jacocoTestReport
 
-      # ── Windows ──
-      - name: "[windows] Lint"
-        if: ${{ matrix.package == 'windows' }}
-        run: npx oxlint packages/windows
+      # ── Rime (Windows + macOS) ──
+      # One package builds and checks both platforms' files: they share the emitter, the
+      # templates and the librime harness, and differ only in what the platform table says.
+      - name: "[rime] Lint"
+        if: ${{ matrix.package == 'rime' }}
+        run: npx oxlint packages/rime
 
-      - name: "[windows] Typecheck"
-        if: ${{ matrix.package == 'windows' }}
-        run: npm run typecheck -w @pinyinduck/windows
+      - name: "[rime] Typecheck"
+        if: ${{ matrix.package == 'rime' }}
+        run: npm run typecheck -w @pinyinduck/rime
 
-      - name: "[windows] Test + Coverage"
-        if: ${{ matrix.package == 'windows' }}
-        run: npm run test:coverage -w @pinyinduck/windows
+      - name: "[rime] Test + Coverage"
+        if: ${{ matrix.package == 'rime' }}
+        run: npm run test:coverage -w @pinyinduck/rime
 
-      - name: "[windows] Update apt package lists"
-        if: ${{ matrix.package == 'windows' }}
+      - name: "[rime] Update apt package lists"
+        if: ${{ matrix.package == 'rime' }}
         run: sudo apt-get update
 
-      - name: "[windows] Rime verification"
-        if: ${{ matrix.package == 'windows' }}
+      # Builds librime once and types into both the Windows and the macOS rime/ folder.
+      - name: "[rime] Rime verification"
+        if: ${{ matrix.package == 'rime' }}
         run: |
-          npm run setup:rime -w @pinyinduck/windows
-          npm run test:rime -w @pinyinduck/windows
+          npm run setup:rime
+          npm run test:rime
 
-      # ── macOS ──
-      # Same shape as the Windows job above. The Rime step runs the non-strict variant:
-      # it skips cleanly when librime could not be built, so a toolchain problem is
-      # visible in the log without turning every commit red.
-      - name: "[macos] Lint"
-        if: ${{ matrix.package == 'macos' }}
-        run: npm run lint -w @pinyinduck/macos
+  # ─── Installers on their real OS ──────────────────────────────────────────
+  # package-checks verifies the Rime files on Linux, but install.ps1 and install.sh only ever
+  # run on Windows and macOS. Build the files once here, then run each installer on its own OS
+  # against a scratch Rime folder and check what it wrote. No Weasel or Squirrel deploy: this
+  # is about the files, which is where a path, quoting or BSD-vs-GNU slip would break.
+  rime-files:
+    needs: changes
+    # Same decision as the rime matrix entry, so the installers run whenever the files do.
+    if: ${{ contains(fromJSON(needs.changes.outputs.packages), 'rime') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
 
-      - name: "[macos] Typecheck"
-        if: ${{ matrix.package == 'macos' }}
-        run: npm run typecheck -w @pinyinduck/macos
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
 
-      - name: "[macos] Test + Coverage"
-        if: ${{ matrix.package == 'macos' }}
-        run: npm run test:coverage -w @pinyinduck/macos
+      - name: Install dependencies
+        run: npm ci
 
-      - name: "[macos] Install Rime build dependencies"
-        if: ${{ matrix.package == 'macos' }}
-        # librime 1.13.1's CMakeLists does find_package(... REQUIRED) for Boost regex,
-        # YamlCpp, LevelDb, Marisa and Opencc. Boost alone is not enough: configure aborts
-        # at cmake/FindYamlCpp.cmake ("Could not find yaml-cpp library") without the rest.
-        # libyaml-cpp-dev on ubuntu-latest carries yaml-cpp 0.7, which satisfies the 0.5+
-        # node/node.h API that FindYamlCpp.cmake requires.
+      - name: Cache dictionary sources
+        uses: actions/cache@v4
+        with:
+          path: packages/core/.cache
+          key: dictionary-sources-${{ hashFiles('packages/core/scripts/sources.ts') }}
+
+      - name: Build dictionary assets
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake libboost-dev libboost-regex-dev \
-            libgoogle-glog-dev libyaml-cpp-dev libleveldb-dev libmarisa-dev libopencc-dev \
-            libluajit-5.1-dev pkg-config
+          npm run build:dict
+          npm run build:rime
 
-      - name: "[macos] Rime verification"
-        if: ${{ matrix.package == 'macos' }}
-        run: |
-          npm run setup:rime -w @pinyinduck/macos
-          npm run test:rime -w @pinyinduck/macos
+      - name: Upload the Rime files
+        uses: actions/upload-artifact@v4
+        with:
+          name: rime-files
+          # Both paths sit under packages/, so the artifact holds windows/rime and macos/rime.
+          path: |
+            packages/windows/rime
+            packages/macos/rime
+          retention-days: 1
+          if-no-files-found: error
+
+  installers:
+    needs: rime-files
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            os: windows-latest
+          - platform: macos
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    name: install (${{ matrix.platform }})
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      # The installers merge default.custom.yaml with `npx tsx`, so they need the repo's
+      # dependencies, not just the files.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the Rime files
+        uses: actions/download-artifact@v4
+        with:
+          name: rime-files
+          path: packages
+
+      - name: Run the installer against a scratch Rime folder
+        run: node scripts/check-rime-install.mjs ${{ matrix.platform }}
 
   # ─── E2E tests (if web, core or root files changed) ──────────────────────────────
   e2e:
