@@ -8,6 +8,11 @@ on:
   # green run always means "every package checked", not "the files I touched checked".
   workflow_dispatch:
 
+# Read-only by default. A job that needs more asks for it in its own `permissions:` block,
+# which replaces this one for that job (see `changes`).
+permissions:
+  contents: read
+
 concurrency:
   # Manual dispatches get their own group. Dispatching on a branch that also has
   # push activity would otherwise share a group with it, and cancel-in-progress
@@ -38,7 +43,7 @@ jobs:
         id: manual
         run: echo "full=${{ github.event_name == 'workflow_dispatch' }}" >> "$GITHUB_OUTPUT"
 
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         if: ${{ github.event_name != 'workflow_dispatch' }}
         with:
@@ -172,7 +177,7 @@ jobs:
 
       - name: Setup Android SDK
         if: ${{ matrix.package == 'android' }}
-        uses: android-actions/setup-android@v4
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
           packages: 'platform-tools platforms;android-36 ndk;27.2.12479018'
 
