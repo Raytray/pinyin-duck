@@ -5,6 +5,7 @@
  *
  *   node scripts/check-rime-install.mjs windows   # install.ps1, on Windows
  *   node scripts/check-rime-install.mjs macos     # install.sh, on macOS
+ *   node scripts/check-rime-install.mjs wsl       # install-from-wsl.sh, on Linux
  *
  * The unit tests cover the default.custom.yaml merge, and `npm run test:rime` proves librime
  * accepts the files, but neither runs install.ps1 or install.sh. Those are only ever
@@ -12,8 +13,10 @@
  * without anything on Linux noticing. This is that missing run, in CI, on the real OS.
  *
  * The installer is pointed at a scratch folder by overriding the variable it derives the
- * Rime folder from (APPDATA on Windows, HOME on macOS). Nothing is installed for real, and
- * Weasel or Squirrel need not be present: this checks the files, not a deploy.
+ * Rime folder from: APPDATA on Windows, HOME on macOS, and PINYINDUCK_RIME_DIR for the WSL
+ * installer, which otherwise asks Windows for APPDATA through powershell.exe. Nothing is
+ * installed for real, and Weasel or Squirrel need not be present: this checks the files,
+ * not a deploy.
  *
  * Three runs, each checking one promise the installer makes:
  *   1. a fresh install copies every file byte for byte and creates default.custom.yaml;
@@ -42,8 +45,13 @@ const COPIED = [
   'lua/pinyinduck_gloss.lua',
 ];
 
+/**
+ * `source` is the packages/<source>/rime folder an installer copies from: the WSL
+ * installer installs the Windows files, from the Linux side.
+ */
 const PLATFORMS = {
   windows: {
+    source: 'windows',
     command: 'powershell',
     args: [
       '-NoProfile',
@@ -57,11 +65,20 @@ const PLATFORMS = {
     rimeDir: (scratch) => path.join(scratch, 'Rime'),
   },
   macos: {
+    source: 'macos',
     command: 'bash',
     args: [path.join(REPO_ROOT, 'packages', 'macos', 'scripts', 'install.sh')],
     /** The installer writes to `$HOME/Library/Rime`. */
     env: (scratch) => ({ HOME: scratch }),
     rimeDir: (scratch) => path.join(scratch, 'Library', 'Rime'),
+  },
+  wsl: {
+    source: 'windows',
+    command: 'bash',
+    args: [path.join(REPO_ROOT, 'packages', 'windows', 'scripts', 'install-from-wsl.sh')],
+    /** The installer writes to `$PINYINDUCK_RIME_DIR` when it is set. */
+    env: (scratch) => ({ PINYINDUCK_RIME_DIR: path.join(scratch, 'Rime') }),
+    rimeDir: (scratch) => path.join(scratch, 'Rime'),
   },
 };
 
@@ -105,7 +122,7 @@ function runInstaller(platform, scratch) {
 
 export function checkInstall(platform) {
   const spec = PLATFORMS[platform];
-  const source = path.join(REPO_ROOT, 'packages', platform, 'rime');
+  const source = path.join(REPO_ROOT, 'packages', spec.source, 'rime');
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), `pinyinduck-install-${platform}-`));
   const rimeDir = spec.rimeDir(scratch);
   const target = path.join(rimeDir, 'default.custom.yaml');
