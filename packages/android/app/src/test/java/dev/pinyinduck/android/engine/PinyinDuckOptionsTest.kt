@@ -100,6 +100,27 @@ class PinyinDuckOptionsTest {
     }
 
     @Test
+    fun aPerSearchBudgetOverridesTheEngineDefault() {
+        // `SearchOptions.maxMatches` wins over the constructor's budget for that one call, in
+        // either direction: it can tighten a generous engine and loosen a strict one.
+        val full = engine().search("ta", SearchOptions(limit = 1))
+        val tightened = engine().search("ta", SearchOptions(limit = 1, maxMatches = 1))
+        val loosened = engine(maxMatches = 1).search("ta", SearchOptions(limit = 1, maxMatches = DEFAULT_MAX_MATCHES))
+
+        assertEquals(engine(maxMatches = 1).search("ta", SearchOptions(limit = 1)).total, tightened.total)
+        assertTrue("the override must cut the scan short", tightened.total < full.total)
+        assertEquals("the override must lift the engine's budget", full.total, loosened.total)
+    }
+
+    @Test
+    fun aZeroLimitReturnsNoCandidatesButKeepsTheTotal() {
+        // A caller that only wants the count, e.g. to label a "more" button.
+        val result = engine().search("ta", SearchOptions(limit = 0))
+        assertEquals(emptyList<Candidate>(), result.candidates)
+        assertTrue("the total is independent of the page", result.total > 0)
+    }
+
+    @Test
     fun theScriptSelectsWhichCharactersAreShown() {
         val simplified = engine().search("zhongguo", SearchOptions(script = ScriptType.SIMPLIFIED))
         val traditional = engine().search("zhongguo", SearchOptions(script = ScriptType.TRADITIONAL))
