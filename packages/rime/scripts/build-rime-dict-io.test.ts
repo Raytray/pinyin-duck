@@ -77,6 +77,11 @@ function fakeFs(asset: Uint8Array | null): FakeFs {
         dirs.add(p);
       },
       openFile,
+      copyFile: (from, to) => {
+        const text = files.get(from);
+        if (text === undefined) throw new Error(`ENOENT: ${from}`);
+        files.set(to, text);
+      },
     },
   };
 }
@@ -385,6 +390,16 @@ describe('parseArgs', () => {
     expect(parseArgs(['--btree'])).toEqual(parseArgs([]));
     expect(parseArgs(['--platform'])).toEqual(parseArgs([]));
   });
+
+  it('does not take the next flag as a value', () => {
+    // `--out --platform macos` once set the output directory to the literal "--platform".
+    expect(() => parseArgs(['--out', '--platform', 'macos'])).not.toThrow();
+    expect(parseArgs(['--out', '--platform', 'macos']).outDir).toBeUndefined();
+    expect(parseArgs(['--platform=macos', '--out=/tmp/rime'])).toMatchObject({
+      platforms: ['macos'],
+      outDir: '/tmp/rime',
+    });
+  });
 });
 
 describe('platformRimeDir', () => {
@@ -438,9 +453,14 @@ describe('cli output', () => {
     const output = logs.join('\n');
     expect(output).toContain('[windows] Weasel');
     expect(output).toContain('[macos] Squirrel');
-    expect(fsState.files.has(path.join(platformRimeDir('macos'), 'pinyinduck.dict.yaml'))).toBe(
-      true
-    );
+    // Walked once: the second platform gets copies, not a second pass over the asset.
+    expect(logs.filter((line) => line.includes('source ')).length).toBe(1);
+    for (const name of ['pinyinduck.dict.yaml', 'pinyinduck_trad.dict.yaml', 'lua/pinyinduck_gloss.lua']) {
+      const win = fsState.files.get(path.join(platformRimeDir('windows'), name));
+      const mac = fsState.files.get(path.join(platformRimeDir('macos'), name));
+      expect(win, name).toBeDefined();
+      expect(mac, name).toBe(win);
+    }
     vi.restoreAllMocks();
   });
 });

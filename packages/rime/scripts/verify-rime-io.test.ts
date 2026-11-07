@@ -318,6 +318,7 @@ describe('a deploy that never finishes', () => {
     fs.chmodSync(harness, 0o755);
 
     const result = verifyRime({
+      platform: 'windows',
       require: false,
       keepStaging: false,
       harnessPath: harness,
@@ -409,6 +410,7 @@ describe('verifyRime end to end, against a stub harness', () => {
 
   const run = (harness: string, overrides: Record<string, unknown> = {}) =>
     verifyRime({
+      platform: 'windows',
       require: false,
       keepStaging: false,
       harnessPath: harness,
@@ -487,6 +489,7 @@ describe('verifyRime without a built librime', () => {
     // still runs this script, and a check that reports success without running anything is
     // worse than no check.
     const result = verifyRime({
+      platform: 'windows',
       require: false,
       keepStaging: false,
       harnessPath: path.join(tmp, 'absent'),
@@ -500,6 +503,7 @@ describe('verifyRime without a built librime', () => {
 
   it('fails the same case under --require, for a pre-merge gate', () => {
     const result = verifyRime({
+      platform: 'windows',
       require: true,
       keepStaging: false,
       harnessPath: path.join(tmp, 'absent'),
@@ -521,9 +525,44 @@ describe('verifyRime without a built librime', () => {
     const harness = path.join(tmp, 'rime_smoke');
     fs.writeFileSync(harness, '', 'utf8');
 
-    const result = verifyRime({ require: false, keepStaging: false, harnessPath: harness, sharedDataDir, rimeDir });
+    const result = verifyRime({
+      platform: 'windows',
+      require: false,
+      keepStaging: false,
+      harnessPath: harness,
+      sharedDataDir,
+      rimeDir,
+    });
     expect(result.ok).toBe(false);
     expect(result.skipped).toBe(false);
+    expect(result.output).toMatch(/npm run build:rime/);
+  });
+
+  it('refuses a folder with dictionaries but no schema, and names what is missing', () => {
+    // What a pull from before the templates leaves behind: git deletes the once-tracked
+    // schemas, while the ignored dictionaries from an earlier build stay on disk. Staged as
+    // is, librime would deploy nothing and every query would fail with no hint why.
+    const rimeDir = path.join(tmp, 'rime');
+    fakeRimeDir(rimeDir);
+    fs.rmSync(path.join(rimeDir, 'pinyinduck.schema.yaml'));
+    fs.rmSync(path.join(rimeDir, 'lua/pinyinduck_gloss_filter.lua'));
+    const sharedDataDir = path.join(tmp, 'minimal');
+    fakeLibrimeData(sharedDataDir);
+    const harness = path.join(tmp, 'rime_smoke');
+    fs.writeFileSync(harness, '', 'utf8');
+
+    const result = verifyRime({
+      platform: 'windows',
+      require: false,
+      keepStaging: false,
+      harnessPath: harness,
+      sharedDataDir,
+      rimeDir,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.output).toContain('pinyinduck.schema.yaml');
+    expect(result.output).toContain('lua/pinyinduck_gloss_filter.lua');
+    expect(result.output).not.toContain('pinyinduck_trad.schema.yaml');
     expect(result.output).toMatch(/npm run build:rime/);
   });
 });
@@ -542,6 +581,16 @@ describe('parseArgs', () => {
   it('narrows the run to one platform, and refuses one it does not know', () => {
     expect(parseArgs(['--platform', 'macos']).platforms).toEqual(['macos']);
     expect(() => parseArgs(['--platform', 'linux'])).toThrow(/Unknown platform "linux"/);
+  });
+
+  it('does not read the next flag as the platform', () => {
+    // `--platform --require` once failed with `Unknown platform "--require"`.
+    expect(parseArgs(['--platform', '--require'])).toEqual({
+      require: true,
+      keepStaging: false,
+      platforms: ['windows', 'macos'],
+    });
+    expect(parseArgs(['--platform=macos']).platforms).toEqual(['macos']);
   });
 
   it('reads the two flags, and ignores anything it does not know', () => {

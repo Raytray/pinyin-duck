@@ -91,3 +91,41 @@ export function renderTemplate(
     `${comment} Edit the template, not this file.\n`;
   return banner + body;
 }
+
+/**
+ * The value of a CLI flag, as `--flag value` or `--flag=value`.
+ *
+ * Returns undefined when the flag is absent or has no value. A following token that is itself
+ * a flag (`--platform --require`) is not taken as the value: that would turn a missing value
+ * into a confusing "unknown platform --require", or an output directory named `--platform`.
+ */
+export function flagValue(args: readonly string[], flag: string): string | undefined {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg.startsWith(`${flag}=`)) {
+      const value = arg.slice(flag.length + 1);
+      return value === '' ? undefined : value;
+    }
+    if (arg === flag) {
+      const next = args[i + 1];
+      return next !== undefined && next !== '' && !next.startsWith('--') ? next : undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The platforms a CLI run covers: the one named by `--platform`, or all of them.
+ *
+ * Shared by `build:rime` and `test:rime` so the two accept exactly the same spellings.
+ */
+export function parsePlatformFlag(args: readonly string[]): RimePlatform[] {
+  const platform = flagValue(args, '--platform');
+  if (platform === undefined) return [...RIME_PLATFORMS];
+  if (!isRimePlatform(platform)) {
+    throw new Error(
+      `Unknown platform "${platform}". Expected one of: ${RIME_PLATFORMS.join(', ')}.`
+    );
+  }
+  return [platform];
+}

@@ -287,6 +287,9 @@ describeBuilt('the generated dictionaries', () => {
       exists: () => true,
       readAsset: (p) => new Uint8Array(fs.readFileSync(p)),
       ensureDir: () => {},
+      copyFile: () => {
+        throw new Error('buildRimeDictionaries writes every file itself; it never copies');
+      },
       openFile: (p) => {
         const hash = createHash('sha256');
         captured.set(p, hash);
@@ -413,12 +416,21 @@ describe('every platform\'s rime folder', () => {
     });
   }
 
-  const macDicts = RIME_SCRIPTS.map((s) => path.join(platformRimeDir('macos'), `${DICT_NAMES[s]}.dict.yaml`));
-  const bothBuilt = missing.length === 0 && macDicts.every((p) => fs.existsSync(p));
-  (bothBuilt ? it : it.skip)('macos: the dictionaries are byte for byte the Windows ones', () => {
-    for (const script of RIME_SCRIPTS) {
-      const mac = fs.readFileSync(macDicts[RIME_SCRIPTS.indexOf(script)]);
-      expect(mac.equals(fs.readFileSync(dictPath(script))), DICT_NAMES[script]).toBe(true);
+  // build:rime walks the asset once and copies the output to the second platform, so these
+  // are the files that copy is responsible for.
+  const generated = [
+    ...RIME_SCRIPTS.map((script) => `${DICT_NAMES[script]}.dict.yaml`),
+    'lua/pinyinduck_gloss.lua',
+  ];
+  const generatedIn = (platform: 'windows' | 'macos', name: string) =>
+    path.join(platformRimeDir(platform), name);
+  const bothBuilt = generated.every(
+    (name) => fs.existsSync(generatedIn('windows', name)) && fs.existsSync(generatedIn('macos', name))
+  );
+  (bothBuilt ? it : it.skip)('macos: the generated files are byte for byte the Windows ones', () => {
+    for (const name of generated) {
+      const mac = fs.readFileSync(generatedIn('macos', name));
+      expect(mac.equals(fs.readFileSync(generatedIn('windows', name))), name).toBe(true);
     }
   });
 });

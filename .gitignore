@@ -60,6 +60,15 @@ packages/macos/rime/
 packages/rime/tools/librime/
 packages/rime/tools/.local/
 
+# Where `setup:rime` and `build:rime` wrote before the shared files moved to packages/rime.
+# Nothing writes here any more, but a checkout that ran them earlier still has a 172MB
+# librime clone and its build on disk, and without these lines `git add -A` would commit it.
+# Safe to delete those folders, and then these lines.
+packages/windows/tools/librime/
+packages/windows/tools/.local/
+packages/macos/tools/librime/
+packages/macos/tools/rime_smoke
+
 # Android release signing. key.properties holds the keystore passwords; the trailing * also
 # catches editor backups such as key.properties~. Keep the keystore itself outside the repo
 # and point storeFile at its absolute path; these patterns are a backstop, not a home.

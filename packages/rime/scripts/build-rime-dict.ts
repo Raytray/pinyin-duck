@@ -32,9 +32,9 @@ import {
 } from '../src/rime-dict.js';
 import {
   PLATFORM_INFO,
-  RIME_PLATFORMS,
   TEMPLATE_FILES,
-  isRimePlatform,
+  flagValue,
+  parsePlatformFlag,
   renderTemplate,
   type RimePlatform,
 } from '../src/rime-platform.js';
@@ -149,12 +149,14 @@ export interface RimeBuildDeps {
   readAsset(path: string): Uint8Array;
   ensureDir(path: string): void;
   openFile(path: string): RimeFileSink;
+  copyFile(from: string, to: string): void;
 }
 
 const nodeDeps: RimeBuildDeps = {
   exists: (p) => fs.existsSync(p),
   readAsset: (p) => new Uint8Array(fs.readFileSync(p)),
   ensureDir: (p) => fs.mkdirSync(p, { recursive: true }),
+  copyFile: (from, to) => fs.copyFileSync(from, to),
   openFile: (p) => {
     const fd = fs.openSync(p, 'w');
     let buffered: string[] = [];
@@ -328,25 +330,14 @@ export interface RimeCliOptions {
  * Split out from `main` so the flag handling can be tested without running a build.
  */
 export function parseArgs(args: string[]): RimeCliOptions {
-  const value = (flag: string): string | undefined => {
-    const index = args.indexOf(flag);
-    return index >= 0 && args[index + 1] ? args[index + 1] : undefined;
-  };
+  const platforms = parsePlatformFlag(args);
 
-  const platform = value('--platform');
-  if (platform !== undefined && !isRimePlatform(platform)) {
-    throw new Error(
-      `Unknown platform "${platform}". Expected one of: ${RIME_PLATFORMS.join(', ')}.`
-    );
-  }
-  const platforms: RimePlatform[] = platform ? [platform] : [...RIME_PLATFORMS];
-
-  const outDir = value('--out');
+  const outDir = flagValue(args, '--out');
   if (outDir !== undefined && platforms.length > 1) {
     throw new Error('--out writes one platform; pass --platform with it.');
   }
 
-  return { btreePath: value('--btree') ?? DEFAULT_BTREE, platforms, outDir };
+  return { btreePath: flagValue(args, '--btree') ?? DEFAULT_BTREE, platforms, outDir };
 }
 
 /** Builds and reports, so the CLI is a thin wrapper that tests can drive directly. */
@@ -354,6 +345,10 @@ export async function main(args: string[], deps: RimeBuildDeps = nodeDeps): Prom
   const { btreePath, platforms, outDir: outOverride } = parseArgs(args);
   const started = Date.now();
   console.log('Building the PinyinDuck Rime files from the B+ tree asset...');
+
+  // The dictionaries and the gloss sidecar are the same bytes for every platform, so the
+  // asset is walked once, for the first platform, and the output is copied to the rest.
+  let built: { outDir: string; generated: string[] } | undefined;
 
   for (const platform of platforms) {
     const outDir = outOverride ?? platformRimeDir(platform);
@@ -364,17 +359,27 @@ export async function main(args: string[], deps: RimeBuildDeps = nodeDeps): Prom
       console.log(`  wrote   ${file}`);
     }
 
-    const stats = await buildRimeDictionaries({ btreePath, outDir }, deps);
-    console.log(`  source  ${btreePath} (${stats.entryCount} entries)`);
-    for (const script of RIME_SCRIPTS) {
-      const { rows, skipped, unencodable, duplicates } = stats.scripts[script];
-      console.log(
-        `  wrote   ${stats.files[script]} ` +
-          `(${rows} rows, ${duplicates} duplicates dropped, ` +
-          `${unencodable} unreadable readings, ${skipped} missing text)`
-      );
+    if (built === undefined) {
+      const stats = await buildRimeDictionaries({ btreePath, outDir }, deps);
+      console.log(`  source  ${btreePath} (${stats.entryCount} entries)`);
+      for (const script of RIME_SCRIPTS) {
+        const { rows, skipped, unencodable, duplicates } = stats.scripts[script];
+        console.log(
+          `  wrote   ${stats.files[script]} ` +
+            `(${rows} rows, ${duplicates} duplicates dropped, ` +
+            `${unencodable} unreadable readings, ${skipped} missing text)`
+        );
+      }
+      console.log(`  wrote   ${stats.glossFile} (${stats.glossEntries} definitions)`);
+      built = { outDir, generated: [...RIME_SCRIPTS.map((s) => stats.files[s]), stats.glossFile] };
+    } else {
+      for (const from of built.generated) {
+        const to = path.join(outDir, path.relative(built.outDir, from));
+        deps.ensureDir(path.dirname(to));
+        deps.copyFile(from, to);
+        console.log(`  copied  ${to}`);
+      }
     }
-    console.log(`  wrote   ${stats.glossFile} (${stats.glossEntries} definitions)`);
     console.log(`  next    in packages/${platform}, run \`${installCommand}\` to copy these into ${userDir}`);
   }
 

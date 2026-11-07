@@ -12,7 +12,9 @@ import {
   PLATFORM_INFO,
   RIME_PLATFORMS,
   TEMPLATE_FILES,
+  flagValue,
   isRimePlatform,
+  parsePlatformFlag,
   renderTemplate,
   templateValues,
 } from './rime-platform.js';
@@ -86,5 +88,44 @@ describe('PLATFORM_INFO', () => {
       const installer = path.resolve(__dirname, '../..', platform, script);
       expect(fs.existsSync(installer), installer).toBe(true);
     }
+  });
+});
+
+describe('flagValue', () => {
+  it('reads both spellings', () => {
+    expect(flagValue(['--platform', 'macos'], '--platform')).toBe('macos');
+    expect(flagValue(['--platform=macos'], '--platform')).toBe('macos');
+  });
+
+  it('does not take the next flag as the value', () => {
+    expect(flagValue(['--platform', '--require'], '--platform')).toBeUndefined();
+    expect(flagValue(['--out', '--platform', 'macos'], '--out')).toBeUndefined();
+  });
+
+  it('treats a missing or empty value as absent', () => {
+    expect(flagValue([], '--platform')).toBeUndefined();
+    expect(flagValue(['--platform'], '--platform')).toBeUndefined();
+    expect(flagValue(['--platform='], '--platform')).toBeUndefined();
+    expect(flagValue(['--platform', ''], '--platform')).toBeUndefined();
+  });
+
+  it('does not match a flag that merely starts the same way', () => {
+    expect(flagValue(['--platforms', 'macos'], '--platform')).toBeUndefined();
+  });
+});
+
+describe('parsePlatformFlag', () => {
+  it('defaults to every platform', () => {
+    expect(parsePlatformFlag([])).toEqual(['windows', 'macos']);
+    expect(parsePlatformFlag(['--platform', '--require'])).toEqual(['windows', 'macos']);
+  });
+
+  it('narrows to the named platform in either spelling', () => {
+    expect(parsePlatformFlag(['--platform', 'macos'])).toEqual(['macos']);
+    expect(parsePlatformFlag(['--platform=windows'])).toEqual(['windows']);
+  });
+
+  it('refuses a platform it does not know', () => {
+    expect(() => parsePlatformFlag(['--platform=linux'])).toThrow(/Unknown platform "linux"/);
   });
 });

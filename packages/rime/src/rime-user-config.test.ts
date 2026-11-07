@@ -4,8 +4,10 @@ import * as path from 'path';
 import { parse } from 'yaml';
 import { mergeDefaultCustom, RimeUserConfigError } from './rime-user-config';
 
-/** The file the installers ship, so the tests follow it if it changes. */
-const OURS = fs.readFileSync(path.resolve(__dirname, '../templates/default.custom.yaml'), 'utf8');
+import { RIME_PLATFORMS, renderTemplate } from './rime-platform';
+
+/** The template the installers' file is rendered from, so the tests follow it if it changes. */
+const TEMPLATE = fs.readFileSync(path.resolve(__dirname, '../templates/default.custom.yaml'), 'utf8');
 
 const PINYINDUCK_SCHEMAS = [{ schema: 'pinyinduck' }, { schema: 'pinyinduck_trad' }];
 const SAVE_OPTIONS = ['ascii_mode', 'ascii_punct', 'full_shape'];
@@ -21,7 +23,11 @@ patch:
   menu/page_size: 9
 `;
 
-describe('mergeDefaultCustom', () => {
+// Run against each platform's rendered file, banner and all: that, not the raw template, is
+// what install.ps1 and install.sh hand to the merge.
+describe.each(RIME_PLATFORMS)('mergeDefaultCustom (%s)', (platform) => {
+  const OURS = renderTemplate('default.custom.yaml', TEMPLATE, platform);
+
   it('uses our file as it is when there is none yet', () => {
     expect(mergeDefaultCustom(null, OURS)).toEqual({
       content: OURS,

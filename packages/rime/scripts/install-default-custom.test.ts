@@ -1,13 +1,41 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { backupSuffix, installDefaultCustom, main } from './install-default-custom';
+import { RIME_PLATFORMS, renderTemplate, type RimePlatform } from '../src/rime-platform';
 
-const OURS_PATH = path.resolve(__dirname, '../templates/default.custom.yaml');
+const TEMPLATE_PATH = path.resolve(__dirname, '../templates/default.custom.yaml');
 const NOW = new Date(2026, 10, 6, 13, 45, 2);
 
-describe('installDefaultCustom', () => {
+/**
+ * Writes the platform's rendered default.custom.yaml, the file the installers actually merge
+ * from `packages/<platform>/rime/`, into its own directory so it never shows up in `tmp`.
+ */
+function renderedOurs(dir: string, platform: RimePlatform): string {
+  const file = path.join(dir, `${platform}.default.custom.yaml`);
+  const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
+  fs.writeFileSync(file, renderTemplate('default.custom.yaml', template, platform), 'utf8');
+  return file;
+}
+
+let oursDir: string;
+let OURS_PATH: string;
+
+beforeAll(() => {
+  oursDir = fs.mkdtempSync(path.join(os.tmpdir(), 'install-default-custom-ours-'));
+  OURS_PATH = renderedOurs(oursDir, 'windows');
+});
+
+afterAll(() => {
+  fs.rmSync(oursDir, { recursive: true, force: true });
+});
+
+describe.each(RIME_PLATFORMS)('installDefaultCustom (%s)', (platform) => {
+  beforeAll(() => {
+    OURS_PATH = renderedOurs(oursDir, platform);
+  });
+
   let tmp: string;
   let target: string;
 
