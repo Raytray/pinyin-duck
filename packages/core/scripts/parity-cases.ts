@@ -45,6 +45,7 @@ export const EXTRA_QUERIES: readonly string[] = [
   'ta4',
   'shi',
   'lv4',
+  'lu:4',
   'lve',
   'niha',
   'j',
@@ -79,8 +80,9 @@ function wrongTone(tone: number): number {
 }
 
 /**
- * Every query shape built from one word. The tones of syllable `i` in `toneAt[i]`, or
- * `null` for none.
+ * Every query shape built from one word: no tones, all tones, apostrophes, spaces, a
+ * capitalised form, and for each syllable in turn a tone only there, a wrong tone only
+ * there, every tone but that one, and every tone right but that one.
  */
 export function queriesForWord(word: SeedWord): string[] {
   const parts = word.syllables.map(splitTone);
@@ -90,14 +92,25 @@ export function queriesForWord(word: SeedWord): string[] {
   const none = parts.map(() => null);
   const all = parts.map((part) => part.tone);
 
-  const queries: string[] = [spell(none, ''), spell(all, ''), spell(none, "'"), spell(all, "'"), spell(all, ' ')];
+  // `toneAt[i]` is the tone written after syllable `i`, or `null` for none.
+  const plain = spell(none, '');
+  const queries = [
+    plain,
+    spell(all, ''),
+    spell(none, "'"),
+    spell(all, "'"),
+    spell(all, ' '),
+    plain.charAt(0).toUpperCase() + plain.slice(1),
+  ];
   parts.forEach((part, i) => {
     const onlyHere = parts.map((_, j) => (j === i ? part.tone : null));
     const wrongHere = parts.map((_, j) => (j === i ? wrongTone(part.tone) : null));
     const allButWrongHere = parts.map((other, j) => (j === i ? wrongTone(other.tone) : other.tone));
-    queries.push(spell(onlyHere, ''), spell(wrongHere, ''), spell(allButWrongHere, ''));
+    const allButHere = parts.map((other, j) => (j === i ? null : other.tone));
+    queries.push(spell(onlyHere, ''), spell(wrongHere, ''), spell(allButHere, ''), spell(allButWrongHere, ''));
   });
-  return queries;
+  // For a two-syllable word, "every tone but this one" is "a tone only on the other one".
+  return [...new Set(queries)];
 }
 
 export function buildParityCases(
