@@ -7,8 +7,8 @@
  * B-tree descent would silently reorder candidates on one platform only.
  *
  * This script closes that gap. It runs the real engine over the real `dictionary.btree` for
- * a fixed query set and writes what it found to a line-oriented golden file that
- * `PinyinEngineParityTest` asserts the Kotlin engine reproduces exactly.
+ * a generated query set (see `parity-cases.ts`) and writes what it found to a line-oriented
+ * golden file that `PinyinEngineParityTest` asserts the Kotlin engine reproduces exactly.
  *
  * Usage (from `packages/core`):
  *
@@ -25,7 +25,7 @@ import { fileURLToPath } from 'url';
 import { LazyPinyinSearchEngine } from '../src/index/lazy-search.js';
 import { BTreeDictionary } from '../src/data/btree-dictionary.js';
 import { MemoryPageSource } from '../src/data/page-source.js';
-import type { ScriptType } from '../src/types.js';
+import { buildParityCases } from './parity-cases.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -41,45 +41,8 @@ const OUTPUT_PATH = path.resolve(here, '../../android/app/src/test/resources/eng
  */
 const CANDIDATE_DEPTH = 12;
 
-/**
- * The queries to pin, chosen to cover the paths that could plausibly diverge:
- * a two-syllable word, a one-syllable homophone cluster, partial matches, apostrophes,
- * tone filtering, umlauts, and a single letter.
- */
-const CASES: ReadonlyArray<{ query: string; script: ScriptType }> = [
-  { query: 'nihao', script: 'simplified' },
-  { query: 'nihao', script: 'traditional' },
-  { query: 'zhongguo', script: 'simplified' },
-  { query: 'zhongguo', script: 'traditional' },
-  { query: 'shi4', script: 'simplified' },
-  { query: 'ta', script: 'simplified' },
-  { query: 'ta4', script: 'simplified' },
-  { query: 'shi', script: 'simplified' },
-  { query: "xi'an", script: 'simplified' },
-  { query: 'lv4', script: 'simplified' },
-  { query: 'lve', script: 'simplified' },
-  { query: 'ni3hao3', script: 'simplified' },
-  { query: 'ni3 hao3', script: 'simplified' },
-  { query: 'niha', script: 'simplified' },
-  { query: 'j', script: 'simplified' },
-  { query: 's', script: 'simplified' },
-  { query: 'womenshi', script: 'simplified' },
-  { query: 'xiexie', script: 'simplified' },
-  { query: 'gongzuo', script: 'simplified' },
-  { query: 'xuexi', script: 'simplified' },
-  { query: 'mingtian', script: 'simplified' },
-  { query: 'guojia', script: 'simplified' },
-  { query: 'zhongwen', script: 'simplified' },
-  { query: 'suanfa', script: 'simplified' },
-  { query: 'suoyou', script: 'simplified' },
-  { query: 'gongsi', script: 'simplified' },
-  { query: 'nihao3', script: 'simplified' },
-  { query: 'ni3hao', script: 'simplified' },
-  { query: 'bian3', script: 'simplified' },
-  { query: 'hang', script: 'simplified' },
-  { query: 'jianguo', script: 'simplified' },
-  { query: 'fanguo', script: 'simplified' },
-];
+/** The queries to pin, generated in `parity-cases.ts`. */
+const CASES = buildParityCases();
 
 async function main(): Promise<void> {
   if (!fs.existsSync(DICTIONARY_PATH)) {
