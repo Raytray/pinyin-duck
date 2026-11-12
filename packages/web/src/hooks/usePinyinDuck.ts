@@ -27,6 +27,14 @@ const PUNCTUATION_MAP: Record<string, string> = {
   ')': '）',
 };
 
+/** " 42%" of the download, or " 1.2 MB" when the server did not say how big it is. */
+function describeProgress(progress: DownloadProgress): string {
+  if (progress.total) {
+    return ` ${Math.min(100, Math.floor((progress.loaded / progress.total) * 100))}%`;
+  }
+  return ` ${(progress.loaded / 1_000_000).toFixed(1)} MB`;
+}
+
 const EMPTY_RESULT: SearchResult = { query: '', segments: [], candidates: [], total: 0 };
 
 /** Candidates fetched per query; the popup pages through them a screen at a time. */
@@ -38,7 +46,9 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   const [engine, setEngine] = useState<LazyPinyinSearchEngine | null>(null);
   const [dictionaryStatus, setDictionaryStatus] = useState<DictionaryStatus>('loading');
   const [dictionaryError, setDictionaryError] = useState<string | null>(null);
-  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
+  // The label rather than the byte counts, so the hundreds of chunks a download arrives in
+  // re-render only when the percentage or tenth of a megabyte on screen changes.
+  const [downloadProgress, setDownloadProgress] = useState('');
   const [entryCount, setEntryCount] = useState(0);
   const [script, setScriptState] = useState<ScriptType>(initialScript);
   const [committedText, setCommittedText] = useState<string>('');
@@ -73,12 +83,12 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
 
     setDictionaryStatus('loading');
     setDictionaryError(null);
-    setDownloadProgress(null);
+    setDownloadProgress('');
 
     loadDictionary(dictionaryUrl, {
       signal: controller.signal,
       onProgress: (progress) => {
-        if (!cancelled) setDownloadProgress(progress);
+        if (!cancelled) setDownloadProgress(describeProgress(progress));
       },
     })
       .then((dictionary) => {
