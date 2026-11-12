@@ -3,8 +3,8 @@
  *
  * Opening the dictionary reads only the fixed header and the small page directory.
  * Every later operation descends the tree and fetches just the pages it needs, via a
- * `PageSource`, so memory stays bounded by an LRU page cache instead of the full
- * 122k-entry object graph the eager loader builds.
+ * `PageSource`, so memory stays bounded by an LRU page cache instead of a full
+ * 122k-entry object graph.
  *
  * This is the runtime an Android keyboard should use: point it at a `PageSource`
  * backed by a positioned file read (or an mmap) and the same lookup code works with

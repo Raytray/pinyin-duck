@@ -1,9 +1,6 @@
 /**
- * Wire format for the generated dictionary asset.
- *
- * The asset is far too large to bundle as a TypeScript module, so it is emitted as a
- * static JSON file and fetched at runtime. Rows are tuples rather than objects because
- * repeating nine JSON keys across ~125k entries would more than double the payload.
+ * The row the dictionary builder joins from its sources, and that `buildBTree` turns
+ * into B-tree leaf entries.
  *
  * Columns:
  *   0  simplified   Simplified Chinese (also the frequency and HSK join key)
@@ -13,10 +10,7 @@
  *   4  frequency    Normalized 0-100000 usage score (0 = unseen in the corpus)
  *   5  hskLevel     HSK 1-6, or 0 when the word is not on the HSK list
  *
- * Tone marks, clean pinyin and syllables are derived on load rather than stored,
- * which keeps the asset small and guarantees they always match the pinyin column.
+ * Clean pinyin (the B-tree key) and tone marks are derived from the pinyin column
+ * rather than stored, so they always match it.
  */
 export type DictionaryRow = [string, string, string, string, number, number];
-
-/** Bumped when the column layout changes in a way that needs a loader update. */
-export const DICTIONARY_FORMAT_VERSION = 1;

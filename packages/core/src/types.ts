@@ -1,22 +1,5 @@
 export type ScriptType = 'simplified' | 'traditional';
 
-export interface DictEntry {
-  simplified: string;
-  traditional: string;
-  pinyinNumbers: string; // e.g. "ni3 hao3"
-  pinyinMarks: string;   // e.g. "nǐ hǎo"
-  pinyinClean: string;   // toneless, lowercased without spaces e.g. "nihao"
-  pinyinSyllables: string[]; // e.g. ["ni3", "hao3"] or ["ni", "hao"]
-  shortGloss: string;    // concise gloss for candidate cards
-  frequency: number;     // 0 - 100000 (higher = more frequent)
-  hskLevel?: number;     // 1 to 6 (if known)
-  /**
-   * Only present on hand-authored entries. The generated asset ships a trimmed gloss
-   * rather than the full CC-CEDICT definition list, so this is usually undefined.
-   */
-  definitions?: string[];
-}
-
 export interface Candidate {
   id: string;
   hanzi: string;         // displayed characters according to active ScriptType
@@ -29,7 +12,6 @@ export interface Candidate {
   matchedPinyin: string;
   remainingPinyin: string;
   hskLevel?: number;
-  definitions?: string[];
 }
 
 export interface SearchOptions {
@@ -38,9 +20,8 @@ export interface SearchOptions {
   offset?: number;
   exactOnly?: boolean;
   /**
-   * Caps how many prefix matches a query materializes. Both engines default to
-   * `DEFAULT_MAX_MATCHES` so a lazy B-tree search and an in-memory trie search over
-   * the same dictionary return the same candidates and the same `total`.
+   * Caps how many prefix matches a query considers. Defaults to `DEFAULT_MAX_MATCHES`,
+   * which is wide enough that the default path never truncates.
    */
   maxMatches?: number;
 }

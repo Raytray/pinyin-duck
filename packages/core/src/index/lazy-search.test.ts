@@ -4,8 +4,6 @@ import { DEFAULT_MAX_MATCHES } from './ranking';
 import { openBTreeDictionaryFromSource } from '../data/btree-dictionary';
 import { MemoryPageSource } from '../data/page-source';
 import { buildBTree } from '../data/btree-builder';
-import { PinyinSearchEngine } from './search';
-import { decodeDictionary } from '../data/load-dictionary';
 import type { DictionaryRow } from '../data/dictionary-codec';
 import type { StoredEntry } from '../data/btree-codec';
 
@@ -126,9 +124,9 @@ describe('LazyPinyinSearchEngine', () => {
     expect(hanziOf(result)).not.toContain('尼');
   });
 
-  it('ranks ties and picks representatives exactly like the trie engine', async () => {
+  it('settles ties by form and reading rather than by insertion order', async () => {
     // Equal-score readings of one hanzi, plus equal-score distinct hanzi, inserted in an
-    // order that differs from the B-tree's key order.
+    // order that differs from the order the tie rules pick.
     const tied: DictionaryRow[] = [
       ['甲', '甲', 'ma1', 'a', 100, 0],
       ['乙', '乙', 'ma1', 'b', 100, 0],
@@ -136,12 +134,15 @@ describe('LazyPinyinSearchEngine', () => {
       ['行', '行', 'hang2', 'to walk', 100, 0],
     ];
     const { engine } = await engineWith(tied);
-    const trie = new PinyinSearchEngine(decodeDictionary(tied));
+    const idsFor = async (query: string) =>
+      (await engine.search(query, { limit: 10 })).candidates.map((c) => c.id);
 
-    for (const query of ['ma', 'm', 'hang', 'h']) {
-      const lazy = await engine.search(query, { limit: 10 });
-      const eager = trie.search(query, { limit: 10 });
-      expect(lazy.candidates.map((c) => c.id)).toEqual(eager.candidates.map((c) => c.id));
+    // 乙 (U+4E59) sorts before 甲 (U+7532), and hang2 before hang4.
+    for (const query of ['ma', 'm']) {
+      expect(await idsFor(query), query).toEqual(['乙-ma1', '甲-ma1']);
+    }
+    for (const query of ['hang', 'h']) {
+      expect(await idsFor(query), query).toEqual(['行-hang2']);
     }
   });
 
@@ -192,7 +193,7 @@ describe('LazyPinyinSearchEngine', () => {
 
   it('takes its default scan budget from the shared ranking constant', async () => {
     const { engine } = await engineWith();
-    // The budget is shared with the eager engine so both report the same totals.
+    // Wide enough that the default path never truncates, so `total` counts every match.
     expect(DEFAULT_MAX_MATCHES).toBe(16384);
     // "ni" exactly plus "nihao", "nihaoma" and "nihongdeng" under it.
     expect((await engine.search('ni', { limit: 50 })).total).toBe(6);
@@ -247,23 +248,6 @@ describe('LazyPinyinSearchEngine', () => {
 
     expect(first.shortGloss).toBe('hello; hi');
     expect(first.frequency).toBe(60000);
-  });
-
-  it('agrees with the in-memory trie engine on the full dictionary', async () => {
-    // The two engines share the ranking formula, so over the real fixture corpus
-    // they must return the same top candidates and the same total.
-    const { engine } = await engineWith();
-    const eager = new PinyinSearchEngine(decodeDictionary(rows));
-
-    for (const query of ['ni', 'nihao', 'zhongguo', 'ne', 'hao', 'n']) {
-      const lazyResult = await engine.search(query, { limit: 20 });
-      const eagerResult = eager.search(query, { limit: 20 });
-
-      expect(hanziOf(lazyResult), `candidates differ for "${query}"`).toEqual(
-        hanziOf(eagerResult)
-      );
-      expect(lazyResult.total).toBe(eagerResult.total);
-    }
   });
 });
 

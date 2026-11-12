@@ -23,9 +23,8 @@ length, frequency, and HSK level.
   point at `src/index.ts`. Web and Rime both depend on it as `@pinyinduck/core` and import
   only that package name, so `tsc`, Vite, Vitest and `tsx` all read core's source directly
   and nothing has to build core first.
-- Search is available as an in-memory trie engine (tests and callers holding the data)
-  and a lazy B-tree engine (web and Android). Both rank through the shared `scoreEntry`
-  formula.
+- Search is a lazy B-tree engine (web, with a Kotlin port on Android) that ranks through
+  the shared `scoreEntry` formula and `compareScored` order.
 - Pinyin is segmented into Mandarin syllables; tone numbers can filter readings at the
   engine level.
 - Candidates are deduplicated by displayed Hanzi and ranked by exact/prefix match,

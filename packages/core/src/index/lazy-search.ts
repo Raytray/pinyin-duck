@@ -1,18 +1,16 @@
 /**
  * Search over the lazy B-tree dictionary.
  *
- * The eager `PinyinSearchEngine` loads every entry and builds a trie, which is fine
- * for tests and a desktop process but too much resident memory for an Android
- * keyboard. This engine walks only the pages a query touches:
+ * Loading every entry into memory would be too much resident memory for an Android
+ * keyboard, so this engine walks only the pages a query touches:
  *
  *   1. exact matches come from a single root-to-leaf descent
  *   2. prefix matches come from that descent plus a bounded forward leaf scan
  *   3. a multi-syllable query whose last syllable is incomplete also looks up the
  *      first syllable, so `nihao` can still offer `你`
  *
- * Ranking is identical to the trie engine because both call `scoreEntry`. Memory is
- * bounded by the page cache plus the `maxMatches` scan budget, not the dictionary
- * size.
+ * Ranking goes through the shared `scoreEntry` and `compareScored`. Memory is bounded
+ * by the page cache plus the `maxMatches` scan budget, not the dictionary size.
  */
 
 import { SearchOptions, SearchResult, ScriptType } from '../types.js';

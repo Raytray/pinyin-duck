@@ -9,7 +9,9 @@ import {
   type RawCedictLine,
 } from './build-dictionary';
 import { normalizePinyin } from '../src/parser/pinyin.js';
-import { decodeDictionary } from '../src/data/load-dictionary.js';
+import { buildBTree } from '../src/data/btree-builder.js';
+import { MemoryPageSource } from '../src/data/page-source.js';
+import { openBTreeDictionaryFromSource } from '../src/data/btree-dictionary.js';
 
 const cctv: RawCedictLine = {
   traditional: '中國中央電視台',
@@ -318,13 +320,23 @@ describe('joinCorpora', () => {
     expect(() => joinCorpora(broken, '', '')).toThrow(/unparsable pinyin/);
   });
 
-  it('round-trips its rows through the loader decoder', () => {
+  it('round-trips its rows through the B-tree, each reachable by its toneless key', async () => {
     const { rows } = joinCorpora(cedict, frequency, hsk);
-    const entries = decodeDictionary(rows);
-    expect(entries).toHaveLength(5);
-    for (const entry of entries) {
-      expect(entry.pinyinMarks).not.toBe('');
-      expect(entry.pinyinClean).not.toBe('');
+    const dictionary = await openBTreeDictionaryFromSource(
+      new MemoryPageSource(buildBTree(rows))
+    );
+    expect(rows).toHaveLength(5);
+    expect(dictionary.entryCount).toBe(5);
+    const expected: [string, string][] = [
+      ['zhongguo', '中国'],
+      ['nihao', '你好'],
+      ['ni', '你'],
+      ['wu', '五'],
+      ['da', '龘'],
+    ];
+    for (const [key, simplified] of expected) {
+      const found = await dictionary.lookupExact(key);
+      expect(found.map((e) => e.simplified), key).toEqual([simplified]);
     }
   });
 });

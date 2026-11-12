@@ -32,8 +32,8 @@ vi.mock('./sources', async () => {
   };
 });
 
-// The builder writes either a JSON string or a binary B-tree buffer, so the fake
-// filesystem has to keep both shapes rather than stringifying everything.
+// Sources are read back as text and the asset is written as a binary B-tree buffer, so
+// the fake filesystem keeps both shapes rather than stringifying everything.
 vi.mock('fs', () => ({
   existsSync: (p: string) => fileStore.has(p),
   readFileSync: (p: string) => {
@@ -66,18 +66,16 @@ const CACHE_FILES = {
 /** The mocked pins, restored after a test that re-pins one. */
 const PINNED_HASHES = Object.fromEntries(Object.entries(SOURCES).map(([k, v]) => [k, v.sha256]));
 
-/** The written asset as text, for the JSON format. */
-function readText(p: string): string {
-  const content = fileStore.get(p);
-  if (content === undefined) throw new Error(`missing asset: ${p}`);
-  return typeof content === 'string' ? content : Buffer.from(content).toString('utf8');
-}
-
-/** The written asset as bytes, for the B-tree format. */
+/** The written asset as bytes. */
 function readBytes(p: string): Uint8Array {
   const content = fileStore.get(p);
   if (content === undefined) throw new Error(`missing asset: ${p}`);
   return typeof content === 'string' ? new TextEncoder().encode(content) : content;
+}
+
+/** Opens the written asset as a B-tree dictionary. */
+function openAsset(p: string) {
+  return openBTreeDictionaryFromSource(new MemoryPageSource(readBytes(p)));
 }
 
 /** Minimal stand-in for the parts of `Response` that `readPinned` reads. */
@@ -140,22 +138,22 @@ afterEach(() => {
 describe('build', () => {
   it('reads the committed CC-CEDICT, downloads the other two and writes the joined rows', async () => {
     const calls = installFetch(defaultHandlers());
-    const out = '/tmp/pinyinduck-test/dictionary.json';
+    const out = '/tmp/pinyinduck-test/dictionary.btree';
 
-    const stats: BuildStats = await build(out, false, 'json');
+    const stats: BuildStats = await build(out, false);
 
     expect(calls.sort()).toEqual([SOURCE_URLS.frequency, SOURCE_URLS.hsk].sort());
     expect(logs.join('\n')).toContain('local   data/cedict.txt');
-    const rows = JSON.parse(readText(out));
-    expect(rows).toHaveLength(2);
-    expect(rows[0][0]).toBe('中国');
+    const dictionary = await openAsset(out);
+    expect(dictionary.entryCount).toBe(2);
+    expect((await dictionary.lookupExact('zhongguo'))[0].simplified).toBe('中国');
     expect(stats.emitted).toBe(2);
     expect(stats.cedictLines).toBe(2);
   });
 
   it('creates the output directory before writing the asset', async () => {
     installFetch(defaultHandlers());
-    const out = '/tmp/pinyinduck-nested/deeply/dictionary.json';
+    const out = '/tmp/pinyinduck-nested/deeply/dictionary.btree';
 
     await build(out, false);
 
@@ -167,7 +165,7 @@ describe('build', () => {
     // What a checkout that converted line endings would hand the build.
     fileStore.set(CEDICT_FILE, CEDICT.replace(/\n/g, '\r\n'));
     installFetch(defaultHandlers());
-    const out = '/tmp/pinyinduck-vendored-mismatch/dictionary.json';
+    const out = '/tmp/pinyinduck-vendored-mismatch/dictionary.btree';
 
     const failure = build(out, false);
 
@@ -179,7 +177,7 @@ describe('build', () => {
   it('caches every downloaded source for the next build', async () => {
     installFetch(defaultHandlers());
 
-    await build('/tmp/pinyinduck-cache/dictionary.json', false);
+    await build('/tmp/pinyinduck-cache/dictionary.btree', false);
 
     expect(fileStore.get(CACHE_FILES.frequency)).toBe(FREQUENCY);
     expect(fileStore.get(CACHE_FILES.hsk)).toBe(HSK);
@@ -191,7 +189,7 @@ describe('build', () => {
     seedCache();
     const calls = installFetch(defaultHandlers());
 
-    const stats = await build('/tmp/pinyinduck-hit/dictionary.json', true, 'json');
+    const stats = await build('/tmp/pinyinduck-hit/dictionary.btree', true);
 
     expect(calls).toEqual([]);
     expect(stats.emitted).toBe(2);
@@ -202,7 +200,7 @@ describe('build', () => {
     seedCache();
     const calls = installFetch(defaultHandlers());
 
-    await build('/tmp/pinyinduck-stale/dictionary.json', false);
+    await build('/tmp/pinyinduck-stale/dictionary.btree', false);
 
     expect(calls).toHaveLength(2);
     expect(logs.join('\n')).not.toContain('cached  zh_cn_50k.txt');
@@ -212,7 +210,7 @@ describe('build', () => {
     fileStore.set(CACHE_FILES.hsk, HSK);
     const calls = installFetch(defaultHandlers());
 
-    const stats = await build('/tmp/pinyinduck-partial/dictionary.json', true);
+    const stats = await build('/tmp/pinyinduck-partial/dictionary.btree', true);
 
     expect(calls).toEqual([SOURCE_URLS.frequency]);
     expect(stats.emitted).toBe(2);
@@ -224,7 +222,7 @@ describe('build', () => {
       [SOURCE_URLS.hsk]: () => failedResponse(404, 'Not Found'),
     });
 
-    await expect(build('/tmp/pinyinduck-missing/dictionary.json', false)).rejects.toThrow(
+    await expect(build('/tmp/pinyinduck-missing/dictionary.btree', false)).rejects.toThrow(
       /Failed to download .*hsk\.csv: 404 Not Found/
     );
   });
@@ -234,7 +232,7 @@ describe('build', () => {
       ...defaultHandlers(),
       [SOURCE_URLS.frequency]: () => failedResponse(500, 'Server Error'),
     });
-    const out = '/tmp/pinyinduck-partial-write/dictionary.json';
+    const out = '/tmp/pinyinduck-partial-write/dictionary.btree';
 
     await expect(build(out, false)).rejects.toThrow(/500 Server Error/);
     expect(fileStore.has(out)).toBe(false);
@@ -245,7 +243,7 @@ describe('build', () => {
     (SOURCES.cedict as { sha256: string }).sha256 = sha256('中 中 [1] /middle/');
     fileStore.set(CEDICT_FILE, '中 中 [1] /middle/');
     installFetch(defaultHandlers());
-    const out = '/tmp/pinyinduck-invalid/dictionary.json';
+    const out = '/tmp/pinyinduck-invalid/dictionary.btree';
 
     await expect(build(out, false)).rejects.toThrow(/unparsable pinyin/);
     expect(fileStore.has(out)).toBe(false);
@@ -257,7 +255,7 @@ describe('build', () => {
     fileStore.set(CACHE_FILES.frequency, '老 1\n');
     const calls = installFetch(defaultHandlers());
 
-    const stats = await build('/tmp/pinyinduck-stale-cache/dictionary.json', true, 'json');
+    const stats = await build('/tmp/pinyinduck-stale-cache/dictionary.btree', true);
 
     expect(calls).toEqual([SOURCE_URLS.frequency]);
     expect(stats.emitted).toBe(2);
@@ -270,7 +268,7 @@ describe('build', () => {
       ...defaultHandlers(),
       [SOURCE_URLS.frequency]: () => stubResponse('中国 1\n'),
     });
-    const out = '/tmp/pinyinduck-mismatch/dictionary.json';
+    const out = '/tmp/pinyinduck-mismatch/dictionary.btree';
 
     const failure = build(out, false);
 
@@ -285,7 +283,7 @@ describe('build', () => {
   it('reports the corpus sizes it joined', async () => {
     installFetch(defaultHandlers());
 
-    await build('/tmp/pinyinduck-stats/dictionary.json', false, 'json');
+    await build('/tmp/pinyinduck-stats/dictionary.btree', false);
 
     const output = logs.join('\n');
     expect(output).toContain('2 frequency entries');
@@ -293,18 +291,13 @@ describe('build', () => {
     expect(output).toContain('0 single characters');
   });
 
-  it('writes a searchable B-tree asset by default rather than JSON', async () => {
+  it('writes a searchable B-tree asset', async () => {
     installFetch(defaultHandlers());
     const out = '/tmp/pinyinduck-default/dictionary.btree';
 
     await build(out, false);
 
-    // The payload is binary, not a JSON document.
-    expect(readBytes(out)[0]).not.toBe('['.charCodeAt(0));
-
-    const dictionary = await openBTreeDictionaryFromSource(
-      new MemoryPageSource(readBytes(out))
-    );
+    const dictionary = await openAsset(out);
     const engine = new LazyPinyinSearchEngine(dictionary);
     const result = await engine.search('nihao', { limit: 5 });
 
@@ -323,9 +316,7 @@ describe('build', () => {
 
     await build(out, false);
 
-    const dictionary = await openBTreeDictionaryFromSource(
-      new MemoryPageSource(readBytes(out))
-    );
+    const dictionary = await openAsset(out);
     expect(dictionary.pageCount).toBeGreaterThan(0);
 
     const china = await dictionary.lookupExact('zhongguo');
@@ -346,42 +337,19 @@ describe('build', () => {
 
 describe('parseArgs', () => {
   const defaultBtree = path.resolve(__dirname, '../../web/public/dictionary.btree');
-  const defaultJson = path.resolve(__dirname, '../../web/public/dictionary.json');
-
-  it('does not read the first argument as a format when --format is absent', () => {
-    expect(parseArgs(['json'])).toEqual({ outPath: defaultBtree, useCache: true, format: 'btree' });
-    expect(parseArgs(['json', '--no-cache'])).toEqual({
-      outPath: defaultBtree,
-      useCache: false,
-      format: 'btree',
-    });
-  });
-
-  it('accepts an explicit --format btree', () => {
-    expect(parseArgs(['--format', 'btree'])).toEqual({
-      outPath: defaultBtree,
-      useCache: true,
-      format: 'btree',
-    });
-  });
 
   it('defaults to the B-tree web asset path and the download cache', () => {
-    expect(parseArgs([])).toEqual({ outPath: defaultBtree, useCache: true, format: 'btree' });
+    expect(parseArgs([])).toEqual({ outPath: defaultBtree, useCache: true });
   });
 
   it('honours --no-cache', () => {
-    expect(parseArgs(['--no-cache'])).toEqual({
-      outPath: defaultBtree,
-      useCache: false,
-      format: 'btree',
-    });
+    expect(parseArgs(['--no-cache'])).toEqual({ outPath: defaultBtree, useCache: false });
   });
 
   it('honours --out', () => {
     expect(parseArgs(['--out', '/tmp/custom.btree'])).toEqual({
       outPath: '/tmp/custom.btree',
       useCache: true,
-      format: 'btree',
     });
   });
 
@@ -389,16 +357,11 @@ describe('parseArgs', () => {
     expect(parseArgs(['--out', '/tmp/custom.btree', '--no-cache'])).toEqual({
       outPath: '/tmp/custom.btree',
       useCache: false,
-      format: 'btree',
     });
   });
 
   it('falls back to the default path when --out is the final argument', () => {
-    expect(parseArgs(['--out'])).toEqual({
-      outPath: defaultBtree,
-      useCache: true,
-      format: 'btree',
-    });
+    expect(parseArgs(['--out'])).toEqual({ outPath: defaultBtree, useCache: true });
   });
 
   it('consumes the argument after --out verbatim', () => {
@@ -407,7 +370,6 @@ describe('parseArgs', () => {
     expect(parseArgs(['--out', '--no-cache'])).toEqual({
       outPath: '--no-cache',
       useCache: false,
-      format: 'btree',
     });
   });
 
@@ -417,36 +379,10 @@ describe('parseArgs', () => {
     );
   });
 
-  it('switches the default output to JSON when --format json is given', () => {
-    // The default path has to follow the format, otherwise a JSON build would land on
-    // top of the B-tree asset the web app reads.
-    expect(parseArgs(['--format', 'json'])).toEqual({
-      outPath: defaultJson,
-      useCache: true,
-      format: 'json',
-    });
-  });
-
-  it('keeps an explicit --out when --format json is given', () => {
-    expect(parseArgs(['--format', 'json', '--out', '/tmp/custom.json'])).toEqual({
-      outPath: '/tmp/custom.json',
-      useCache: true,
-      format: 'json',
-    });
-  });
-
-  it('falls back to the B-tree format for an unknown --format value', () => {
-    // An unrecognized format must not silently produce a different asset layout.
-    expect(parseArgs(['--format', 'protobuf'])).toEqual({
-      outPath: defaultBtree,
-      useCache: true,
-      format: 'btree',
-    });
-    expect(parseArgs(['--format'])).toEqual({
-      outPath: defaultBtree,
-      useCache: true,
-      format: 'btree',
-    });
+  it('has no format option: the B-tree is the only asset it writes', () => {
+    // A leftover `--format json` from an old script must not move the output off the
+    // B-tree path the web app reads.
+    expect(parseArgs(['--format', 'json'])).toEqual({ outPath: defaultBtree, useCache: true });
   });
 });
 
@@ -482,30 +418,14 @@ describe('command line entry point', () => {
   /** Lets the un-awaited main() promise settle. */
   const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-  it('writes the asset to the path given by --out', async () => {
-    installFetch(defaultHandlers());
-    const out = '/tmp/pinyinduck-cli/dictionary.json';
-
-    await runAsScript(['--out', out, '--format', 'json']);
-    await flush();
-
-    const rows = JSON.parse(readText(out));
-    expect(rows).toHaveLength(2);
-    expect(process.exitCode).toBe(originalExitCode);
-  });
-
-  it('writes a B-tree asset when no format is requested', async () => {
+  it('writes a B-tree asset to the path given by --out', async () => {
     installFetch(defaultHandlers());
     const out = '/tmp/pinyinduck-cli/dictionary.btree';
 
     await runAsScript(['--out', out]);
     await flush();
 
-    // Readable straight back as a B-tree, so the CLI's default really is the format
-    // the web app expects rather than a JSON document named .btree.
-    const dictionary = await openBTreeDictionaryFromSource(
-      new MemoryPageSource(readBytes(out))
-    );
+    const dictionary = await openAsset(out);
     expect(dictionary.entryCount).toBe(2);
     expect(process.exitCode).toBe(originalExitCode);
   });
@@ -513,14 +433,13 @@ describe('command line entry point', () => {
   it('reads through the cache by default', async () => {
     seedCache();
     const calls = installFetch(defaultHandlers());
-    const out = '/tmp/pinyinduck-cli-cached/dictionary.json';
+    const out = '/tmp/pinyinduck-cli-cached/dictionary.btree';
 
     await runAsScript(['--out', out]);
     await flush();
 
     expect(calls).toEqual([]);
-    expect(fileStore.has(out)).toBe(true);
-    expect(readBytes(out)[0]).not.toBe('['.charCodeAt(0));
+    expect((await openAsset(out)).entryCount).toBe(2);
   });
 
   it('reports a download failure and sets a failing exit code', async () => {
@@ -533,7 +452,7 @@ describe('command line entry point', () => {
       [SOURCE_URLS.hsk]: () => failedResponse(503, 'Service Unavailable'),
     });
 
-    await runAsScript(['--out', '/tmp/pinyinduck-cli-fail/dictionary.json']);
+    await runAsScript(['--out', '/tmp/pinyinduck-cli-fail/dictionary.btree']);
     await flush();
 
     expect(errors).toHaveLength(1);

@@ -1,32 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { PinyinSearchEngine } from './search';
 import { LazyPinyinSearchEngine } from './lazy-search';
-import { PinyinTrie } from './trie';
-import { decodeDictionary } from '../data/load-dictionary';
 import { buildBTree } from '../data/btree-builder';
 import { MemoryPageSource } from '../data/page-source';
 import { openBTreeDictionaryFromSource } from '../data/btree-dictionary';
 import type { DictionaryRow } from '../data/dictionary-codec';
-import type { DictEntry, SearchOptions, SearchResult } from '../types.js';
-
-function entry(partial: Partial<DictEntry>): DictEntry {
-  return {
-    simplified: '字',
-    traditional: '字',
-    pinyinNumbers: 'zi4',
-    pinyinMarks: 'zì',
-    pinyinClean: 'zi',
-    pinyinSyllables: ['zi4'],
-    shortGloss: 'character',
-    frequency: 0,
-    hskLevel: undefined,
-    ...partial,
-  };
-}
 
 /**
- * A dictionary row written by field. Clean pinyin, tone marks and syllables are derived
- * from `pinyinNumbers`, exactly as both engines derive them from the shipped asset.
+ * A dictionary row written by field. Clean pinyin and tone marks are derived from
+ * `pinyinNumbers`, exactly as the engine derives them from the shipped asset.
  */
 interface Fixture {
   simplified?: string;
@@ -49,33 +30,17 @@ function row(fixture: Fixture = {}): DictionaryRow {
   ];
 }
 
-interface Engine {
-  search(query: string, options?: SearchOptions): Promise<SearchResult>;
+/** A lazy engine over an in-memory B-tree built from `rows`. */
+async function engineOf(rows: DictionaryRow[]): Promise<LazyPinyinSearchEngine> {
+  return new LazyPinyinSearchEngine(
+    await openBTreeDictionaryFromSource(new MemoryPageSource(buildBTree(rows)))
+  );
 }
-
-// Every case runs through both engines, so the lazy engine alone is shown to cover the
-// search options before the trie engine is removed.
-const engines: [string, (rows: DictionaryRow[]) => Promise<Engine>][] = [
-  [
-    'PinyinSearchEngine',
-    async (rows) => {
-      const engine = new PinyinSearchEngine(decodeDictionary(rows));
-      return { search: async (query, options) => engine.search(query, options) };
-    },
-  ],
-  [
-    'LazyPinyinSearchEngine',
-    async (rows) =>
-      new LazyPinyinSearchEngine(
-        await openBTreeDictionaryFromSource(new MemoryPageSource(buildBTree(rows)))
-      ),
-  ],
-];
 
 const manyRows = () =>
   Array.from({ length: 25 }, (_, i) => row({ simplified: `字${i}`, pinyinNumbers: 'zi4' }));
 
-describe.each(engines)('%s option defaults', (_name, engineOf) => {
+describe('option defaults', () => {
   it('returns an empty result for a blank query', async () => {
     const engine = await engineOf([row()]);
     for (const query of ['', '   ']) {
@@ -141,7 +106,7 @@ describe.each(engines)('%s option defaults', (_name, engineOf) => {
   });
 });
 
-describe.each(engines)('%s tone filtering edge cases', (_name, engineOf) => {
+describe('tone filtering edge cases', () => {
   it('drops an entry with no tone number when a tone is typed', async () => {
     // A hand-authored entry can carry a toneless reading. There is no tone to match,
     // so it cannot satisfy a tone filter and must not be offered.
@@ -169,105 +134,5 @@ describe.each(engines)('%s tone filtering edge cases', (_name, engineOf) => {
     expect(result.candidates.map((c) => c.hanzi)).toEqual(['行']);
     // The more frequent reading is the one that survives deduplication.
     expect(result.candidates[0].pinyinNumbers).toBe('hang2');
-  });
-});
-
-describe('PinyinTrie', () => {
-  const manyEntries = () =>
-    Array.from({ length: 30 }, (_, i) =>
-      entry({
-        simplified: `字${i}`,
-        traditional: `字${i}`,
-        pinyinClean: 'zi',
-        pinyinNumbers: 'zi4',
-        pinyinSyllables: ['zi4'],
-      })
-    );
-
-  const trieOf = (entries: DictEntry[]) => {
-    const trie = new PinyinTrie();
-    for (const item of entries) {
-      trie.insert(item.pinyinClean, item);
-    }
-    return trie;
-  };
-
-  it('stops collecting once maxResults is reached', () => {
-    const trie = trieOf(manyEntries());
-
-    expect(trie.searchPrefix('zi', 5)).toHaveLength(5);
-    expect(trie.searchPrefix('zi')).toHaveLength(30);
-  });
-
-  it('returns nothing for a prefix that does not exist', () => {
-    const trie = trieOf([entry({})]);
-    expect(trie.searchPrefix('qq')).toEqual([]);
-    expect(trie.searchExact('qq')).toEqual([]);
-  });
-
-  it('returns nothing when the key stops partway along a path', () => {
-    const trie = trieOf([
-      entry({ simplified: '你好', pinyinClean: 'nihao', pinyinNumbers: 'ni3 hao3' }),
-    ]);
-    // "ni" is a real path in the trie, but carries no entries of its own.
-    expect(trie.searchExact('ni')).toEqual([]);
-  });
-
-  it('walks partial prefixes that are themselves nodes', () => {
-    const trie = trieOf([
-      entry({ simplified: '你', pinyinClean: 'ni', pinyinNumbers: 'ni3', pinyinSyllables: ['ni3'] }),
-      entry({
-        simplified: '你好',
-        pinyinClean: 'nihao',
-        pinyinNumbers: 'ni3 hao3',
-        pinyinSyllables: ['ni3', 'hao3'],
-      }),
-    ]);
-
-    // "ni" is both a complete entry and the start of "nihao"; both must be found.
-    expect(trie.searchExact('ni').map((e) => e.simplified)).toEqual(['你']);
-    expect(trie.searchPrefix('ni').map((e) => e.simplified).sort()).toEqual(['你', '你好']);
-  });
-
-  it('lowercases keys on insert and lookup', () => {
-    const trie = trieOf([
-      entry({ simplified: '你', pinyinClean: 'ni', pinyinNumbers: 'ni3', pinyinSyllables: ['ni3'] }),
-    ]);
-    expect(trie.searchExact('NI').map((e) => e.simplified)).toEqual(['你']);
-  });
-
-  it('collects entries from child branches as well as the current node', () => {
-    // Exercises the recursion in collectAll, where a node has both its own entries
-    // and children that also match the prefix.
-    const trie = trieOf([
-      entry({ simplified: '你', pinyinClean: 'ni', pinyinNumbers: 'ni3', pinyinSyllables: ['ni3'] }),
-      entry({
-        simplified: '泥',
-        pinyinClean: 'nihui',
-        pinyinNumbers: 'ni2 hui4',
-        pinyinSyllables: ['ni2', 'hui4'],
-      }),
-    ]);
-
-    expect(trie.searchPrefix('ni').map((e) => e.simplified)).toEqual(['你', '泥']);
-  });
-
-  it('stops recursing when a branch fills the cap before its siblings are visited', () => {
-    // "ni" is an interior node here: it holds no entry of its own and has two
-    // children. Capping at 1 must stop the walk right after the first child
-    // subtree fills the cap, leaving the sibling branch entirely unwalked.
-    const trie = trieOf([
-      entry({ simplified: '泥', pinyinClean: 'nihui', pinyinNumbers: 'ni2 hui4', pinyinSyllables: ['ni2', 'hui4'] }),
-      entry({ simplified: '妮', pinyinClean: 'nini', pinyinNumbers: 'ni1 ni5', pinyinSyllables: ['ni1', 'ni5'] }),
-    ]);
-
-    expect(trie.searchPrefix('ni', 1).map((e) => e.simplified)).toEqual(['泥']);
-    // Uncapped, both branches are reachable.
-    expect(trie.searchPrefix('ni').map((e) => e.simplified).sort()).toEqual(['妮', '泥'].sort());
-  });
-
-  it('returns nothing for a prefix capped at zero results', () => {
-    const trie = trieOf(manyEntries());
-    expect(trie.searchPrefix('zi', 0)).toEqual([]);
   });
 });

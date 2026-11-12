@@ -20,19 +20,16 @@ packages/core/coverage/
 # is not here: it is committed under packages/core/data/.
 packages/core/.cache/
 
-# The generated dictionary assets. Both are produced by `npm run build:dict` from the
-# pinned CC-CEDICT, OpenSubtitles frequency list and HSK 2012 word list, so neither belongs
-# in version control: they are 9MB of derived data that the same commit always rebuilds
-# byte for byte, and a commit that carries one is a 9MB diff nobody reads.
-#
-#   packages/web/public/dictionary.btree   the paged B+ tree the web app fetches
-#   packages/web/public/dictionary.json    the legacy whole-corpus form, nothing reads it
+# The generated dictionary asset, the paged B+ tree the web app fetches. It is produced
+# by `npm run build:dict` from the pinned CC-CEDICT, OpenSubtitles frequency list and
+# HSK 2012 word list, so it does not belong in version control: it is 9MB of derived
+# data that the same commit always rebuilds byte for byte, and a commit that carries it
+# is a 9MB diff nobody reads.
 #
 # A fresh clone therefore needs `npm run build:dict` before `npm run dev` or
 # `npm run test:e2e` will show candidates. `npm run test:e2e` says so in those words
 # rather than timing out on a missing asset.
 packages/web/public/dictionary.btree
-packages/web/public/dictionary.json
 
 # Android build state (packages/android)
 packages/android/.gradle/

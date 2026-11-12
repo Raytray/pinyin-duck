@@ -1,18 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { PinyinSearchEngine } from './search';
 import { LazyPinyinSearchEngine } from './lazy-search';
 import { compareScored, countCharacters } from './ranking';
 import { parseToneFilter, syllableToneEnds } from '../parser/pinyin';
-import { decodeDictionary } from '../data/load-dictionary';
 import { buildBTree } from '../data/btree-builder';
 import { MemoryPageSource } from '../data/page-source';
 import { openBTreeDictionaryFromSource } from '../data/btree-dictionary';
 import type { DictionaryRow } from '../data/dictionary-codec';
-import type { SearchOptions, SearchResult } from '../types.js';
 
 /**
- * A dictionary row written by field. Clean pinyin, tone marks and syllables are derived
- * from `pinyinNumbers`, exactly as both engines derive them from the shipped asset.
+ * A dictionary row written by field. Clean pinyin and tone marks are derived from
+ * `pinyinNumbers`, exactly as the engine derives them from the shipped asset.
  */
 interface Fixture {
   simplified?: string;
@@ -35,30 +32,14 @@ function entry(fixture: Fixture): DictionaryRow {
   ];
 }
 
-interface Engine {
-  search(query: string, options?: SearchOptions): Promise<SearchResult>;
+/** A lazy engine over an in-memory B-tree built from `rows`. */
+async function engineOf(rows: DictionaryRow[]): Promise<LazyPinyinSearchEngine> {
+  return new LazyPinyinSearchEngine(
+    await openBTreeDictionaryFromSource(new MemoryPageSource(buildBTree(rows)))
+  );
 }
 
-// Every case runs through both engines, so the lazy engine alone is shown to cover the
-// ranking rules before the trie engine is removed.
-const engines: [string, (rows: DictionaryRow[]) => Promise<Engine>][] = [
-  [
-    'PinyinSearchEngine',
-    async (rows) => {
-      const engine = new PinyinSearchEngine(decodeDictionary(rows));
-      return { search: async (query, options) => engine.search(query, options) };
-    },
-  ],
-  [
-    'LazyPinyinSearchEngine',
-    async (rows) =>
-      new LazyPinyinSearchEngine(
-        await openBTreeDictionaryFromSource(new MemoryPageSource(buildBTree(rows)))
-      ),
-  ],
-];
-
-describe.each(engines)('%s popularity tiebreakers', (_name, engineOf) => {
+describe('popularity tiebreakers', () => {
   it('ranks an exact multi-character match above a more frequent partial match', async () => {
     // "nihao" must offer 你好 (exact) before 你 (prefix, far more frequent).
     const engine = await engineOf([
@@ -186,7 +167,7 @@ describe.each(engines)('%s popularity tiebreakers', (_name, engineOf) => {
   });
 });
 
-describe.each(engines)('%s tone filters across word lengths', (_name, engineOf) => {
+describe('tone filters across word lengths', () => {
   it('does not let one typed tone promote a longer word over the character asked for', async () => {
     // Typing "bian3" must answer "which third-tone character?", so 扁 (biǎn) leads.
     // 彼岸 matched on its first syllable alone and used to take the bonus with it.
