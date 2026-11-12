@@ -40,7 +40,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   const [dictionaryError, setDictionaryError] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
   const [entryCount, setEntryCount] = useState(0);
-  const [script, setScript] = useState<ScriptType>(initialScript);
+  const [script, setScriptState] = useState<ScriptType>(initialScript);
   const [committedText, setCommittedText] = useState<string>('');
   const [compositionBuffer, setCompositionBuffer] = useState<string>('');
   const [insertPos, setInsertPos] = useState<number>(0);
@@ -367,8 +367,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
         if (isComposing) {
           if (isPending) return;
           // The highlighted candidate, or the pinyin as typed, followed by the punctuation.
-          const chosen =
-            pageCandidates.length > 0 ? pageCandidates[selectedIndex].hanzi : compositionBuffer;
+          const chosen = pageCandidates[selectedIndex]?.hanzi ?? compositionBuffer;
           insertCommitted(chosen + mappedPunct);
           setBuffer('');
         } else {
@@ -410,9 +409,17 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     ]
   );
 
-  const toggleScript = useCallback(() => {
-    setScript((prev) => (prev === 'simplified' ? 'traditional' : 'simplified'));
+  // A script change rebuilds the candidate list, and the two scripts can have different
+  // numbers of candidates, so the page and highlight go back to the first candidate.
+  const setScript = useCallback((next: ScriptType) => {
+    setScriptState(next);
+    setCurrentPage(0);
+    setSelectedIndex(0);
   }, []);
+
+  const toggleScript = useCallback(() => {
+    setScript(script === 'simplified' ? 'traditional' : 'simplified');
+  }, [script, setScript]);
 
   const clearAll = useCallback(() => {
     setText('', 0);

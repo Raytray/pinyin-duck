@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { test, expect } from './coverage-fixtures.js';
 import {
   editor,
@@ -157,4 +158,37 @@ test('credits the dictionary sources and their licenses', async ({ page }) => {
   await expect(credits).toBeHidden();
   await editor(page).pressSequentially('xiexie');
   await expectCandidates(page, ['谢谢', '泄泻', '写', '些', '鞋']);
+});
+
+// "fafang" has 19 traditional candidates but 18 simplified ones (发 stands for both 發
+// and 髮), so the last traditional page is one longer than the last simplified page.
+async function highlightLastTraditionalFafang(page: Page) {
+  await scriptToggle(page).click();
+  await editor(page).pressSequentially('fafang');
+  for (let i = 0; i < 3; i++) await editor(page).press(']');
+  for (let i = 0; i < 3; i++) await editor(page).press('ArrowRight');
+  await expectCandidates(page, ['栰', '茷', '醱', '鍅']);
+  await expect(page.locator('.candidate-hanzi').nth(3)).toHaveText('鍅');
+}
+
+test('a script toggle mid-composition goes back to the first candidate for punctuation', async ({
+  page,
+}) => {
+  await highlightLastTraditionalFafang(page);
+
+  await scriptToggle(page).click();
+  await expectCandidates(page, ['发放', '发', '法', '罚', '伐']);
+
+  await editor(page).press(',');
+  await expect(editor(page)).toHaveValue('发放，');
+});
+
+test('a script toggle mid-composition goes back to the first candidate for Space', async ({
+  page,
+}) => {
+  await highlightLastTraditionalFafang(page);
+
+  await scriptToggle(page).click();
+  await editor(page).press(' ');
+  await expect(editor(page)).toHaveValue('发放');
 });
