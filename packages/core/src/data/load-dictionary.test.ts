@@ -132,6 +132,14 @@ describe('loadDictionary', () => {
     await expect(failure).rejects.toThrow(/build:dict/);
   });
 
+  it.each([200, 204])('rejects a %i response with no body, with a rebuild hint', async (status) => {
+    const failure = loadDictionary('/d.btree.gz', {
+      fetchImpl: fetchReturning(() => new Response(null, { status })),
+    });
+
+    await expect(failure).rejects.toThrow(/malformed or truncated \(empty response\).*build:dict/);
+  });
+
   it('rejects a truncated gzip stream, with a rebuild hint', async () => {
     const failure = loadDictionary('/d.btree.gz', {
       fetchImpl: fetchReturning(() => new Response(compressed.subarray(0, 40))),

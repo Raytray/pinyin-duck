@@ -51,7 +51,8 @@ async function readBody(
   const encoded = response.headers.has('content-encoding');
   const total = !encoded && Number.isFinite(length) && length > 0 ? length : null;
 
-  const reader = response.body!.getReader();
+  if (!response.body) throw malformedDictionary('empty response');
+  const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let loaded = 0;
   for (;;) {
