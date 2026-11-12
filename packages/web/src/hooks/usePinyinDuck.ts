@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   LazyPinyinSearchEngine,
   loadDictionary,
+  type BTreeDictionary,
   type DownloadProgress,
   type SearchResult,
   type ScriptType,
@@ -43,13 +44,12 @@ const CANDIDATE_LIMIT = 50;
 export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   const { pageSize = 5, initialScript = 'simplified', dictionaryUrl = DICTIONARY_URL } = options;
 
-  const [engine, setEngine] = useState<LazyPinyinSearchEngine | null>(null);
+  const [dictionary, setDictionary] = useState<BTreeDictionary | null>(null);
   const [dictionaryStatus, setDictionaryStatus] = useState<DictionaryStatus>('loading');
   const [dictionaryError, setDictionaryError] = useState<string | null>(null);
   // The label rather than the byte counts, so the hundreds of chunks a download arrives in
   // re-render only when the percentage or tenth of a megabyte on screen changes.
   const [downloadProgress, setDownloadProgress] = useState('');
-  const [entryCount, setEntryCount] = useState(0);
   const [script, setScriptState] = useState<ScriptType>(initialScript);
   const [committedText, setCommittedText] = useState<string>('');
   const [compositionBuffer, setCompositionBuffer] = useState<string>('');
@@ -93,8 +93,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     })
       .then((dictionary) => {
         if (cancelled) return;
-        setEngine(new LazyPinyinSearchEngine(dictionary));
-        setEntryCount(dictionary.entryCount);
+        setDictionary(dictionary);
         setDictionaryStatus('ready');
       })
       .catch((err: unknown) => {
@@ -108,6 +107,12 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       controller.abort();
     };
   }, [dictionaryUrl]);
+
+  const engine = useMemo(
+    () => (dictionary ? new LazyPinyinSearchEngine(dictionary) : null),
+    [dictionary]
+  );
+  const entryCount = dictionary?.entryCount ?? 0;
 
   // The search is synchronous and takes a few milliseconds, so the candidate list is
   // derived while rendering and always belongs to the buffer on screen.
@@ -143,15 +148,21 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     return allCandidates.slice(start, start + pageSize);
   }, [allCandidates, currentPage, pageSize]);
 
+  /** Replaces committed text `[from, to)` with `insert`, leaving the caret after it. */
+  const replaceText = useCallback(
+    (from: number, to: number, insert: string, restoreCaret = true) =>
+      setText(
+        committedText.slice(0, from) + insert + committedText.slice(to),
+        from + insert.length,
+        restoreCaret
+      ),
+    [committedText, setText]
+  );
+
   /** Inserts `text` into the committed text at the caret and moves the caret past it. */
   const insertCommitted = useCallback(
-    (text: string) => {
-      setText(
-        committedText.slice(0, insertPos) + text + committedText.slice(insertPos),
-        insertPos + text.length
-      );
-    },
-    [committedText, insertPos, setText]
+    (text: string) => replaceText(insertPos, insertPos, text),
+    [insertPos, replaceText]
   );
 
   // Select a candidate by visible page index (0 to pageSize - 1).
@@ -236,14 +247,6 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       const start = textarea?.selectionStart ?? insertPos;
       const end = textarea?.selectionEnd ?? insertPos;
       const hasSelection = start !== end;
-
-      /** Replaces committed text `[from, to)` with `insert`, leaving the caret after it. */
-      const replaceText = (from: number, to: number, insert: string, restoreCaret = true) =>
-        setText(
-          committedText.slice(0, from) + insert + committedText.slice(to),
-          from + insert.length,
-          restoreCaret
-        );
 
       // Hotkey: Ctrl+A / Cmd+A (Select All)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
@@ -425,7 +428,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       prevPage,
       moveSelection,
       insertCommitted,
-      setText,
+      replaceText,
       setBuffer,
     ]
   );
