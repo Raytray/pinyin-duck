@@ -63,7 +63,12 @@ npm test               # unit tests
 npm run test:e2e       # browser integration tests
 npm run test:all       # unit + e2e tests
 npm run test:coverage:all
+npm run ci -w @pinyinduck/<core|web|android|rime>   # one package's CI checks
 ```
+
+Each package's `ci` script runs exactly what that package's CI job runs. Build the
+dictionary assets first (`npm run build:dict && npm run build:rime`). Android needs Java 17
+and the Android SDK; Rime runs its librime check only after `npm run setup:rime`.
 
 ## Platform packages
 

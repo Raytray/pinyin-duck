@@ -155,33 +155,9 @@ jobs:
           npm run build:dict
           npm run build:rime
 
-      # ── Core ──
-      - name: "[core] Lint"
-        if: ${{ matrix.package == 'core' }}
-        run: npx oxlint packages/core
-
-      - name: "[core] Typecheck"
-        if: ${{ matrix.package == 'core' }}
-        run: npm run typecheck -w @pinyinduck/core
-
-      - name: "[core] Test + Coverage"
-        if: ${{ matrix.package == 'core' }}
-        run: npm run test:coverage -w @pinyinduck/core
-
-      # ── Web ──
-      - name: "[web] Lint"
-        if: ${{ matrix.package == 'web' }}
-        run: npx oxlint packages/web
-
-      - name: "[web] Typecheck"
-        if: ${{ matrix.package == 'web' }}
-        run: npm run typecheck -w @pinyinduck/web
-
-      - name: "[web] Build"
-        if: ${{ matrix.package == 'web' }}
-        run: npm run build -w @pinyinduck/web
-
-      # ── Android ──
+      # ── Toolchains the package's ci script needs ──
+      # Only Android and Rime need anything beyond Node. These steps install tools and
+      # nothing else; every check lives in the package's `ci` script, below.
       - name: Setup Java
         if: ${{ matrix.package == 'android' }}
         uses: actions/setup-java@v6
@@ -196,55 +172,27 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-36 ndk;27.2.12479018'
 
-      # No golden regeneration here: build:dict reads pinned, hash-checked sources, so the
-      # committed engine-parity.tsv is the golden for exactly the asset built above, and
-      # PinyinEngineParityTest compares the Kotlin engine against it as committed.
-
-      - name: "[android] Lint (ktlint via Gradle)"
-        if: ${{ matrix.package == 'android' }}
-        run: |
-          cd packages/android
-          ./gradlew ktlintCheck
-
-      - name: "[android] Unit tests"
-        if: ${{ matrix.package == 'android' }}
-        run: |
-          cd packages/android
-          ./gradlew testDebugUnitTest
-
-      # The verification task is the gate: it fails the job when coverage drops below the
-      # floors in app/build.gradle.kts. The report alone never fails, however low it goes.
-      - name: "[android] Coverage report + gate"
-        if: ${{ matrix.package == 'android' }}
-        run: |
-          cd packages/android
-          ./gradlew jacocoTestReport jacocoTestCoverageVerification
-
-      # ── Rime (Windows + macOS) ──
-      # One package builds and checks both platforms' files: they share the emitter, the
-      # templates and the librime harness, and differ only in what the platform table says.
-      - name: "[rime] Lint"
-        if: ${{ matrix.package == 'rime' }}
-        run: npx oxlint packages/rime
-
-      - name: "[rime] Typecheck"
-        if: ${{ matrix.package == 'rime' }}
-        run: npm run typecheck -w @pinyinduck/rime
-
-      - name: "[rime] Test + Coverage"
-        if: ${{ matrix.package == 'rime' }}
-        run: npm run test:coverage -w @pinyinduck/rime
-
-      - name: "[rime] Update apt package lists"
-        if: ${{ matrix.package == 'rime' }}
-        run: sudo apt-get update
-
-      # Builds librime once and types into both the Windows and the macOS rime/ folder.
-      - name: "[rime] Rime verification"
+      # Builds librime and the smoke harness, so the rime `ci` script's `test:rime` types
+      # into a real engine instead of reporting it missing and skipping.
+      - name: Build librime
         if: ${{ matrix.package == 'rime' }}
         run: |
+          sudo apt-get update
           npm run setup:rime
-          npm run test:rime
+
+      # ── The package's checks ──
+      # Each package's `ci` script runs its checks exactly as this job does, so
+      # `npm run ci -w @pinyinduck/<package>` reproduces this job locally:
+      #   core:    lint, typecheck, tests with coverage
+      #   web:     lint, typecheck, production build
+      #   android: ktlint, unit tests, coverage report and gate (the gate fails the job when
+      #            coverage drops below the floors in app/build.gradle.kts). No golden
+      #            regeneration: build:dict reads pinned, hash-checked sources, so the committed
+      #            engine-parity.tsv is the golden for exactly the asset built above.
+      #   rime:    lint, typecheck, tests with coverage, then the librime verification, which
+      #            stages both the Windows and the macOS rime/ folder and types into each.
+      - name: "[${{ matrix.package }}] ci"
+        run: npm run ci -w @pinyinduck/${{ matrix.package }}
 
   # ─── Installers on their real OS ──────────────────────────────────────────
   # package-checks verifies the Rime files on Linux, but install.ps1 and install.sh only ever
