@@ -178,8 +178,39 @@ describe('page cache', () => {
     expect(dictionary.lookupExact('zhongguo')).toEqual(before);
   });
 
+  it('serves a repeated wide prefix scan from the cache', () => {
+    // A one-letter prefix of the real asset covers close to a megabyte of pages, and the
+    // web app scans it again on every keystroke. Here 8000 "shi" rows stand in for it.
+    const wide = buildBTree(
+      Array.from({ length: 8000 }, (_, i): DictionaryRow => [
+        `字${i}`,
+        `字${i}`,
+        'shi4',
+        `a gloss long enough to fill the page like a real definition ${i}`,
+        i,
+        0,
+      ])
+    );
+    expect(wide.byteLength).toBeGreaterThan(512 * 1024);
+    const bytes = wide.slice();
+    const dictionary = BTreeDictionary.open(bytes);
+    const scan = () => {
+      let count = 0;
+      dictionary.scanPrefix('s', () => {
+        count++;
+      });
+      return count;
+    };
+    expect(scan()).toBe(8000);
+
+    // Wreck every page in place. Only pages still in the cache can answer now.
+    bytes.fill(0x7f, HEADER_SIZE);
+
+    expect(scan()).toBe(8000);
+  });
+
   it('uses a bounded default budget for decoded pages', () => {
-    expect(DEFAULT_PAGE_CACHE_BYTES).toBe(256 * 1024);
+    expect(DEFAULT_PAGE_CACHE_BYTES).toBe(4 * 1024 * 1024);
   });
 });
 

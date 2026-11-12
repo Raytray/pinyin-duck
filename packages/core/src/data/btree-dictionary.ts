@@ -23,8 +23,14 @@ import {
   type PageLocation,
   type StoredEntry,
 } from './btree-codec.js';
-/** Default budget for decoded pages, counted in their encoded bytes. About a hundred pages. */
-export const DEFAULT_PAGE_CACHE_BYTES = 256 * 1024;
+/**
+ * Default budget for decoded pages, counted in their encoded bytes.
+ *
+ * A one-letter prefix such as "s" spans about 800KB of pages, and the web app scans it
+ * again on every keystroke, so the budget holds a few such scans. With a smaller one a
+ * repeated "s" decoded every page again: about 15ms per keystroke instead of 2ms.
+ */
+export const DEFAULT_PAGE_CACHE_BYTES = 4 * 1024 * 1024;
 
 export interface BTreeDictionaryOptions {
   /** Maximum bytes of decoded pages kept in memory. */
