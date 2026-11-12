@@ -155,14 +155,6 @@ jobs:
           npm run build:dict
           npm run build:rime
 
-      # ── Core package types ──
-      # `@pinyinduck/web` imports the core entry points, whose declarations are emitted
-      # by tsc. Typechecking web before core is built reports TS2307 for a module that
-      # does exist, which is noise rather than a real finding.
-      - name: Build core type declarations
-        if: ${{ matrix.package == 'web' }}
-        run: npm run build -w @pinyinduck/core
-
       # ── Core ──
       - name: "[core] Lint"
         if: ${{ matrix.package == 'core' }}

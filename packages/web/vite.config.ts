@@ -1,15 +1,12 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
 
 // https://vitejs.dev/config/
+//
+// `@pinyinduck/core` needs no alias: its package.json `exports` points at its
+// TypeScript source, so Vite and `tsc` both resolve it there.
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    alias: {
-      '@pinyinduck/core': path.resolve(__dirname, '../core/src/index.ts'),
-    },
-  },
   server: {
     port: 5173,
     host: true,

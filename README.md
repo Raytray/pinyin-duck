@@ -19,6 +19,10 @@ length, frequency, and HSK level.
 
 - `packages/core` builds a paged B+ tree dictionary from CC-CEDICT, frequency data, and
   HSK levels. Clients read only the pages a query touches through an LRU page cache.
+- `packages/core` ships TypeScript source, not build output: its `package.json` `exports`
+  point at `src/index.ts`. Web and Rime both depend on it as `@pinyinduck/core` and import
+  only that package name, so `tsc`, Vite, Vitest and `tsx` all read core's source directly
+  and nothing has to build core first.
 - Search is available as an in-memory trie engine (tests and callers holding the data)
   and a lazy B-tree engine (web and Android). Both rank through the shared `scoreEntry`
   formula.

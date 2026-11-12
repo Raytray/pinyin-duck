@@ -20,8 +20,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
-import { BTreeDictionary } from '../../core/src/data/btree-dictionary.js';
-import { MemoryPageSource } from '../../core/src/data/page-source.js';
+import { BTreeDictionary, MemoryPageSource } from '@pinyinduck/core';
 import {
   RIME_SCRIPTS,
   RimeDictWriter,

@@ -28,8 +28,7 @@
  * can be pinned by tests; `scripts/build-rime-dict.ts` supplies the file sink.
  */
 
-import type { StoredEntry } from '../../core/src/data/btree-codec.js';
-import { pinyinNumbersToMarks } from '../../core/src/parser/pinyin.js';
+import { pinyinNumbersToMarks, type StoredEntry } from '@pinyinduck/core';
 
 /** Which of CC-CEDICT's two forms a dictionary emits as candidate text. */
 export type RimeScript = 'simplified' | 'traditional';
