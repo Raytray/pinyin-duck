@@ -19,6 +19,10 @@ length, frequency, and HSK level.
 
 - `packages/core` builds a paged B+ tree dictionary from CC-CEDICT, frequency data, and
   HSK levels. Clients read only the pages a query touches through an LRU page cache.
+- `packages/core` ships TypeScript source, not build output: its `package.json` `exports`
+  point at `src/index.ts`. Web and Rime both depend on it as `@pinyinduck/core` and import
+  only that package name, so `tsc`, Vite, Vitest and `tsx` all read core's source directly
+  and nothing has to build core first.
 - Search is available as an in-memory trie engine (tests and callers holding the data)
   and a lazy B-tree engine (web and Android). Both rank through the shared `scoreEntry`
   formula.
@@ -59,7 +63,12 @@ npm test               # unit tests
 npm run test:e2e       # browser integration tests
 npm run test:all       # unit + e2e tests
 npm run test:coverage:all
+npm run ci -w @pinyinduck/<core|web|android|rime>   # one package's CI checks
 ```
+
+Each package's `ci` script runs exactly what that package's CI job runs. Build the
+dictionary assets first (`npm run build:dict && npm run build:rime`). Android needs Java 17
+and the Android SDK; Rime runs its librime check only after `npm run setup:rime`.
 
 ## Platform packages
 

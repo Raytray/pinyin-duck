@@ -9,12 +9,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { BTreeDictionary } from '../../core/src/data/btree-dictionary.js';
-import { MemoryPageSource } from '../../core/src/data/page-source.js';
-import { buildBTree } from '../../core/src/data/btree-builder.js';
-import type { StoredEntry } from '../../core/src/data/btree-codec.js';
-import { scoreEntry } from '../../core/src/index/ranking.js';
-import { storedEntryToScorable } from '../../core/src/index/lazy-search.js';
+import {
+  BTreeDictionary,
+  MemoryPageSource,
+  buildBTree,
+  scoreEntry,
+  storedEntryToScorable,
+  type StoredEntry,
+} from '@pinyinduck/core';
 import {
   RIME_COLUMNS,
   RIME_FIELD_SEPARATOR,

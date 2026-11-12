@@ -143,6 +143,24 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     setCommittedText(text);
   }, []);
 
+  /** Replaces the committed text and puts the caret at `caret`. */
+  const setText = useCallback(
+    (text: string, caret: number, restoreCaret = true) => {
+      setCommitted(text);
+      setInsertPos(caret);
+      if (restoreCaret) cursorToRestoreRef.current = caret;
+    },
+    [setCommitted, setInsertPos]
+  );
+
+  /** Sets the composition buffer and goes back to the first candidate on page one. */
+  const setBuffer = useCallback((buffer: string) => {
+    bufferRef.current = buffer;
+    setCompositionBuffer(buffer);
+    setCurrentPage(0);
+    setSelectedIndex(0);
+  }, []);
+
   // The textarea holds the app's own text again once React has rendered it, so a value
   // that differs from the mirrored state is the user's input rather than a commit that
   // has already been made.
@@ -346,21 +364,12 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       const claim = queuedInsertsRef.current.find((queued) => queued.length === 0);
       if (claim) claim.length = text.length;
 
-      setCommitted(newCommitted);
-      setInsertPos(caret);
-      cursorToRestoreRef.current = caret;
+      setText(newCommitted, caret);
       return newCommitted.length;
     },
-    [setCommitted, setInsertPos]
+    [setCommitted, setText]
   );
 
-  /**
-   * Commits the candidate at a position on the visible page, given its list.
-   *
-   * Taking the list as an argument is what lets the key handlers consume the
-   * composition synchronously and finish the commit once the search resolves, instead
-   * of leaving the buffer live until an async read comes back.
-   */
   /**
    * Commits the candidate at a position on the visible page, given its list.
    *
@@ -377,21 +386,11 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       insertCommitted(candidate.hanzi, at);
       if (bufferRef.current !== expectedBuffer) return;
 
-      // If candidate had remaining pinyin (partial match), keep remaining in buffer
-      if (candidate.remainingPinyin) {
-        bufferRef.current = candidate.remainingPinyin;
-        setCompositionBuffer(candidate.remainingPinyin);
-        setCurrentPage(0);
-        setSelectedIndex(0);
-      } else {
-        // Full consumption
-        bufferRef.current = '';
-        setCompositionBuffer('');
-        setCurrentPage(0);
-        setSelectedIndex(0);
-      }
+      // A partial match leaves the pinyin it did not consume to compose next; a full
+      // match leaves nothing.
+      setBuffer(candidate.remainingPinyin);
     },
-    [currentPage, pageSize, insertCommitted]
+    [currentPage, pageSize, insertCommitted, setBuffer]
   );
 
   // Select a candidate by visible page index (0 to pageSize - 1).
@@ -417,12 +416,9 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       // As in `commitCandidateFrom`, a composition that started while this commit was
       // in flight keeps its buffer.
       if (bufferRef.current !== expectedBuffer) return;
-      bufferRef.current = '';
-      setCompositionBuffer('');
-      setCurrentPage(0);
-      setSelectedIndex(0);
+      setBuffer('');
     },
-    [insertCommitted]
+    [insertCommitted, setBuffer]
   );
 
   // Commit raw untranslated pinyin text
@@ -432,11 +428,8 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
 
   // Cancel composition
   const cancelComposition = useCallback(() => {
-    bufferRef.current = '';
-    setCompositionBuffer('');
-    setCurrentPage(0);
-    setSelectedIndex(0);
-  }, []);
+    setBuffer('');
+  }, [setBuffer]);
 
   // Navigation
   const nextPage = useCallback(() => {
@@ -503,6 +496,14 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       const end = textarea?.selectionEnd ?? insertPos;
       const hasSelection = start !== end;
 
+      /** Replaces committed text `[from, to)` with `insert`, leaving the caret after it. */
+      const replaceText = (from: number, to: number, insert: string, restoreCaret = true) =>
+        setText(
+          committedText.slice(0, from) + insert + committedText.slice(to),
+          from + insert.length,
+          restoreCaret
+        );
+
       // Hotkey: Ctrl+A / Cmd+A (Select All)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         if (isComposing) {
@@ -520,10 +521,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
         if (hasSelection && textarea) {
           const selected = committedText.slice(start, end);
           navigator.clipboard.writeText(selected).catch(() => {});
-          const newText = committedText.slice(0, start) + committedText.slice(end);
-          setCommitted(newText);
-          cursorToRestoreRef.current = start;
-          setInsertPos(start);
+          replaceText(start, end, '');
           e.preventDefault();
         }
         return;
@@ -543,57 +541,21 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
         return;
       }
 
-      // Handle Backspace:
-      if (e.key === 'Backspace') {
+      // Backspace and Delete. While composing, Backspace edits the buffer and Delete is
+      // left to the browser. Otherwise both remove the selection, or one character on
+      // their side of the caret: a whole code point, so a surrogate pair goes at once.
+      if (e.key === 'Backspace' || (e.key === 'Delete' && !isComposing)) {
+        e.preventDefault();
         if (isComposing) {
-          e.preventDefault();
-          const nextBuffer = bufferRef.current.slice(0, -1);
-          bufferRef.current = nextBuffer;
-          setCompositionBuffer(nextBuffer);
-          setCurrentPage(0);
-          setSelectedIndex(0);
-          return;
-        }
-
-        // When NOT composing: delete accepted characters!
-        e.preventDefault();
-        if (hasSelection) {
-          // Delete selected accepted characters
-          const newText = committedText.slice(0, start) + committedText.slice(end);
-          setCommitted(newText);
-          cursorToRestoreRef.current = start;
-          setInsertPos(start);
-        } else if (start > 0) {
-          // Delete one character before cursor
-          // Use Array.from to correctly handle UTF-16 surrogate pairs / emojis
-          const beforeArr = Array.from(committedText.slice(0, start));
-          const removed = beforeArr.pop() || '';
-          const removeLen = removed.length;
-          const newStart = start - removeLen;
-          const newText = committedText.slice(0, newStart) + committedText.slice(start);
-          setCommitted(newText);
-          cursorToRestoreRef.current = newStart;
-          setInsertPos(newStart);
-        }
-        return;
-      }
-
-      // Handle Delete (Forward delete):
-      if (e.key === 'Delete' && !isComposing) {
-        e.preventDefault();
-        if (hasSelection) {
-          const newText = committedText.slice(0, start) + committedText.slice(end);
-          setCommitted(newText);
-          cursorToRestoreRef.current = start;
-          setInsertPos(start);
-        } else if (start < committedText.length) {
-          const afterArr = Array.from(committedText.slice(start));
-          const removed = afterArr.shift() || '';
-          const removeLen = removed.length;
-          const newText = committedText.slice(0, start) + committedText.slice(start + removeLen);
-          setCommitted(newText);
-          cursorToRestoreRef.current = start;
-          setInsertPos(start);
+          setBuffer(activeBuffer.slice(0, -1));
+        } else if (hasSelection) {
+          replaceText(start, end, '');
+        } else if (e.key === 'Backspace' && start > 0) {
+          const width = start >= 2 && committedText.codePointAt(start - 2)! > 0xffff ? 2 : 1;
+          replaceText(start - width, start, '');
+        } else if (e.key === 'Delete' && start < committedText.length) {
+          const width = committedText.codePointAt(start)! > 0xffff ? 2 : 1;
+          replaceText(start, start + width, '');
         }
         return;
       }
@@ -607,14 +569,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
           // load has failed there is nothing to wait for, so raw text is inserted.
           if (!isPending) commitRaw();
         } else {
-          // Insert newline in accepted text
-          const before = committedText.slice(0, start);
-          const after = committedText.slice(end);
-          const newText = before + '\n' + after;
-          const newCursor = start + 1;
-          setCommitted(newText);
-          cursorToRestoreRef.current = newCursor;
-          setInsertPos(newCursor);
+          replaceText(start, end, '\n');
         }
         return;
       }
@@ -634,8 +589,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
           // Where the caret stood when the key was pressed, so a character typed
           // while the page read is in flight lands after the committed one.
           const at = insertPosRef.current;
-          bufferRef.current = '';
-          setCompositionBuffer('');
+          setBuffer('');
           // Committing inline keeps the common case synchronous, but only while the
           // queue is empty: a queued commit's length is what shifts the offset, so a
           // synchronous insert alongside one would be placed wrongly.
@@ -657,14 +611,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
             }, at);
           }
         } else {
-          // Insert space in accepted text
-          const before = committedText.slice(0, start);
-          const after = committedText.slice(end);
-          const newText = before + ' ' + after;
-          const newCursor = start + 1;
-          setCommitted(newText);
-          cursorToRestoreRef.current = newCursor;
-          setInsertPos(newCursor);
+          replaceText(start, end, ' ');
         }
         return;
       }
@@ -763,8 +710,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
           const index = selectedIndex;
           const page = currentPage;
           const at = insertPosRef.current;
-          bufferRef.current = '';
-          setCompositionBuffer('');
+          setBuffer('');
 
           const commitWith = (candidates: Candidate[]) => {
             const onPage = candidates.slice(page * pageSize, page * pageSize + pageSize);
@@ -786,14 +732,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
             }, at);
           }
         } else {
-          const before = committedText.slice(0, start);
-          const after = committedText.slice(end);
-          const newCommitted = before + mappedPunct + after;
-          const newCursor = start + mappedPunct.length;
-
-          setCommitted(newCommitted);
-          cursorToRestoreRef.current = newCursor;
-          setInsertPos(newCursor);
+          replaceText(start, end, mappedPunct);
         }
         return;
       }
@@ -802,22 +741,14 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       if (/^[a-zA-Z']$/.test(e.key)) {
         e.preventDefault();
         if (!isComposing) {
-          // If there was an active selection, delete it when starting composition
-          if (hasSelection) {
-            const newText = committedText.slice(0, start) + committedText.slice(end);
-            setCommitted(newText);
-            setInsertPos(start);
-          } else {
-            setInsertPos(start);
-          }
+          // Starting a composition replaces any selection. This path has never restored
+          // the caret, unlike every other edit; kept as-is so behaviour does not change.
+          if (hasSelection) replaceText(start, end, '', false);
+          else setInsertPos(start);
         }
         // The ref is the synchronous source of truth: a key event handled before
         // React re-renders still has to see the letter that was just added.
-        const nextBuffer = bufferRef.current + e.key.toLowerCase();
-        bufferRef.current = nextBuffer;
-        setCompositionBuffer(nextBuffer);
-        setCurrentPage(0);
-        setSelectedIndex(0);
+        setBuffer(activeBuffer + e.key.toLowerCase());
         return;
       }
     },
@@ -838,7 +769,8 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       nextPage,
       prevPage,
       moveSelection,
-      setCommitted,
+      setText,
+      setBuffer,
       setInsertPos,
       insertCommitted,
     ]
@@ -855,14 +787,9 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   }, []);
 
   const clearAll = useCallback(() => {
-    setCommitted('');
-    bufferRef.current = '';
-    setCompositionBuffer('');
-    setInsertPos(0);
-    setCurrentPage(0);
-    setSelectedIndex(0);
-    cursorToRestoreRef.current = 0;
-  }, [setCommitted, setInsertPos]);
+    setText('', 0);
+    setBuffer('');
+  }, [setText, setBuffer]);
 
   return {
     script,
