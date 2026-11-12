@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { CandidatePopup } from './CandidatePopup';
-import { Candidate } from '@pinyinduck/core';
+import type { Candidate, DownloadProgress } from '@pinyinduck/core';
 
 interface EditorProps {
   committedText: string;
@@ -13,6 +13,7 @@ interface EditorProps {
   totalPages: number;
   cursorToRestoreRef: React.MutableRefObject<number | null>;
   dictionaryStatus: 'loading' | 'ready' | 'error';
+  downloadProgress: DownloadProgress | null;
   searchStatus: 'idle' | 'searching' | 'ready';
   entryCount: number;
   onSelectCandidate: (index: number) => void;
@@ -27,6 +28,15 @@ interface EditorProps {
   onChangeTextarea: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
 }
 
+/** " 42%" of the download, or " 1.2 MB" when the server did not say how big it is. */
+function describeProgress(progress: DownloadProgress | null): string {
+  if (!progress) return '';
+  if (progress.total) {
+    return ` ${Math.min(100, Math.floor((progress.loaded / progress.total) * 100))}%`;
+  }
+  return ` ${(progress.loaded / 1_000_000).toFixed(1)} MB`;
+}
+
 export const Editor: React.FC<EditorProps> = ({
   committedText,
   compositionBuffer,
@@ -38,6 +48,7 @@ export const Editor: React.FC<EditorProps> = ({
   totalPages,
   cursorToRestoreRef,
   dictionaryStatus,
+  downloadProgress,
   searchStatus,
   entryCount,
   onSelectCandidate,
@@ -174,7 +185,7 @@ export const Editor: React.FC<EditorProps> = ({
           {dictionaryStatus === 'ready'
             ? `${entryCount.toLocaleString('en-US')} entries`
             : dictionaryStatus === 'loading'
-              ? 'Loading...'
+              ? `Loading...${describeProgress(downloadProgress)}`
               : 'Failed to load'}
         </span>
           <span className="status-item" data-testid="text-length">

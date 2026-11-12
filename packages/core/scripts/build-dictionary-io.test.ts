@@ -11,6 +11,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as path from 'path';
+import { gunzipSync } from 'zlib';
 
 const { fileStore, dirStore, CEDICT, FREQUENCY, HSK } = vi.hoisted(() => ({
   fileStore: new Map<string, string | Uint8Array>(),
@@ -308,6 +309,31 @@ describe('build', () => {
     expect(logs.join('\n')).toContain('B+ tree: a client reads only the header');
   });
 
+  it('writes a gzip copy of the asset for the web app to download', async () => {
+    // The web app downloads the whole asset, and hosts often do not compress
+    // application/octet-stream, so the build ships it compressed itself.
+    installFetch(defaultHandlers());
+    const out = '/tmp/pinyinduck-gzip/dictionary.btree';
+
+    await build(out, false);
+
+    const compressed = readBytes(`${out}.gz`);
+    expect([compressed[0], compressed[1]]).toEqual([0x1f, 0x8b]);
+    expect(new Uint8Array(gunzipSync(compressed))).toEqual(readBytes(out));
+  });
+
+  it('writes the gzip copy to the path it is given', async () => {
+    installFetch(defaultHandlers());
+    const out = '/tmp/pinyinduck-gzip-elsewhere/dictionary.btree';
+    const compressedOut = '/tmp/pinyinduck-gzip-elsewhere/web/dictionary.btree.gz';
+
+    await build(out, false, compressedOut);
+
+    expect(dirStore.has('/tmp/pinyinduck-gzip-elsewhere/web')).toBe(true);
+    expect(new Uint8Array(gunzipSync(readBytes(compressedOut)))).toEqual(readBytes(out));
+    expect(fileStore.has(`${out}.gz`)).toBe(false);
+  });
+
   it('round-trips both entries through the B-tree with their frequency and HSK level', async () => {
     // Two rows is too few to force a multi-level tree, so a broken fan-out would pass
     // unnoticed; the assertions below cover the header counts the reader trusts.
@@ -337,18 +363,29 @@ describe('build', () => {
 
 describe('parseArgs', () => {
   const defaultBtree = path.resolve(__dirname, '../../web/public/dictionary.btree');
+  const defaultCompressed = path.resolve(__dirname, '../../web/src/generated/dictionary.btree.gz');
 
   it('defaults to the B-tree web asset path and the download cache', () => {
-    expect(parseArgs([])).toEqual({ outPath: defaultBtree, useCache: true });
+    expect(parseArgs([])).toEqual({
+      outPath: defaultBtree,
+      compressedOutPath: defaultCompressed,
+      useCache: true,
+    });
   });
 
   it('honours --no-cache', () => {
-    expect(parseArgs(['--no-cache'])).toEqual({ outPath: defaultBtree, useCache: false });
+    expect(parseArgs(['--no-cache'])).toEqual({
+      outPath: defaultBtree,
+      compressedOutPath: defaultCompressed,
+      useCache: false,
+    });
   });
 
   it('honours --out', () => {
+    // The compressed copy goes next to a custom asset, never over the web app's own.
     expect(parseArgs(['--out', '/tmp/custom.btree'])).toEqual({
       outPath: '/tmp/custom.btree',
+      compressedOutPath: '/tmp/custom.btree.gz',
       useCache: true,
     });
   });
@@ -356,12 +393,17 @@ describe('parseArgs', () => {
   it('combines --out with --no-cache', () => {
     expect(parseArgs(['--out', '/tmp/custom.btree', '--no-cache'])).toEqual({
       outPath: '/tmp/custom.btree',
+      compressedOutPath: '/tmp/custom.btree.gz',
       useCache: false,
     });
   });
 
   it('falls back to the default path when --out is the final argument', () => {
-    expect(parseArgs(['--out'])).toEqual({ outPath: defaultBtree, useCache: true });
+    expect(parseArgs(['--out'])).toEqual({
+      outPath: defaultBtree,
+      compressedOutPath: defaultCompressed,
+      useCache: true,
+    });
   });
 
   it('consumes the argument after --out verbatim', () => {
@@ -369,6 +411,7 @@ describe('parseArgs', () => {
     // read as the path rather than being skipped.
     expect(parseArgs(['--out', '--no-cache'])).toEqual({
       outPath: '--no-cache',
+      compressedOutPath: '--no-cache.gz',
       useCache: false,
     });
   });
@@ -382,7 +425,11 @@ describe('parseArgs', () => {
   it('has no format option: the B-tree is the only asset it writes', () => {
     // A leftover `--format json` from an old script must not move the output off the
     // B-tree path the web app reads.
-    expect(parseArgs(['--format', 'json'])).toEqual({ outPath: defaultBtree, useCache: true });
+    expect(parseArgs(['--format', 'json'])).toEqual({
+      outPath: defaultBtree,
+      compressedOutPath: defaultCompressed,
+      useCache: true,
+    });
   });
 });
 

@@ -1,13 +1,13 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
-  DictionaryChangedError,
   LazyPinyinSearchEngine,
-  openBTreeDictionary,
-  DEFAULT_BTREE_URL,
+  loadDictionary,
   type Candidate,
+  type DownloadProgress,
   type SearchResult,
   type ScriptType,
 } from '@pinyinduck/core';
+import { DICTIONARY_URL } from '../dictionary-asset';
 
 export type DictionaryStatus = 'loading' | 'ready' | 'error';
 
@@ -43,11 +43,12 @@ const EMPTY_RESULT: SearchResult = { query: '', segments: [], candidates: [], to
 const CANDIDATE_LIMIT = 50;
 
 export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
-  const { pageSize = 5, initialScript = 'simplified', dictionaryUrl = DEFAULT_BTREE_URL } = options;
+  const { pageSize = 5, initialScript = 'simplified', dictionaryUrl = DICTIONARY_URL } = options;
 
   const [engine, setEngine] = useState<LazyPinyinSearchEngine | null>(null);
   const [dictionaryStatus, setDictionaryStatus] = useState<DictionaryStatus>('loading');
   const [dictionaryError, setDictionaryError] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
   const [entryCount, setEntryCount] = useState(0);
   const [script, setScript] = useState<ScriptType>(initialScript);
   const [committedText, setCommittedText] = useState<string>('');
@@ -173,17 +174,23 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     scriptRef.current = script;
   }, [script]);
 
-  // The dictionary is a multi-megabyte B-tree asset. Opening it reads only the header
-  // and the page directory, so the app becomes usable almost immediately and the
-  // remaining pages stream in as queries need them. Typing works while it loads.
+  // The whole dictionary is downloaded once, compressed, and searched in memory. The
+  // download is a few megabytes, so its progress is shown. Typing works while it loads,
+  // but nothing commits until it is ready.
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
 
     setDictionaryStatus('loading');
     setDictionaryError(null);
+    setDownloadProgress(null);
 
-    openBTreeDictionary(dictionaryUrl, { signal: controller.signal })
+    loadDictionary(dictionaryUrl, {
+      signal: controller.signal,
+      onProgress: (progress) => {
+        if (!cancelled) setDownloadProgress(progress);
+      },
+    })
       .then((dictionary) => {
         if (cancelled) return;
         const opened = new LazyPinyinSearchEngine(dictionary);
@@ -222,17 +229,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
 
       const promise = current
         .search(query, { script: forScript, limit: CANDIDATE_LIMIT, offset: 0 })
-        .catch((err: unknown) => {
-          // A failed page read is not recoverable mid-session; the open effect
-          // already reports a bad asset, so treat the query as having no matches.
-          // A rebuilt asset is the exception the open effect cannot see: say so, or
-          // every later query would silently come back empty.
-          if (err instanceof DictionaryChangedError) {
-            setDictionaryError(err.message);
-            setDictionaryStatus('error');
-          }
-          return EMPTY_RESULT;
-        });
+        .catch(() => EMPTY_RESULT);
       searchRunRef.current = { key, promise };
       return promise;
     },
@@ -797,6 +794,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     toggleScript,
     dictionaryStatus,
     dictionaryError,
+    downloadProgress,
     entryCount,
     committedText,
     setCommittedText,

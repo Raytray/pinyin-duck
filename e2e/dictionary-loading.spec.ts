@@ -9,6 +9,10 @@ import {
   gotoApp,
 } from './helpers';
 
+// The compressed asset: `/src/generated/dictionary.btree.gz` under the dev server, and a
+// content-hashed `dictionary.btree-<hash>.gz` in a production build.
+const DICTIONARY_ASSET = '**/dictionary.btree*.gz';
+
 // The dictionary is fetched at runtime rather than bundled, so a missing or broken
 // asset must degrade visibly instead of presenting an empty candidate list as if
 // the pinyin simply had no matches.
@@ -18,7 +22,7 @@ test('reports the loaded dictionary and blocks commits until it is ready', async
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route('**/dictionary.btree', async (route) => {
+  await page.route(DICTIONARY_ASSET, async (route) => {
     await gate;
     await route.continue();
   });
@@ -45,8 +49,28 @@ test('reports the loaded dictionary and blocks commits until it is ready', async
   await expect(editor(page)).toHaveValue('你好');
 });
 
+test('shows download progress while the dictionary loads', async ({ page }) => {
+  // Throttle the connection so the multi-megabyte download takes long enough to watch.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Network.enable');
+  await cdp.send('Network.emulateNetworkConditions', {
+    offline: false,
+    latency: 0,
+    downloadThroughput: 1_500_000,
+    uploadThroughput: -1,
+  });
+
+  await page.goto('/');
+  // A percentage when the response says how big the asset is, otherwise megabytes so far.
+  // Vite's servers send the .gz with `Content-Encoding: gzip`, so here it is megabytes.
+  await expect(dictionaryStatus(page)).toContainText(/Loading\.\.\. (\d+%|\d+\.\d MB)/, {
+    timeout: 15_000,
+  });
+  await expect(dictionaryStatus(page)).toContainText('entries', { timeout: 20_000 });
+});
+
 test('surfaces a failed dictionary load with a recovery hint', async ({ page }) => {
-  await page.route('**/dictionary.btree', (route) =>
+  await page.route(DICTIONARY_ASSET, (route) =>
     route.fulfill({ status: 404, body: 'Not Found' })
   );
 
@@ -66,7 +90,7 @@ test('surfaces a failed dictionary load with a recovery hint', async ({ page }) 
 });
 
 test('rejects a malformed dictionary payload', async ({ page }) => {
-  await page.route('**/dictionary.btree', (route) =>
+  await page.route(DICTIONARY_ASSET, (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/octet-stream',
@@ -83,7 +107,7 @@ test('reports a dictionary payload that is not a B-tree asset at all', async ({ 
   // A truncated or proxied asset fails to parse, which rejects with a decoder error
   // rather than the Error the loader raises itself. The message must still be shown
   // instead of a blank banner.
-  await page.route('**/dictionary.btree', (route) =>
+  await page.route(DICTIONARY_ASSET, (route) =>
     route.fulfill({ status: 200, contentType: 'application/octet-stream', body: '<html>oops</html>' })
   );
 
@@ -115,7 +139,7 @@ test('stringifies a load failure that is not an Error instance', async ({ page }
 });
 
 test('still commits newline and plain text when the dictionary failed', async ({ page }) => {
-  await page.route('**/dictionary.btree', (route) =>
+  await page.route(DICTIONARY_ASSET, (route) =>
     route.fulfill({ status: 500, body: 'boom' })
   );
 

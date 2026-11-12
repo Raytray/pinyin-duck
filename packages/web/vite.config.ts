@@ -7,6 +7,13 @@ import react from '@vitejs/plugin-react';
 // TypeScript source, so Vite and `tsc` both resolve it there.
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // `public/` holds only the uncompressed `dictionary.btree`, which Rime, the Android
+    // build and the parity generator read from there. The app downloads the gzipped,
+    // content-hashed copy it imports from `src/generated/`, so the raw 9MB file stays
+    // out of the build.
+    copyPublicDir: false,
+  },
   server: {
     port: 5173,
     host: true,

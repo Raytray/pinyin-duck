@@ -10,6 +10,7 @@ export const App: React.FC = () => {
     toggleScript,
     dictionaryStatus,
     dictionaryError,
+    downloadProgress,
     entryCount,
     searchStatus,
     committedText,
@@ -61,6 +62,7 @@ export const App: React.FC = () => {
             totalPages={totalPages}
             cursorToRestoreRef={cursorToRestoreRef}
             dictionaryStatus={dictionaryStatus}
+            downloadProgress={downloadProgress}
             searchStatus={searchStatus}
             entryCount={entryCount}
             onSelectCandidate={selectCandidate}

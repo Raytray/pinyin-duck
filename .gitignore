@@ -75,3 +75,7 @@ key.properties*
 
 # IDE state
 .idea/
+
+# The gzipped copy of the asset that the web app imports, so Vite gives it a
+# content-hashed URL. Written by `npm run build:dict` with the asset above.
+packages/web/src/generated/

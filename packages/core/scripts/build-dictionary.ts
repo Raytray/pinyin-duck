@@ -6,14 +6,18 @@
  * `@pinyinduck/core` loads lazily at runtime.
  *
  * The output is a paged B+ tree (`dictionary.btree`) keyed on toneless pinyin. A
- * client opens it by reading only its header and page directory, then fetches the
- * handful of pages a query touches, so a low-memory Android keyboard can search the
- * full corpus without materializing it.
+ * client opens it by reading only its header and page directory and decodes just the
+ * pages a query touches, so a low-memory Android keyboard can search the full corpus
+ * without materializing it.
+ *
+ * The build also writes a gzip copy (`dictionary.btree.gz`) for the web app, which
+ * downloads the whole asset and decompresses it in the browser. Shipping it compressed
+ * keeps the download small on hosts that do not compress binary files themselves.
  *
  * Usage:
  *   npm run build:dict                 # download (cached) and emit the B-tree asset
  *   npm run build:dict -- --no-cache   # ignore the local download cache
- *   npm run build:dict -- --out <path> # write the asset somewhere else
+ *   npm run build:dict -- --out <path> # write the asset (and <path>.gz) somewhere else
  *
  * Sources (each pinned by SHA-256 in ./sources.ts):
  *   CC-CEDICT   https://www.mdbg.net/chinese/export/cedict/ (a dated copy in packages/core/data/)
@@ -36,6 +40,12 @@ const PACKAGE_DIR = path.resolve(__dirname, '..');
 const CACHE_DIR = path.join(PACKAGE_DIR, '.cache');
 const OUT_DIR = path.resolve(__dirname, '../../web/public');
 const DEFAULT_OUT = path.join(OUT_DIR, 'dictionary.btree');
+/**
+ * The web app imports the compressed copy from here, so Vite gives its production URL
+ * a content hash and a browser can cache it for good. Rime, the Android build and the
+ * parity generator read the uncompressed asset at `DEFAULT_OUT`.
+ */
+const DEFAULT_COMPRESSED_OUT = path.resolve(__dirname, '../../web/src/generated/dictionary.btree.gz');
 
 /** The two sources a build downloads. CC-CEDICT is committed rather than downloaded. */
 export const SOURCE_URLS = {
@@ -332,7 +342,11 @@ export function joinCorpora(
   };
 }
 
-async function build(outPath: string, useCache: boolean): Promise<BuildStats> {
+async function build(
+  outPath: string,
+  useCache: boolean,
+  compressedOutPath: string = `${outPath}.gz`
+): Promise<BuildStats> {
   const started = Date.now();
   console.log('Building the PinyinDuck dictionary from CC-CEDICT...\n');
 
@@ -352,17 +366,17 @@ async function build(outPath: string, useCache: boolean): Promise<BuildStats> {
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   const payload = Buffer.from(buildBTree(rows));
   fs.writeFileSync(outPath, payload);
+  // Node writes a zero mtime into the gzip header, so the same rows give the same bytes.
+  const compressed = zlib.gzipSync(payload, { level: 9 });
+  fs.mkdirSync(path.dirname(compressedOutPath), { recursive: true });
+  fs.writeFileSync(compressedOutPath, compressed);
 
   console.log(`\n  parsed  ${stats.cedictLines} CC-CEDICT lines`);
   console.log(`  emitted ${stats.emitted} rows (${stats.dropped} duplicate readings dropped)`);
   console.log(`  coverage ${stats.withFrequency} with frequency, ${stats.withHsk} on the HSK list`);
   console.log(`  coverage ${stats.singleChar} single characters`);
-  console.log(
-    `  wrote   ${outPath} (${(payload.length / 1048576).toFixed(2)}MB, ${(
-      zlib.gzipSync(payload).length /
-      1048576
-    ).toFixed(2)}MB gzipped)`
-  );
+  console.log(`  wrote   ${outPath} (${(payload.length / 1048576).toFixed(2)}MB)`);
+  console.log(`  wrote   ${compressedOutPath} (${(compressed.length / 1048576).toFixed(2)}MB)`);
   console.log('         B+ tree: a client reads only the header and the pages it needs');
   console.log(`\nDone in ${((Date.now() - started) / 1000).toFixed(1)}s.`);
 
@@ -371,6 +385,7 @@ async function build(outPath: string, useCache: boolean): Promise<BuildStats> {
 
 export interface BuildOptions {
   outPath: string;
+  compressedOutPath: string;
   useCache: boolean;
 }
 
@@ -381,15 +396,19 @@ export interface BuildOptions {
  */
 export function parseArgs(args: string[]): BuildOptions {
   const outIndex = args.indexOf('--out');
+  const customOut = outIndex >= 0 && args[outIndex + 1] ? args[outIndex + 1] : null;
   return {
-    outPath: outIndex >= 0 && args[outIndex + 1] ? args[outIndex + 1] : DEFAULT_OUT,
+    outPath: customOut ?? DEFAULT_OUT,
+    // A custom asset gets its compressed copy beside it, so a build to a scratch path
+    // never overwrites the copy the web app serves.
+    compressedOutPath: customOut ? `${customOut}.gz` : DEFAULT_COMPRESSED_OUT,
     useCache: !args.includes('--no-cache'),
   };
 }
 
 async function main() {
-  const { outPath, useCache } = parseArgs(process.argv.slice(2));
-  await build(outPath, useCache);
+  const { outPath, compressedOutPath, useCache } = parseArgs(process.argv.slice(2));
+  await build(outPath, useCache, compressedOutPath);
 }
 
 // pathToFileURL rather than a `file://` template, which never matches a Windows path

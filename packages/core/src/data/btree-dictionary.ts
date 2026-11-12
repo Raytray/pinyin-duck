@@ -43,7 +43,8 @@ interface CacheSlot {
   bytes: number;
 }
 
-function malformed(reason: string): Error {
+/** The error for an asset that cannot be decoded, which a rebuild fixes. */
+export function malformedDictionary(reason: string): Error {
   return new Error(
     `The dictionary payload is malformed or truncated (${reason}). ` +
       `Run "npm run build:dict" to regenerate it.`
@@ -88,7 +89,7 @@ export class BTreeDictionary {
     try {
       header = decodeHeader(headerBytes);
     } catch (error) {
-      throw malformed(errorReason(error));
+      throw malformedDictionary(errorReason(error));
     }
 
     const directoryBytes = await source.read(header.directoryOffset, header.pageCount * 8);
@@ -96,7 +97,7 @@ export class BTreeDictionary {
     try {
       directory = decodeDirectory(directoryBytes, header.pageCount);
     } catch (error) {
-      throw malformed(errorReason(error));
+      throw malformedDictionary(errorReason(error));
     }
 
     return new BTreeDictionary(source, header, directory, options);
@@ -191,7 +192,7 @@ export class BTreeDictionary {
 
   private async readLeaf(id: number): Promise<LeafPage> {
     const page = await this.readPage(id);
-    if (page.kind !== 'leaf') throw malformed(`page ${id} is not a leaf`);
+    if (page.kind !== 'leaf') throw malformedDictionary(`page ${id} is not a leaf`);
     return page;
   }
 
@@ -214,7 +215,7 @@ export class BTreeDictionary {
 
   private async loadPage(id: number): Promise<BTreeNodePage> {
     const location = this.directory[id];
-    if (!location) throw malformed(`page ${id} is outside the directory`);
+    if (!location) throw malformedDictionary(`page ${id} is outside the directory`);
 
     // As in `open`, a read failure is the source's to report, not a decode problem.
     const bytes = await this.source.read(location.offset, location.length);
@@ -225,7 +226,7 @@ export class BTreeDictionary {
       else if (kind === 1) page = decodeLeafPage(bytes);
       else throw new Error(`unknown page kind ${kind}`);
     } catch (error) {
-      throw malformed(errorReason(error));
+      throw malformedDictionary(errorReason(error));
     }
 
     this.remember(id, page, bytes.byteLength);
