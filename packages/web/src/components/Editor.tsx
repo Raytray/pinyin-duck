@@ -14,7 +14,6 @@ interface EditorProps {
   cursorToRestoreRef: React.MutableRefObject<number | null>;
   dictionaryStatus: 'loading' | 'ready' | 'error';
   downloadProgress: DownloadProgress | null;
-  searchStatus: 'idle' | 'searching' | 'ready';
   entryCount: number;
   onSelectCandidate: (index: number) => void;
   onNextPage: () => void;
@@ -49,7 +48,6 @@ export const Editor: React.FC<EditorProps> = ({
   cursorToRestoreRef,
   dictionaryStatus,
   downloadProgress,
-  searchStatus,
   entryCount,
   onSelectCandidate,
   onNextPage,
@@ -155,8 +153,7 @@ export const Editor: React.FC<EditorProps> = ({
               totalPages={totalPages}
               compositionBuffer={compositionBuffer}
               dictionaryStatus={dictionaryStatus}
-              searchStatus={searchStatus}
-              onSelectCandidate={onSelectCandidate}
+                onSelectCandidate={onSelectCandidate}
               onNextPage={onNextPage}
               onPrevPage={onPrevPage}
               onHoverIndex={onSetSelectedIndex}
