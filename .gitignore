@@ -20,7 +20,8 @@ packages/core/coverage/
 # is not here: it is committed under packages/core/data/.
 packages/core/.cache/
 
-# The generated dictionary asset, the paged B+ tree the web app fetches. It is produced
+# The generated dictionary asset, the paged B+ tree that Rime, Android and the web app
+# (through its gzip copy below) are built from. It is produced
 # by `npm run build:dict` from the pinned CC-CEDICT, OpenSubtitles frequency list and
 # HSK 2012 word list, so it does not belong in version control: it is 9MB of derived
 # data that the same commit always rebuilds byte for byte, and a commit that carries it

@@ -3,8 +3,8 @@
  *
  * Entries are sorted by toneless pinyin, then by descending frequency, so a bounded
  * forward scan over a prefix range meets the most useful readings first. Leaves are
- * packed up to a byte budget, which keeps every page small enough to fetch in one
- * range request, and each level is grouped into a fixed fan-out until a single root
+ * packed up to a byte budget, which keeps every page cheap to read and decode on its
+ * own, and each level is grouped into a fixed fan-out until a single root
  * remains.
  */
 

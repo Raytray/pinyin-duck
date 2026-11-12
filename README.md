@@ -18,13 +18,16 @@ length, frequency, and HSK level.
 ## Architecture
 
 - `packages/core` builds a paged B+ tree dictionary from CC-CEDICT, frequency data, and
-  HSK levels. Clients read only the pages a query touches through an LRU page cache.
+  HSK levels. A reader decodes only the pages a query touches, through an LRU page cache.
+- The web app downloads the whole dictionary once, gzipped and at a content-hashed URL,
+  showing progress while it loads. Search and commits are then synchronous.
 - `packages/core` ships TypeScript source, not build output: its `package.json` `exports`
   point at `src/index.ts`. Web and Rime both depend on it as `@pinyinduck/core` and import
   only that package name, so `tsc`, Vite, Vitest and `tsx` all read core's source directly
   and nothing has to build core first.
-- Search is a lazy B-tree engine (web, with a Kotlin port on Android) that ranks through
-  the shared `scoreEntry` formula and `compareScored` order.
+- Search is a B-tree engine (synchronous over the asset in memory on the web, with a
+  Kotlin port on Android that reads an mmapped file) that ranks through the shared
+  `scoreEntry` formula and `compareScored` order.
 - Pinyin is segmented into Mandarin syllables; tone numbers can filter readings at the
   engine level.
 - Candidates are deduplicated by displayed Hanzi and ranked by exact/prefix match,

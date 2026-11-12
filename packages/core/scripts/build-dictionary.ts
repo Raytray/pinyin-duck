@@ -3,7 +3,7 @@
  *
  * Reads CC-CEDICT (committed under packages/core/data/) and downloads the OpenSubtitles
  * Chinese frequency list and the HSK 2012 word list; joins them on the simplified form; and emits the B-tree asset that
- * `@pinyinduck/core` loads lazily at runtime.
+ * `@pinyinduck/core` reads at runtime.
  *
  * The output is a paged B+ tree (`dictionary.btree`) keyed on toneless pinyin. A
  * client opens it by reading only its header and page directory and decodes just the

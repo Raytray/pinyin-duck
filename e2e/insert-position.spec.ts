@@ -5,9 +5,9 @@ import { editor, gotoApp, expectBuffer, candidateItems, candidateList } from './
  * Where a committed candidate lands.
  *
  * The editor inserts at the caret rather than at the end of the text, and the caret is
- * live for the whole composition. These paths share a failure mode -- a commit resolving
- * after the DOM has moved on -- that keeps the text correct by accident and puts the
- * caret in the wrong place, or drops a character, so each case asserts the caret too.
+ * live for the whole composition. A commit that splices at the wrong offset can keep the
+ * text right by accident and still put the caret in the wrong place, so each case
+ * asserts the caret too.
  */
 
 const caret = (page: import('@playwright/test').Page) =>
@@ -83,10 +83,10 @@ test('repeated digit picks do not drift away from the caret', async ({ page }) =
   expect(await caret(page)).toBe(3);
 });
 
-test('two commits made in quick succession both land, in order', async ({ page }) => {
+test('two commits typed without a pause both land, in order', async ({ page }) => {
   await editor(page).press('End');
-  // No delay between the keys: the candidate list has not resolved when the second
-  // commit key is pressed, so both land through the queue.
+  // No delay between the keys. Each commit lands in the key press that made it, so the
+  // second composition starts from the text and caret the first one left.
   await editor(page).pressSequentially('ni', { delay: 0 });
   await editor(page).press(' ', { delay: 0 });
   await editor(page).pressSequentially('hao', { delay: 0 });
@@ -96,14 +96,14 @@ test('two commits made in quick succession both land, in order', async ({ page }
   expect(await caret(page)).toBe(6);
 });
 
-test('a commit behind the caret leaves the caret where the user put it', async ({ page }) => {
+test('a commit after moving the caret back lands at the new caret', async ({ page }) => {
   await editor(page).fill('abcdefghij');
   await editor(page).press('End');
   await editor(page).pressSequentially('ni', { delay: 0 });
   await editor(page).press(' ', { delay: 0 });
 
-  // Move the caret back while the first commit is still resolving. It lands where its
-  // key was pressed, and must not drag the caret forward past the user's own text.
+  // Move the caret back straight after the first commit. The second composition starts
+  // there, and its commit must not land at, or drag the caret to, the first one's spot.
   await editor(page).press('Home', { delay: 0 });
   expect(await caret(page)).toBe(0);
 
