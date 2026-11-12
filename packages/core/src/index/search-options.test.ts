@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { PinyinSearchEngine } from './search';
+import { LazyPinyinSearchEngine } from './lazy-search';
 import { PinyinTrie } from './trie';
-import type { DictEntry } from '../types.js';
+import { decodeDictionary } from '../data/load-dictionary';
+import { buildBTree } from '../data/btree-builder';
+import { MemoryPageSource } from '../data/page-source';
+import { openBTreeDictionaryFromSource } from '../data/btree-dictionary';
+import type { DictionaryRow } from '../data/dictionary-codec';
+import type { DictEntry, SearchOptions, SearchResult } from '../types.js';
 
 function entry(partial: Partial<DictEntry>): DictEntry {
   return {
@@ -18,146 +24,147 @@ function entry(partial: Partial<DictEntry>): DictEntry {
   };
 }
 
-describe('PinyinSearchEngine option defaults', () => {
-  const engine = new PinyinSearchEngine([entry({})]);
+/**
+ * A dictionary row written by field. Clean pinyin, tone marks and syllables are derived
+ * from `pinyinNumbers`, exactly as both engines derive them from the shipped asset.
+ */
+interface Fixture {
+  simplified?: string;
+  traditional?: string;
+  pinyinNumbers?: string;
+  shortGloss?: string;
+  frequency?: number;
+  hskLevel?: number;
+}
 
-  it('returns an empty result for a blank query', () => {
+function row(fixture: Fixture = {}): DictionaryRow {
+  const simplified = fixture.simplified ?? '字';
+  return [
+    simplified,
+    fixture.traditional ?? simplified,
+    fixture.pinyinNumbers ?? 'zi4',
+    fixture.shortGloss ?? 'character',
+    fixture.frequency ?? 0,
+    fixture.hskLevel ?? 0,
+  ];
+}
+
+interface Engine {
+  search(query: string, options?: SearchOptions): Promise<SearchResult>;
+}
+
+// Every case runs through both engines, so the lazy engine alone is shown to cover the
+// search options before the trie engine is removed.
+const engines: [string, (rows: DictionaryRow[]) => Promise<Engine>][] = [
+  [
+    'PinyinSearchEngine',
+    async (rows) => {
+      const engine = new PinyinSearchEngine(decodeDictionary(rows));
+      return { search: async (query, options) => engine.search(query, options) };
+    },
+  ],
+  [
+    'LazyPinyinSearchEngine',
+    async (rows) =>
+      new LazyPinyinSearchEngine(
+        await openBTreeDictionaryFromSource(new MemoryPageSource(buildBTree(rows)))
+      ),
+  ],
+];
+
+const manyRows = () =>
+  Array.from({ length: 25 }, (_, i) => row({ simplified: `字${i}`, pinyinNumbers: 'zi4' }));
+
+describe.each(engines)('%s option defaults', (_name, engineOf) => {
+  it('returns an empty result for a blank query', async () => {
+    const engine = await engineOf([row()]);
     for (const query of ['', '   ']) {
-      const result = engine.search(query);
+      const result = await engine.search(query);
       expect(result).toEqual({ query: '', segments: [], candidates: [], total: 0 });
     }
   });
 
-  it('normalizes case and surrounding whitespace on the query', () => {
-    const result = engine.search('  ZI  ');
+  it('normalizes case and surrounding whitespace on the query', async () => {
+    const engine = await engineOf([row()]);
+    const result = await engine.search('  ZI  ');
     expect(result.query).toBe('zi');
   });
 
-  it('defaults to simplified script', () => {
-    const mixed = new PinyinSearchEngine([
-      entry({
-        simplified: '发',
-        traditional: '發',
-        pinyinClean: 'fa',
-        pinyinNumbers: 'fa1',
-        pinyinSyllables: ['fa1'],
-      }),
-    ]);
+  it('defaults to simplified script', async () => {
+    const mixed = await engineOf([row({ simplified: '发', traditional: '發', pinyinNumbers: 'fa1' })]);
 
-    expect(mixed.search('fa').candidates[0].hanzi).toBe('发');
-    expect(mixed.search('fa', { script: 'simplified' }).candidates[0].hanzi).toBe('发');
-    expect(mixed.search('fa', { script: 'traditional' }).candidates[0].hanzi).toBe('發');
+    expect((await mixed.search('fa')).candidates[0].hanzi).toBe('发');
+    expect((await mixed.search('fa', { script: 'simplified' })).candidates[0].hanzi).toBe('发');
+    expect((await mixed.search('fa', { script: 'traditional' })).candidates[0].hanzi).toBe('發');
   });
 
-  it('applies a default result limit of 10', () => {
-    const many = new PinyinSearchEngine(
-      Array.from({ length: 25 }, (_, i) =>
-        entry({
-          simplified: `字${i}`,
-          traditional: `字${i}`,
-          pinyinClean: 'zi',
-          pinyinNumbers: 'zi4',
-          pinyinSyllables: ['zi4'],
-        })
-      )
-    );
+  it('applies a default result limit of 10', async () => {
+    const many = await engineOf(manyRows());
 
-    const result = many.search('zi');
+    const result = await many.search('zi');
     expect(result.candidates).toHaveLength(10);
     // total reports the full match count, not the truncated page.
     expect(result.total).toBe(25);
   });
 
-  it('honors an explicit limit', () => {
-    const many = new PinyinSearchEngine(
-      Array.from({ length: 25 }, (_, i) =>
-        entry({
-          simplified: `字${i}`,
-          traditional: `字${i}`,
-          pinyinClean: 'zi',
-          pinyinNumbers: 'zi4',
-          pinyinSyllables: ['zi4'],
-        })
-      )
-    );
+  it('honors an explicit limit', async () => {
+    const many = await engineOf(manyRows());
 
-    expect(many.search('zi', { limit: 3 }).candidates).toHaveLength(3);
+    expect((await many.search('zi', { limit: 3 })).candidates).toHaveLength(3);
   });
 
-  it('skips prefix candidates when exactOnly is set', () => {
-    const engine = new PinyinSearchEngine([
-      entry({ simplified: '字', pinyinClean: 'zi', pinyinNumbers: 'zi4', pinyinSyllables: ['zi4'] }),
-      entry({
-        simplified: '紫',
-        pinyinClean: 'zi se',
-        pinyinNumbers: 'zi3 se4',
-        pinyinSyllables: ['zi3', 'se4'],
-      }),
+  it('skips prefix candidates when exactOnly is set', async () => {
+    const engine = await engineOf([
+      row({ simplified: '字', pinyinNumbers: 'zi4' }),
+      row({ simplified: '紫', pinyinNumbers: 'zi3 se4' }),
     ]);
 
-    expect(engine.search('zi').candidates.map((c) => c.hanzi)).toEqual(['字', '紫']);
-    expect(engine.search('zi', { exactOnly: true }).candidates.map((c) => c.hanzi)).toEqual(['字']);
+    expect((await engine.search('zi')).candidates.map((c) => c.hanzi)).toEqual(['字', '紫']);
+    expect((await engine.search('zi', { exactOnly: true })).candidates.map((c) => c.hanzi)).toEqual(['字']);
   });
 
-  it('reports segments for the query', () => {
-    const result = engine.search('nihao');
+  it('reports segments for the query', async () => {
+    const engine = await engineOf([row()]);
+    const result = await engine.search('nihao');
     expect(result.segments).toEqual(['ni', 'hao']);
   });
 
-  it('searches on the cleaned query when the input has no segmentable syllables', () => {
+  it('searches on the cleaned query when the input has no segmentable syllables', async () => {
     // A query made only of separators cleans to an empty prefix, so there is no
     // first syllable to fall back on. The search must still run rather than throw.
-    const engine2 = new PinyinSearchEngine([
-      entry({ simplified: '啊', pinyinClean: 'a', pinyinNumbers: 'a5', pinyinSyllables: ['a5'] }),
-    ]);
+    const engine = await engineOf([row({ simplified: '啊', pinyinNumbers: 'a5' })]);
 
-    const result = engine2.search("'");
+    const result = await engine.search("'");
     expect(result.segments).toEqual([]);
     expect(result.query).toBe("'");
     expect(result.candidates.map((c) => c.hanzi)).toEqual(['啊']);
   });
 });
 
-describe('PinyinSearchEngine tone filtering edge cases', () => {
-  it('drops an entry with no tone number when a tone is typed', () => {
+describe.each(engines)('%s tone filtering edge cases', (_name, engineOf) => {
+  it('drops an entry with no tone number when a tone is typed', async () => {
     // A hand-authored entry can carry a toneless reading. There is no tone to match,
     // so it cannot satisfy a tone filter and must not be offered.
-    const engine = new PinyinSearchEngine([
-      entry({ simplified: '塔', pinyinClean: 'ta', pinyinNumbers: 'ta', pinyinSyllables: ['ta'] }),
-    ]);
+    const engine = await engineOf([row({ simplified: '塔', pinyinNumbers: 'ta' })]);
 
-    expect(engine.search('ta4').candidates).toEqual([]);
+    expect((await engine.search('ta4')).candidates).toEqual([]);
   });
 
-  it('keeps a toneless entry when no tone is typed', () => {
-    const engine = new PinyinSearchEngine([
-      entry({ simplified: '塔', pinyinClean: 'ta', pinyinNumbers: 'ta', pinyinSyllables: ['ta'] }),
-    ]);
+  it('keeps a toneless entry when no tone is typed', async () => {
+    const engine = await engineOf([row({ simplified: '塔', pinyinNumbers: 'ta' })]);
 
-    expect(engine.search('ta').candidates.map((c) => c.hanzi)).toEqual(['塔']);
+    expect((await engine.search('ta')).candidates.map((c) => c.hanzi)).toEqual(['塔']);
   });
 
-  it('shows only one candidate when two readings share the same hanzi', () => {
+  it('shows only one candidate when two readings share the same hanzi', async () => {
     // CC-CEDICT lists 行 under both hang2 and xing2. They are distinct entries, but
     // the candidate list is keyed on displayed text, so the second is deduplicated.
-    const engine = new PinyinSearchEngine([
-      entry({
-        simplified: '行',
-        pinyinClean: 'hang',
-        pinyinNumbers: 'hang2',
-        pinyinSyllables: ['hang2'],
-        frequency: 50000,
-      }),
-      entry({
-        simplified: '行',
-        pinyinClean: 'hang',
-        pinyinNumbers: 'hang5',
-        pinyinSyllables: ['hang5'],
-        frequency: 40000,
-      }),
+    const engine = await engineOf([
+      row({ simplified: '行', pinyinNumbers: 'hang2', frequency: 50000 }),
+      row({ simplified: '行', pinyinNumbers: 'hang5', frequency: 40000 }),
     ]);
 
-    const result = engine.search('hang');
+    const result = await engine.search('hang');
     expect(result.total).toBe(1);
     expect(result.candidates.map((c) => c.hanzi)).toEqual(['行']);
     // The more frequent reading is the one that survives deduplication.
