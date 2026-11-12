@@ -1,90 +1,35 @@
 /**
- * Lazy loader for the generated CC-CEDICT dictionary asset.
+ * Downloads the whole dictionary asset and opens it in memory.
  *
- * The asset is several megabytes, so it is served as a static file and fetched at
- * runtime rather than bundled. Decoding turns the compact wire tuples into full
- * `DictEntry` objects, deriving tone marks, clean pinyin and syllables from the
- * stored pinyin column.
+ * The web app holds the full asset (about 9.6MB) so that every search is synchronous
+ * and a commit always lands when its key is pressed. The build ships the asset gzipped
+ * (`dictionary.btree.gz`, about 4.3MB) and the browser decompresses it here, so the
+ * download size does not depend on whether the host compresses binary files.
  */
 
-import { DictEntry } from '../types.js';
-import { pinyinNumbersToMarks, cleanPinyin } from '../parser/pinyin.js';
-import { DictionaryRow } from './dictionary-codec.js';
+import { BTreeDictionary, malformedDictionary } from './btree-dictionary.js';
 
-/** Where the web app serves the generated asset from. */
-export const DEFAULT_DICTIONARY_URL = '/dictionary.json';
+export interface DownloadProgress {
+  /** Bytes of the body received so far. */
+  loaded: number;
+  /** The body's size, or null when the server did not say or encoded the response. */
+  total: number | null;
+}
 
 export interface LoadDictionaryOptions {
-  /** Injectable for tests; defaults to the global fetch. */
   fetchImpl?: typeof fetch;
-  /** Lets a React effect cancel an in-flight load on unmount. */
   signal?: AbortSignal;
+  /** Called after each chunk of the download arrives. */
+  onProgress?: (progress: DownloadProgress) => void;
 }
 
-/**
- * Expands wire tuples into dictionary entries.
- *
- * Tone marks and clean pinyin are memoized because the same pinyin reading is shared
- * by many words; without the cache this costs ~370ms for a full dictionary, with it
- * a small fraction of that.
- */
-export function decodeDictionary(rows: DictionaryRow[]): DictEntry[] {
-  const markCache = new Map<string, string>();
-  const cleanCache = new Map<string, string>();
-
-  const marksFor = (pinyinNumbers: string): string => {
-    let marks = markCache.get(pinyinNumbers);
-    if (marks === undefined) {
-      marks = pinyinNumbersToMarks(pinyinNumbers);
-      markCache.set(pinyinNumbers, marks);
-    }
-    return marks;
-  };
-
-  const cleanFor = (pinyinNumbers: string): string => {
-    let clean = cleanCache.get(pinyinNumbers);
-    if (clean === undefined) {
-      clean = cleanPinyin(pinyinNumbers);
-      cleanCache.set(pinyinNumbers, clean);
-    }
-    return clean;
-  };
-
-  const entries: DictEntry[] = new Array(rows.length);
-
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    const [simplified, traditional, pinyinNumbers, shortGloss, frequency, hskLevel] = row;
-
-    entries[i] = {
-      simplified,
-      traditional: traditional || simplified,
-      pinyinNumbers,
-      pinyinMarks: marksFor(pinyinNumbers),
-      pinyinClean: cleanFor(pinyinNumbers),
-      pinyinSyllables: pinyinNumbers.split(/\s+/).filter(Boolean),
-      shortGloss,
-      frequency,
-      hskLevel: hskLevel || undefined,
-    };
-  }
-
-  return entries;
-}
-
-/**
- * Fetches and decodes the dictionary asset.
- *
- * Rejects when the request fails or the payload is not a dictionary, so callers can
- * surface a real error instead of silently searching an empty dictionary.
- */
+/** Fetches, decompresses and opens the dictionary served at `url`. */
 export async function loadDictionary(
-  url: string = DEFAULT_DICTIONARY_URL,
+  url: string,
   options: LoadDictionaryOptions = {}
-): Promise<DictEntry[]> {
-  const { fetchImpl = fetch, signal } = options;
-
-  const response = await fetchImpl(url, signal ? { signal } : undefined);
+): Promise<BTreeDictionary> {
+  const { fetchImpl = fetch, signal, onProgress } = options;
+  const response = await fetchImpl(url, signal ? { signal } : {});
   if (!response.ok) {
     throw new Error(
       `Failed to load the dictionary from ${url} (${response.status} ${response.statusText}). ` +
@@ -92,12 +37,82 @@ export async function loadDictionary(
     );
   }
 
-  const rows = (await response.json()) as DictionaryRow[];
-  if (!Array.isArray(rows) || rows.length === 0) {
-    throw new Error(
-      `The dictionary at ${url} is empty or malformed. Run "npm run build:dict" to regenerate it.`
-    );
-  }
+  return BTreeDictionary.open(await readBody(response, onProgress));
+}
 
-  return decodeDictionary(rows);
+/**
+ * Reads the body, decompressing it on the way when it is gzip, into one buffer.
+ *
+ * A host that serves `.gz` files with `Content-Encoding: gzip` has the browser decompress
+ * the body before it reaches the app. Checking the gzip magic number on the first bytes
+ * covers that host and every other without asking which one this is. The body streams
+ * straight into the decompressor, so the download is never held twice.
+ */
+async function readBody(
+  response: Response,
+  onProgress: LoadDictionaryOptions['onProgress']
+): Promise<Uint8Array> {
+  // A response the host encoded has a `Content-Length` in encoded bytes, but the body
+  // yields decoded ones, so the length is only a total when nothing was encoded.
+  const length = Number(response.headers.get('content-length'));
+  const encoded = response.headers.has('content-encoding');
+  const total = !encoded && Number.isFinite(length) && length > 0 ? length : null;
+
+  if (!response.body) throw malformedDictionary('empty response');
+  const reader = response.body.getReader();
+  let loaded = 0;
+  // A failure reading the body (an abort, a dropped connection) is passed on as it is,
+  // so only a failure to decompress is reported as a malformed asset.
+  let readError: unknown;
+  const read = async () => {
+    try {
+      const result = await reader.read();
+      if (!result.done) {
+        loaded += result.value.byteLength;
+        onProgress?.({ loaded, total });
+      }
+      return result;
+    } catch (error) {
+      readError = error;
+      throw error;
+    }
+  };
+
+  // Enough of the body to see the two magic bytes, which a tiny first chunk may not hold.
+  const head: Uint8Array[] = [];
+  while (loaded < 2) {
+    const { done, value } = await read();
+    if (done) break;
+    head.push(value);
+  }
+  const magic = head.flatMap((chunk) => Array.from(chunk.subarray(0, 2))).slice(0, 2);
+  const gzipped = magic[0] === 0x1f && magic[1] === 0x8b;
+
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of head) controller.enqueue(chunk);
+    },
+    async pull(controller) {
+      const { done, value } = await read();
+      if (done) controller.close();
+      else controller.enqueue(value);
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
+
+  try {
+    // The DOM types declare the decompressor's input as `BufferSource`, which a
+    // `Uint8Array` over any buffer is at runtime but not to the type checker.
+    const bytes = gzipped
+      ? body.pipeThrough(
+          new DecompressionStream('gzip') as ReadableWritablePair<Uint8Array, Uint8Array>
+        )
+      : body;
+    return new Uint8Array(await new Response(bytes).arrayBuffer());
+  } catch (error) {
+    if (readError !== undefined && error === readError) throw error;
+    throw malformedDictionary(error instanceof Error ? error.message : String(error));
+  }
 }

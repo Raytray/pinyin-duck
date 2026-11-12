@@ -18,10 +18,16 @@ length, frequency, and HSK level.
 ## Architecture
 
 - `packages/core` builds a paged B+ tree dictionary from CC-CEDICT, frequency data, and
-  HSK levels. Clients read only the pages a query touches through an LRU page cache.
-- Search is available as an in-memory trie engine (tests and callers holding the data)
-  and a lazy B-tree engine (web and Android). Both rank through the shared `scoreEntry`
-  formula.
+  HSK levels. A reader decodes only the pages a query touches, through an LRU page cache.
+- The web app downloads the whole dictionary once, gzipped and at a content-hashed URL,
+  showing progress while it loads. Search and commits are then synchronous.
+- `packages/core` ships TypeScript source, not build output: its `package.json` `exports`
+  point at `src/index.ts`. Web and Rime both depend on it as `@pinyinduck/core` and import
+  only that package name, so `tsc`, Vite, Vitest and `tsx` all read core's source directly
+  and nothing has to build core first.
+- Search is a B-tree engine (synchronous over the asset in memory on the web, with a
+  Kotlin port on Android that reads an mmapped file) that ranks through the shared
+  `scoreEntry` formula and `compareScored` order.
 - Pinyin is segmented into Mandarin syllables; tone numbers can filter readings at the
   engine level.
 - Candidates are deduplicated by displayed Hanzi and ranked by exact/prefix match,
@@ -59,7 +65,12 @@ npm test               # unit tests
 npm run test:e2e       # browser integration tests
 npm run test:all       # unit + e2e tests
 npm run test:coverage:all
+npm run ci -w @pinyinduck/<core|web|android|rime>   # one package's CI checks
 ```
+
+Each package's `ci` script runs exactly what that package's CI job runs. Build the
+dictionary assets first (`npm run build:dict && npm run build:rime`). Android needs Java 17
+and the Android SDK; Rime runs its librime check only after `npm run setup:rime`.
 
 ## Platform packages
 

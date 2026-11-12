@@ -1,14 +1,18 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
 
 // https://vitejs.dev/config/
+//
+// `@pinyinduck/core` needs no alias: its package.json `exports` points at its
+// TypeScript source, so Vite and `tsc` both resolve it there.
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    alias: {
-      '@pinyinduck/core': path.resolve(__dirname, '../core/src/index.ts'),
-    },
+  build: {
+    // `public/` holds only the uncompressed `dictionary.btree`, which Rime, the Android
+    // build and the parity generator read from there. The app downloads the gzipped,
+    // content-hashed copy it imports from `src/generated/`, so the raw 9MB file stays
+    // out of the build.
+    copyPublicDir: false,
   },
   server: {
     port: 5173,

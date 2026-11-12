@@ -5,12 +5,17 @@
   "private": true,
   "type": "module",
   "description": "Gradle wrapper for the PinyinDuck Android input method",
+  "scripts": {
+    "ci": "./gradlew ktlintCheck testDebugUnitTest jacocoTestReport jacocoTestCoverageVerification"
+  },
   "comment": [
-    "This package is a Gradle project. Gradle is the build system; this file exists only to",
-    "make `packages/android` a recognisable member of the npm workspace, so `npm install` at",
-    "the repository root does not try to treat it as an application.",
+    "This package is a Gradle project. Gradle is the build system; this file makes",
+    "`packages/android` a member of the npm workspace, so `npm install` at the repository",
+    "root does not try to treat it as an application, and gives it the `ci` script every",
+    "package has.",
     "",
-    "There are no npm scripts here on purpose. Build, test and lint are Gradle tasks:",
+    "`npm run ci -w @pinyinduck/android` runs what CI runs: ktlint, the unit tests, and the",
+    "coverage report and gate. Everything else is a Gradle task:",
     "",
     "  cd packages/android",
     "  ./gradlew assembleDebug          # the debug APK",

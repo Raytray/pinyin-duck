@@ -8,7 +8,6 @@ import {
   INTERNAL_KIND,
   LEAF_KIND,
   NO_PAGE,
-  compareKeys,
   decodeDirectory,
   decodeHeader,
   decodeInternalPage,
@@ -115,18 +114,6 @@ describe('ByteWriter and ByteReader', () => {
     reader.u32();
     expect(reader.offset).toBe(4);
     expect(reader.remaining).toBe(1);
-  });
-});
-
-describe('compareKeys', () => {
-  it('orders keys by code unit', () => {
-    expect(compareKeys('a', 'b')).toBe(-1);
-    expect(compareKeys('b', 'a')).toBe(1);
-    expect(compareKeys('a', 'a')).toBe(0);
-  });
-
-  it('sorts a prefix before the longer keys that extend it', () => {
-    expect(compareKeys('ni', 'nihao')).toBe(-1);
   });
 });
 

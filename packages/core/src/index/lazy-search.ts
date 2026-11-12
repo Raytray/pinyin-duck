@@ -1,18 +1,16 @@
 /**
- * Search over the lazy B-tree dictionary.
+ * Search over the B-tree dictionary.
  *
- * The eager `PinyinSearchEngine` loads every entry and builds a trie, which is fine
- * for tests and a desktop process but too much resident memory for an Android
- * keyboard. This engine walks only the pages a query touches:
+ * The search is synchronous, and it decodes only the pages a query touches rather than
+ * materializing all 122k entries:
  *
  *   1. exact matches come from a single root-to-leaf descent
  *   2. prefix matches come from that descent plus a bounded forward leaf scan
  *   3. a multi-syllable query whose last syllable is incomplete also looks up the
  *      first syllable, so `nihao` can still offer `你`
  *
- * Ranking is identical to the trie engine because both call `scoreEntry`. Memory is
- * bounded by the page cache plus the `maxMatches` scan budget, not the dictionary
- * size.
+ * Ranking goes through the shared `scoreEntry` and `compareScored`. Memory is bounded
+ * by the page cache plus the `maxMatches` scan budget, not the dictionary size.
  */
 
 import { SearchOptions, SearchResult, ScriptType } from '../types.js';
@@ -28,31 +26,14 @@ import {
   type ScoredEntry,
 } from './ranking.js';
 
-export interface LazySearchEngineOptions {
-  /** Default scan budget, overridable per `search` call via `SearchOptions.maxMatches`. */
-  maxMatches?: number;
-}
-
 interface ScoredStoredEntry extends ScoredEntry {
   stored: StoredEntry;
 }
 
 export class LazyPinyinSearchEngine {
-  private readonly maxMatches: number;
+  constructor(private readonly dictionary: BTreeDictionary) {}
 
-  constructor(
-    private readonly dictionary: BTreeDictionary,
-    options: LazySearchEngineOptions = {}
-  ) {
-    this.maxMatches = options.maxMatches ?? DEFAULT_MAX_MATCHES;
-  }
-
-  /** The number of entries in the backing dictionary. */
-  get entryCount(): number {
-    return this.dictionary.entryCount;
-  }
-
-  async search(query: string, options: SearchOptions = {}): Promise<SearchResult> {
+  search(query: string, options: SearchOptions = {}): SearchResult {
     const rawQuery = query.trim().toLowerCase();
     if (!rawQuery) {
       return { query: rawQuery, segments: [], candidates: [], total: 0 };
@@ -61,7 +42,7 @@ export class LazyPinyinSearchEngine {
     const script: ScriptType = options.script || 'simplified';
     const limit = options.limit ?? 10;
     const offset = options.offset ?? 0;
-    const maxMatches = options.maxMatches ?? this.maxMatches;
+    const maxMatches = options.maxMatches ?? DEFAULT_MAX_MATCHES;
 
     const segments = segmentPinyin(rawQuery);
     const tonelessQuery = cleanPinyin(rawQuery);
@@ -84,11 +65,11 @@ export class LazyPinyinSearchEngine {
       if (!previous || compareScored(candidate, previous) < 0) chosen.set(hanzi, candidate);
     };
 
-    for (const entry of await this.dictionary.lookupExact(tonelessQuery)) consider(entry);
+    for (const entry of this.dictionary.lookupExact(tonelessQuery)) consider(entry);
 
     let scanned = 0;
     if (!options.exactOnly) {
-      await this.dictionary.scanPrefix(tonelessQuery, (entry) => {
+      this.dictionary.scanPrefix(tonelessQuery, (entry) => {
         consider(entry);
         scanned++;
         return scanned < maxMatches;
@@ -99,7 +80,7 @@ export class LazyPinyinSearchEngine {
     // also offers matches for the first full syllable.
     const firstSyllable = segments[0] ? cleanPinyin(segments[0]) : '';
     if (segments.length > 1 && firstSyllable && firstSyllable !== tonelessQuery) {
-      for (const entry of await this.dictionary.lookupExact(firstSyllable)) consider(entry);
+      for (const entry of this.dictionary.lookupExact(firstSyllable)) consider(entry);
     }
 
     const ranked = Array.from(chosen.values()).sort(compareScored);

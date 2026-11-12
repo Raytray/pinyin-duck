@@ -4,16 +4,17 @@
   "license": "MIT",
   "private": true,
   "description": "Core Pinyin parsing, CC-CEDICT lookup, and candidate ranking engine for PinyinDuck",
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
-    "build": "tsc",
     "lint": "oxlint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "ci": "npm run lint && npm run typecheck && npm run test:coverage",
     "build:dict": "tsx scripts/build-dictionary.ts",
     "build:parity": "tsx scripts/generate-android-parity.ts"
   },

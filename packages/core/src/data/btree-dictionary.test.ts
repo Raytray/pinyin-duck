@@ -1,11 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  DEFAULT_BTREE_URL,
-  DEFAULT_PAGE_CACHE_BYTES,
-  openBTreeDictionary,
-  openBTreeDictionaryFromSource,
-} from './btree-dictionary';
-import { MemoryPageSource } from './page-source';
+import { DEFAULT_PAGE_CACHE_BYTES, BTreeDictionary } from './btree-dictionary';
 import { buildBTree } from './btree-builder';
 import {
   HEADER_SIZE,
@@ -27,113 +21,53 @@ const rows: DictionaryRow[] = [
 const asset = buildBTree(rows);
 
 function open(options = {}) {
-  return openBTreeDictionaryFromSource(new MemoryPageSource(asset), options);
-}
-
-/** A source that counts reads and can be made to fail. */
-function countingSource(bytes: Uint8Array) {
-  const inner = new MemoryPageSource(bytes);
-  const state = { reads: 0, bytesRead: 0 };
-  const source = {
-    async read(offset: number, length: number) {
-      state.reads++;
-      state.bytesRead += Math.min(length, bytes.byteLength - offset);
-      return inner.read(offset, length);
-    },
-  };
-  return { source, state };
+  return BTreeDictionary.open(asset, options);
 }
 
 describe('opening', () => {
-  it('reads the entry and page counts without reading any page', async () => {
-    const { source, state } = countingSource(asset);
-    const dictionary = await openBTreeDictionaryFromSource(source);
+  it('reads the entry and page counts from the header', () => {
+    const dictionary = open();
 
     expect(dictionary.entryCount).toBe(rows.length);
     expect(dictionary.pageCount).toBeGreaterThan(0);
-    // Header plus page directory, and nothing else.
-    expect(state.bytesRead).toBeLessThan(asset.byteLength);
   });
 
-  it('opens over HTTP range requests by default', async () => {
-    const requested: string[] = [];
-    const fetchMock = async (url: string, init?: RequestInit) => {
-      // The page source always sends a Range header; read it without asserting the
-      // `init` argument away, so a call that omitted it fails on the missing header
-      // rather than on `undefined.Range`.
-      const headers = (init?.headers ?? {}) as Record<string, string>;
-      const range = headers.Range ?? '';
-      requested.push(range);
-      const match = /bytes=(\d+)-(\d+)/.exec(range)!;
-      const start = Number(match[1]);
-      const end = Number(match[2]);
-      const slice = asset.subarray(start, end + 1);
-      return {
-        ok: true,
-        status: 206,
-        statusText: 'Partial Content',
-        arrayBuffer: async () => slice.buffer.slice(
-          slice.byteOffset,
-          slice.byteOffset + slice.byteLength
-        ) as ArrayBuffer,
-      } as unknown as Response;
-    };
-
-    const dictionary = await openBTreeDictionary(DEFAULT_BTREE_URL, {
-      fetchImpl: fetchMock as never,
-    });
-
-    expect(dictionary.entryCount).toBe(rows.length);
-    expect(requested.length).toBeGreaterThanOrEqual(2);
-    // The first request is the header only: the whole file is never downloaded.
-    expect(requested[0]).toBe(`bytes=0-${HEADER_SIZE - 1}`);
+  it('rejects a payload that is not a PinyinDuck asset', () => {
+    expect(() => BTreeDictionary.open(new Uint8Array(64))).toThrow(
+      /not a PinyinDuck B-tree asset/
+    );
   });
 
-  it('rejects a payload that is not a PinyinDuck asset', async () => {
-    const garbage = new Uint8Array(64);
-    await expect(
-      openBTreeDictionaryFromSource(new MemoryPageSource(garbage))
-    ).rejects.toThrow(/not a PinyinDuck B-tree asset/);
+  it('rejects a header that is too short, with a rebuild hint', () => {
+    expect(() => BTreeDictionary.open(new Uint8Array(8))).toThrow(/build:dict/);
   });
 
-  it('rejects a header that is too short, with a rebuild hint', async () => {
-    await expect(
-      openBTreeDictionaryFromSource(new MemoryPageSource(new Uint8Array(8)))
-    ).rejects.toThrow(/build:dict/);
+  it('rejects an asset whose page directory is truncated', () => {
+    expect(() => BTreeDictionary.open(asset.subarray(0, HEADER_SIZE + 4))).toThrow(/build:dict/);
   });
 
-  it('rejects an asset whose page directory is truncated', async () => {
-    const truncated = asset.subarray(0, HEADER_SIZE + 4);
-    await expect(
-      openBTreeDictionaryFromSource(new MemoryPageSource(truncated))
-    ).rejects.toThrow(/build:dict/);
+  it('rejects an asset whose last page is cut short, before any lookup', () => {
+    // The header and directory are intact, so only the directory's page bounds show
+    // the asset is truncated. Opening checks them so a lookup never decodes a stub.
+    expect(() => BTreeDictionary.open(asset.subarray(0, asset.byteLength - 1))).toThrow(
+      /malformed or truncated \(page \d+ ends past the end of the asset\).*build:dict/
+    );
   });
 
-  it('lets a source failure through with its original message', async () => {
-    // A network or HTTP failure is the caller's to report, so it must not be
-    // rewritten as a decoding problem.
-    const source = {
-      read: async () => {
-        throw new Error('Failed to load the dictionary from /d.btree (404 Not Found).');
-      },
-    };
-    await expect(openBTreeDictionaryFromSource(source)).rejects.toThrow('404 Not Found');
-  });
-
-  it('rejects with a clear message when a page cannot be decoded', async () => {
+  it('throws a clear message when a page cannot be decoded', () => {
     // Corrupt a page body without touching the header or the directory, so the
     // failure is in the page itself rather than in opening the asset.
     const corrupt = asset.slice();
     corrupt[HEADER_SIZE + 8] = 0x7f;
-    const dictionary = await openBTreeDictionaryFromSource(new MemoryPageSource(corrupt));
+    const dictionary = BTreeDictionary.open(corrupt);
 
-    await expect(dictionary.lookupExact('zhongguo')).rejects.toThrow(/build:dict/);
+    expect(() => dictionary.lookupExact('zhongguo')).toThrow(/build:dict/);
   });
 
-  it('fails a lookup whose page id is not in the directory', async () => {
-    // An internal page pointing past the end of the directory is a corrupt asset, not
-    // a transport problem: reading it would decode whatever bytes happened to follow.
-    // Assembled by hand because a well-formed build never produces this shape.
+  it('fails a lookup whose page id is not in the directory', () => {
+    // An internal page pointing past the end of the directory is a corrupt asset:
+    // reading it would decode whatever bytes happened to follow. Assembled by hand
+    // because a well-formed build never produces this shape.
     const PAGE_COUNT = 1;
     const OUT_OF_RANGE = 1;
     // The only high key sorts before the query, so the descent takes the right child.
@@ -154,50 +88,44 @@ describe('opening', () => {
     output.set(encodeDirectory([{ offset: rootOffset, length: root.byteLength }]), directoryOffset);
     output.set(root, rootOffset);
 
-    const dictionary = await openBTreeDictionaryFromSource(new MemoryPageSource(output));
-    await expect(dictionary.lookupExact('zzz')).rejects.toThrow(
+    const dictionary = BTreeDictionary.open(output);
+    expect(() => dictionary.lookupExact('zzz')).toThrow(
       new RegExp(`page ${OUT_OF_RANGE} is outside the directory`)
     );
   });
 });
 
 describe('lookupExact', () => {
-  it('returns every reading that shares a key', async () => {
-    const dictionary = await open();
-
-    const ni = await dictionary.lookupExact('ni');
+  it('returns every reading that shares a key', () => {
+    const ni = open().lookupExact('ni');
     expect(ni.map((e) => e.simplified).sort()).toEqual(['你', '尼'].sort());
   });
 
-  it('returns nothing for a key that is not present', async () => {
-    const dictionary = await open();
-    expect(await dictionary.lookupExact('qqq')).toEqual([]);
+  it('returns nothing for a key that is not present', () => {
+    expect(open().lookupExact('qqq')).toEqual([]);
   });
 
-  it('returns nothing for a key that is only a prefix of stored keys', async () => {
+  it('returns nothing for a key that is only a prefix of stored keys', () => {
     // "nihao" is stored, "niha" is not: descent must not match on a partial path.
-    const dictionary = await open();
-    expect(await dictionary.lookupExact('niha')).toEqual([]);
+    expect(open().lookupExact('niha')).toEqual([]);
   });
 });
 
 describe('scanPrefix', () => {
-  it('visits every entry under the prefix, in key order', async () => {
-    const dictionary = await open();
+  it('visits every entry under the prefix, in key order', () => {
     const seen: string[] = [];
 
-    await dictionary.scanPrefix('ni', (entry) => {
+    open().scanPrefix('ni', (entry) => {
       seen.push(entry.simplified);
     });
 
     expect(seen.sort()).toEqual(['你', '尼', '你好'].sort());
   });
 
-  it('stops when the visitor returns false', async () => {
-    const dictionary = await open();
+  it('stops when the visitor returns false', () => {
     const seen: string[] = [];
 
-    await dictionary.scanPrefix('', (entry) => {
+    open().scanPrefix('', (entry) => {
       seen.push(entry.key);
       return seen.length < 2;
     });
@@ -205,13 +133,12 @@ describe('scanPrefix', () => {
     expect(seen).toHaveLength(2);
   });
 
-  it('stops immediately for a prefix no key can match', async () => {
-    const dictionary = await open();
+  it('stops immediately for a prefix no key can match', () => {
     const seen: string[] = [];
 
     // "q" sorts after every stored key ("ni", "ne", "zhongguo"), so the descent lands
     // on the final leaf and nothing can match.
-    await dictionary.scanPrefix('q', (entry) => {
+    open().scanPrefix('q', (entry) => {
       seen.push(entry.key);
     });
 
@@ -220,18 +147,7 @@ describe('scanPrefix', () => {
 });
 
 describe('page cache', () => {
-  it('serves a repeated lookup without a second read', async () => {
-    const { source, state } = countingSource(asset);
-    const dictionary = await openBTreeDictionaryFromSource(source);
-
-    await dictionary.lookupExact('ni');
-    const afterFirst = state.reads;
-    await dictionary.lookupExact('ni');
-
-    expect(state.reads).toBe(afterFirst);
-  });
-
-  it('stays within its byte budget while walking a large tree', async () => {
+  it('stays correct when its byte budget cannot hold the walk', () => {
     const big = buildBTree(
       Array.from({ length: 400 }, (_, i): DictionaryRow => [
         `字${i}`,
@@ -242,68 +158,65 @@ describe('page cache', () => {
         0,
       ])
     );
-    const { source, state } = countingSource(big);
     // A budget of one byte forces eviction on essentially every step.
-    const dictionary = await openBTreeDictionaryFromSource(source, { pageCacheBytes: 1 });
+    const dictionary = BTreeDictionary.open(big, { pageCacheBytes: 1 });
 
     const collected: string[] = [];
-    await dictionary.scanPrefix('zi', (entry) => {
+    dictionary.scanPrefix('zi', (entry) => {
       collected.push(entry.simplified);
     });
 
-    // Correctness must not depend on the cache being large enough to hold the walk.
     expect(collected).toHaveLength(400);
-    expect(state.reads).toBeGreaterThan(1);
   });
 
-  it('fetches a page once even when concurrent searches both need it', async () => {
-    // The root is read while the dictionary is still cold. Two searches that start
-    // together must share that read rather than each issuing their own.
-    const inner = new MemoryPageSource(asset);
-    let pageReads = 0;
-    const source = {
-      async read(offset: number, length: number) {
-        // Only count page bodies, not the header and directory read during open.
-        if (offset >= HEADER_SIZE + 8) pageReads++;
-        await Promise.resolve();
-        return inner.read(offset, length);
-      },
-    };
-    const dictionary = await openBTreeDictionaryFromSource(source);
-    expect(pageReads).toBe(0);
-
-    const [a, b] = await Promise.all([
-      dictionary.lookupExact('ni'),
-      dictionary.lookupExact('ne'),
-    ]);
-
-    expect(a).not.toEqual([]);
-    expect(b).not.toEqual([]);
-    // Both searches descend from the same root, so a deduped root read is one read.
-    expect(pageReads).toBeGreaterThan(0);
-  });
-
-  it('keeps working after the cache is cleared', async () => {
-    const dictionary = await open();
-    const before = await dictionary.lookupExact('zhongguo');
+  it('keeps working after the cache is cleared', () => {
+    const dictionary = open();
+    const before = dictionary.lookupExact('zhongguo');
 
     dictionary.clearCache();
 
-    expect(await dictionary.lookupExact('zhongguo')).toEqual(before);
+    expect(dictionary.lookupExact('zhongguo')).toEqual(before);
   });
 
-  it('uses a bounded default budget that fits a page or two of the real asset', () => {
-    // The point of the default is to stay well under an Android keyboard's budget
-    // while still holding the hot part of the tree; a whole-asset budget would defeat
-    // the lazy read entirely.
-    expect(DEFAULT_PAGE_CACHE_BYTES).toBe(256 * 1024);
+  it('serves a repeated wide prefix scan from the cache', () => {
+    // A one-letter prefix of the real asset covers close to a megabyte of pages, and the
+    // web app scans it again on every keystroke. Here 8000 "shi" rows stand in for it.
+    const wide = buildBTree(
+      Array.from({ length: 8000 }, (_, i): DictionaryRow => [
+        `字${i}`,
+        `字${i}`,
+        'shi4',
+        `a gloss long enough to fill the page like a real definition ${i}`,
+        i,
+        0,
+      ])
+    );
+    expect(wide.byteLength).toBeGreaterThan(512 * 1024);
+    const bytes = wide.slice();
+    const dictionary = BTreeDictionary.open(bytes);
+    const scan = () => {
+      let count = 0;
+      dictionary.scanPrefix('s', () => {
+        count++;
+      });
+      return count;
+    };
+    expect(scan()).toBe(8000);
+
+    // Wreck every page in place. Only pages still in the cache can answer now.
+    bytes.fill(0x7f, HEADER_SIZE);
+
+    expect(scan()).toBe(8000);
+  });
+
+  it('uses a bounded default budget for decoded pages', () => {
+    expect(DEFAULT_PAGE_CACHE_BYTES).toBe(4 * 1024 * 1024);
   });
 });
 
-describe('instance lifecycle', () => {
-  it('exposes stored entries with the fields the search engine scores on', async () => {
-    const dictionary = await open();
-    const [china] = await dictionary.lookupExact('zhongguo');
+describe('stored entries', () => {
+  it('carry the fields the search engine scores on', () => {
+    const [china] = open().lookupExact('zhongguo');
 
     const entry: StoredEntry = china;
     expect(entry).toEqual({
@@ -315,16 +228,5 @@ describe('instance lifecycle', () => {
       frequency: 58468,
       hskLevel: 1,
     });
-  });
-
-  it('reports counts from the header rather than by walking the tree', async () => {
-    const { source, state } = countingSource(asset);
-    const dictionary = await openBTreeDictionaryFromSource(source);
-
-    expect(dictionary.entryCount).toBe(rows.length);
-    const afterOpen = state.reads;
-    expect(dictionary.entryCount).toBe(rows.length);
-    // Reading a count must not touch a page.
-    expect(state.reads).toBe(afterOpen);
   });
 });

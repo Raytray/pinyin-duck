@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { CandidatePopup } from './CandidatePopup';
-import { Candidate } from '@pinyinduck/core';
+import type { Candidate } from '@pinyinduck/core';
 
 interface EditorProps {
   committedText: string;
@@ -13,7 +13,8 @@ interface EditorProps {
   totalPages: number;
   cursorToRestoreRef: React.MutableRefObject<number | null>;
   dictionaryStatus: 'loading' | 'ready' | 'error';
-  searchStatus: 'idle' | 'searching' | 'ready';
+  /** How much of the dictionary has arrived, such as " 42%" or " 1.2 MB", or ''. */
+  downloadProgress: string;
   entryCount: number;
   onSelectCandidate: (index: number) => void;
   onNextPage: () => void;
@@ -38,7 +39,7 @@ export const Editor: React.FC<EditorProps> = ({
   totalPages,
   cursorToRestoreRef,
   dictionaryStatus,
-  searchStatus,
+  downloadProgress,
   entryCount,
   onSelectCandidate,
   onNextPage,
@@ -144,7 +145,6 @@ export const Editor: React.FC<EditorProps> = ({
               totalPages={totalPages}
               compositionBuffer={compositionBuffer}
               dictionaryStatus={dictionaryStatus}
-              searchStatus={searchStatus}
               onSelectCandidate={onSelectCandidate}
               onNextPage={onNextPage}
               onPrevPage={onPrevPage}
@@ -174,7 +174,7 @@ export const Editor: React.FC<EditorProps> = ({
           {dictionaryStatus === 'ready'
             ? `${entryCount.toLocaleString('en-US')} entries`
             : dictionaryStatus === 'loading'
-              ? 'Loading...'
+              ? `Loading...${downloadProgress}`
               : 'Failed to load'}
         </span>
           <span className="status-item" data-testid="text-length">

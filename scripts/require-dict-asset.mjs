@@ -34,9 +34,16 @@ const ASSETS = [
   {
     dir: join(ROOT, 'packages', 'web', 'public'),
     paths: ['dictionary.btree'],
+    label: 'the dictionary asset',
+    build: 'npm run build:dict',
+    why: 'Rime, the Android build and the parity generator read it',
+  },
+  {
+    dir: join(ROOT, 'packages', 'web', 'src', 'generated'),
+    paths: ['dictionary.btree.gz'],
     label: 'the web dictionary',
     build: 'npm run build:dict',
-    why: 'the app fetches it page by page at runtime, and every e2e test waits for it',
+    why: 'the app downloads it at startup, and every e2e test waits for it',
   },
   {
     dir: join(ROOT, 'packages', 'windows', 'rime'),

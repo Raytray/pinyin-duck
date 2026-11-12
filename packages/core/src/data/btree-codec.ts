@@ -3,16 +3,16 @@
  *
  * The web asset and the future Android/desktop clients both read this file. It is a
  * B+ tree keyed on the toneless pinyin of a dictionary row (`pinyinClean`), split into
- * variable-length pages. A reader only ever fetches the header, the small page
- * directory, and the O(log n) pages a single lookup touches, so the resident memory
- * is bounded by a page cache instead of the 10MB JSON payload a full parse needs.
+ * variable-length pages. A reader only ever decodes the header, the small page
+ * directory, and the O(log n) pages a single lookup touches, so decoded entries are
+ * bounded by a page cache rather than the whole 122k-entry corpus.
  *
  * Layout:
  *
  *   header (24 bytes) | page directory (pageCount * 8 bytes) | pages
  *
- * Each directory entry is a byte offset and length, so pages can be fetched with an
- * HTTP range request or a positioned file read. Pages are stored in ascending page id
+ * Each directory entry is a byte offset and length, so a page can be sliced out of the
+ * asset in memory (the web app) or read from a mapped file (Android). Pages are stored in ascending page id
  * order; leaves are allocated first, then each internal level bottom-up, with the root
  * last. Leaf pages are chained through `nextLeaf` so a prefix search is a single
  * descent followed by a forward scan.
@@ -221,19 +221,6 @@ export class ByteReader {
       throw new Error('B-tree page is truncated');
     }
   }
-}
-
-/**
- * Compares two dictionary keys.
- *
- * Keys only ever contain ASCII `a-z` plus `ü`, and code-unit order agrees with UTF-8
- * byte order for that alphabet, so a plain string comparison is both the tree order
- * and the on-disk sort order.
- */
-export function compareKeys(a: string, b: string): number {
-  if (a < b) return -1;
-  if (a > b) return 1;
-  return 0;
 }
 
 /** Serializes one leaf record onto the writer. */

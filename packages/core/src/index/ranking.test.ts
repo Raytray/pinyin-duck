@@ -1,29 +1,44 @@
 import { describe, it, expect } from 'vitest';
-import { PinyinSearchEngine } from './search';
+import { LazyPinyinSearchEngine } from './lazy-search';
 import { compareScored, countCharacters } from './ranking';
 import { parseToneFilter, syllableToneEnds } from '../parser/pinyin';
-import type { DictEntry } from '../types.js';
+import { buildBTree } from '../data/btree-builder';
+import { BTreeDictionary } from '../data/btree-dictionary';
+import type { DictionaryRow } from '../data/dictionary-codec';
 
-function entry(partial: Partial<DictEntry>): DictEntry {
-  return {
-    simplified: '字',
-    traditional: '字',
-    pinyinNumbers: 'zi4',
-    pinyinMarks: 'zì',
-    pinyinClean: 'zi',
-    pinyinSyllables: ['zi4'],
-    shortGloss: 'character',
-    frequency: 0,
-    hskLevel: undefined,
-    ...partial,
-  };
+/**
+ * A dictionary row written by field. Clean pinyin and tone marks are derived from
+ * `pinyinNumbers`, exactly as the engine derives them from the shipped asset.
+ */
+interface Fixture {
+  simplified?: string;
+  traditional?: string;
+  pinyinNumbers?: string;
+  shortGloss?: string;
+  frequency?: number;
+  hskLevel?: number;
 }
 
-function engineOf(entries: DictEntry[]) {
-  return new PinyinSearchEngine(entries);
+function entry(fixture: Fixture): DictionaryRow {
+  const simplified = fixture.simplified ?? '字';
+  return [
+    simplified,
+    fixture.traditional ?? simplified,
+    fixture.pinyinNumbers ?? 'zi4',
+    fixture.shortGloss ?? 'character',
+    fixture.frequency ?? 0,
+    fixture.hskLevel ?? 0,
+  ];
 }
 
-describe('PinyinSearchEngine popularity tiebreakers', () => {
+/** A lazy engine over an in-memory B-tree built from `rows`. */
+function engineOf(rows: DictionaryRow[]): LazyPinyinSearchEngine {
+  return new LazyPinyinSearchEngine(
+    BTreeDictionary.open(buildBTree(rows))
+  );
+}
+
+describe('popularity tiebreakers', () => {
   it('ranks an exact multi-character match above a more frequent partial match', () => {
     // "nihao" must offer 你好 (exact) before 你 (prefix, far more frequent).
     const engine = engineOf([
@@ -31,9 +46,6 @@ describe('PinyinSearchEngine popularity tiebreakers', () => {
         simplified: '你',
         traditional: '你',
         pinyinNumbers: 'ni3',
-        pinyinMarks: 'nǐ',
-        pinyinClean: 'ni',
-        pinyinSyllables: ['ni3'],
         shortGloss: 'you',
         frequency: 99000,
         hskLevel: 1,
@@ -42,9 +54,6 @@ describe('PinyinSearchEngine popularity tiebreakers', () => {
         simplified: '你好',
         traditional: '你好',
         pinyinNumbers: 'ni3 hao3',
-        pinyinMarks: 'nǐ hǎo',
-        pinyinClean: 'nihao',
-        pinyinSyllables: ['ni3', 'hao3'],
         shortGloss: 'hello',
         frequency: 6000,
         hskLevel: 0,
@@ -64,9 +73,6 @@ describe('PinyinSearchEngine popularity tiebreakers', () => {
         simplified: long,
         traditional: long,
         pinyinNumbers: 'zhong1 guo2 zhong1 yang2 dian4 shi4 tai2',
-        pinyinMarks: 'zhōng guó zhōng yāng diàn shì tái',
-        pinyinClean: 'zhongguozhongyangdianshitai',
-        pinyinSyllables: [],
         shortGloss: 'CCTV',
         frequency: 0,
       }),
@@ -74,9 +80,6 @@ describe('PinyinSearchEngine popularity tiebreakers', () => {
         simplified: '中国',
         traditional: '中國',
         pinyinNumbers: 'zhong1 guo2',
-        pinyinMarks: 'zhōng guó',
-        pinyinClean: 'zhongguo',
-        pinyinSyllables: ['zhong1', 'guo2'],
         shortGloss: 'China',
         frequency: 7000,
         hskLevel: 1,
@@ -89,8 +92,8 @@ describe('PinyinSearchEngine popularity tiebreakers', () => {
 
   it('orders equal-quality matches by frequency', () => {
     const engine = engineOf([
-      entry({ simplified: '塔', pinyinClean: 'ta', pinyinNumbers: 'ta3', shortGloss: 'rare' }),
-      entry({ simplified: '他', pinyinClean: 'ta', pinyinNumbers: 'ta1', shortGloss: 'common', frequency: 90000 }),
+      entry({ simplified: '塔', pinyinNumbers: 'ta3', shortGloss: 'rare' }),
+      entry({ simplified: '他', pinyinNumbers: 'ta1', shortGloss: 'common', frequency: 90000 }),
     ]);
 
     const { candidates } = engine.search('ta', { limit: 10 });
@@ -99,36 +102,31 @@ describe('PinyinSearchEngine popularity tiebreakers', () => {
 
   it('orders equal-quality matches by HSK level when frequency ties', () => {
     const engine = engineOf([
-      entry({ simplified: '乙', pinyinClean: 'yi', pinyinNumbers: 'yi3', shortGloss: 'hard', hskLevel: 6 }),
-      entry({ simplified: '甲', pinyinClean: 'yi', pinyinNumbers: 'jia3', shortGloss: 'easy', hskLevel: 1 }),
+      entry({ simplified: '乙', pinyinNumbers: 'yi3', shortGloss: 'hard', hskLevel: 6 }),
+      entry({ simplified: '一', pinyinNumbers: 'yi1', shortGloss: 'easy', hskLevel: 1 }),
     ]);
 
     const { candidates } = engine.search('yi', { limit: 10 });
-    expect(candidates[0].hanzi).toBe('甲');
+    expect(candidates[0].hanzi).toBe('一');
   });
 
   it('prefers a multi-character word over a single character of equal frequency', () => {
+    // Both read "xian" exactly, so only the word boost separates them.
     const engine = engineOf([
-      entry({ simplified: '五', pinyinClean: 'wu', pinyinNumbers: 'wu3', shortGloss: 'five' }),
-      entry({
-        simplified: '午饭',
-        pinyinClean: 'wu',
-        pinyinNumbers: 'wu3 fan4',
-        pinyinSyllables: ['wu3', 'fan4'],
-        shortGloss: 'lunch',
-      }),
+      entry({ simplified: '先', pinyinNumbers: 'xian1', shortGloss: 'first' }),
+      entry({ simplified: '西安', pinyinNumbers: 'xi1 an1', shortGloss: "Xi'an" }),
     ]);
 
-    const { candidates } = engine.search('wu', { limit: 10 });
-    expect(candidates[0].hanzi).toBe('午饭');
+    const { candidates } = engine.search('xian', { limit: 10 });
+    expect(candidates[0].hanzi).toBe('西安');
   });
 
   it('keeps every match quality tier ahead of a maximum-popularity weaker match', () => {
     // The strongest partial match must not lose to a rare exact match, nor the
     // weakest to the strongest, regardless of frequency or HSK.
     const engine = engineOf([
-      entry({ simplified: '强', pinyinClean: 'qiang', pinyinNumbers: 'qiang2', shortGloss: 'strong', frequency: 100000, hskLevel: 1 }),
-      entry({ simplified: '弱', pinyinClean: 'qiang', pinyinNumbers: 'ruo4', shortGloss: 'weak' }),
+      entry({ simplified: '强', pinyinNumbers: 'qiang2', shortGloss: 'strong', frequency: 100000, hskLevel: 1 }),
+      entry({ simplified: '墙', pinyinNumbers: 'qiang2', shortGloss: 'wall' }),
     ]);
 
     const { candidates } = engine.search('qiang', { limit: 10 });
@@ -142,16 +140,12 @@ describe('PinyinSearchEngine popularity tiebreakers', () => {
     const engine = engineOf([
       entry({
         simplified: '𩽾',
-        pinyinClean: 'an',
         pinyinNumbers: 'an1',
-        pinyinSyllables: ['an1'],
         shortGloss: 'used in 鮟鱇',
       }),
       entry({
         simplified: '安',
-        pinyinClean: 'an',
         pinyinNumbers: 'an1',
-        pinyinSyllables: ['an1'],
         shortGloss: 'peaceful',
         frequency: 54888,
       }),
@@ -163,8 +157,8 @@ describe('PinyinSearchEngine popularity tiebreakers', () => {
 
   it('still gives a genuine two-character word the boost', () => {
     const engine = engineOf([
-      entry({ simplified: '𩽾', pinyinClean: 'an', pinyinNumbers: 'an1', pinyinSyllables: ['an1'], shortGloss: 'rare' }),
-      entry({ simplified: '安安', pinyinClean: 'anan', pinyinNumbers: 'an1 an1', pinyinSyllables: ['an1', 'an1'], shortGloss: 'word' }),
+      entry({ simplified: '𩽾', pinyinNumbers: 'an1', shortGloss: 'rare' }),
+      entry({ simplified: '安安', pinyinNumbers: 'an1 an1', shortGloss: 'word' }),
     ]);
 
     const { candidates } = engine.search('anan', { limit: 10 });
@@ -172,13 +166,13 @@ describe('PinyinSearchEngine popularity tiebreakers', () => {
   });
 });
 
-describe('PinyinSearchEngine tone filters across word lengths', () => {
+describe('tone filters across word lengths', () => {
   it('does not let one typed tone promote a longer word over the character asked for', () => {
     // Typing "bian3" must answer "which third-tone character?", so 扁 (biǎn) leads.
     // 彼岸 matched on its first syllable alone and used to take the bonus with it.
     const engine = engineOf([
-      entry({ simplified: '扁', pinyinClean: 'bian', pinyinNumbers: 'bian3', pinyinSyllables: ['bian3'], shortGloss: 'flat', frequency: 40000 }),
-      entry({ simplified: '彼岸', pinyinClean: 'bianan', pinyinNumbers: 'bian3 an4', pinyinSyllables: ['bian3', 'an4'], shortGloss: 'the other shore', frequency: 90000 }),
+      entry({ simplified: '扁', pinyinNumbers: 'bian3', shortGloss: 'flat', frequency: 40000 }),
+      entry({ simplified: '彼岸', pinyinNumbers: 'bian3 an4', shortGloss: 'the other shore', frequency: 90000 }),
     ]);
 
     const { candidates } = engine.search('bian3', { limit: 10 });
@@ -187,8 +181,8 @@ describe('PinyinSearchEngine tone filters across word lengths', () => {
 
   it('still filters a longer word when every one of its tones is typed', () => {
     const engine = engineOf([
-      entry({ simplified: '你好', pinyinClean: 'nihao', pinyinNumbers: 'ni3 hao3', pinyinSyllables: ['ni3', 'hao3'], shortGloss: 'hello' }),
-      entry({ simplified: '尼好', pinyinClean: 'nihao', pinyinNumbers: 'ni2 hao3', pinyinSyllables: ['ni2', 'hao3'], shortGloss: 'a name' }),
+      entry({ simplified: '你好', pinyinNumbers: 'ni3 hao3', shortGloss: 'hello' }),
+      entry({ simplified: '尼好', pinyinNumbers: 'ni2 hao3', shortGloss: 'a name' }),
     ]);
 
     const { candidates } = engine.search('ni3hao3', { limit: 10 });
@@ -197,9 +191,9 @@ describe('PinyinSearchEngine tone filters across word lengths', () => {
 
   it('applies a tone to the syllable it was typed after, not the first one', () => {
     const engine = engineOf([
-      entry({ simplified: '你好', pinyinClean: 'nihao', pinyinNumbers: 'ni3 hao3', pinyinSyllables: ['ni3', 'hao3'] }),
-      entry({ simplified: '你号', pinyinClean: 'nihao', pinyinNumbers: 'ni3 hao4', pinyinSyllables: ['ni3', 'hao4'] }),
-      entry({ simplified: '泥号', pinyinClean: 'nihao', pinyinNumbers: 'ni2 hao4', pinyinSyllables: ['ni2', 'hao4'] }),
+      entry({ simplified: '你好', pinyinNumbers: 'ni3 hao3' }),
+      entry({ simplified: '你号', pinyinNumbers: 'ni3 hao4' }),
+      entry({ simplified: '泥号', pinyinNumbers: 'ni2 hao4' }),
     ]);
 
     // "nihao4" constrains hao. Read by order, the 4 used to land on ni and drop all three.
@@ -211,8 +205,8 @@ describe('PinyinSearchEngine tone filters across word lengths', () => {
   it('rejects a word whose syllables split the typed one differently', () => {
     // 彼岸 is bi3 an4: it shares the letters of "bian" but has no syllable ending there.
     const engine = engineOf([
-      entry({ simplified: '扁', pinyinClean: 'bian', pinyinNumbers: 'bian3', pinyinSyllables: ['bian3'], frequency: 40000 }),
-      entry({ simplified: '彼岸', pinyinClean: 'bian', pinyinNumbers: 'bi3 an4', pinyinSyllables: ['bi3', 'an4'], frequency: 90000 }),
+      entry({ simplified: '扁', pinyinNumbers: 'bian3', frequency: 40000 }),
+      entry({ simplified: '彼岸', pinyinNumbers: 'bi3 an4', frequency: 90000 }),
     ]);
 
     expect(engine.search('bian3').candidates.map((c) => c.hanzi)).toEqual(['扁']);
@@ -220,8 +214,8 @@ describe('PinyinSearchEngine tone filters across word lengths', () => {
 
   it('neither rewards nor drops a prefix candidate for a tone typed past its end', () => {
     const engine = engineOf([
-      entry({ simplified: '你', pinyinClean: 'ni', pinyinNumbers: 'ni3', pinyinSyllables: ['ni3'], frequency: 99000 }),
-      entry({ simplified: '你好', pinyinClean: 'nihao', pinyinNumbers: 'ni3 hao3', pinyinSyllables: ['ni3', 'hao3'] }),
+      entry({ simplified: '你', pinyinNumbers: 'ni3', frequency: 99000 }),
+      entry({ simplified: '你好', pinyinNumbers: 'ni3 hao3' }),
     ]);
 
     expect(engine.search('nihao3').candidates.map((c) => c.hanzi)).toEqual(['你好', '你']);
@@ -229,7 +223,7 @@ describe('PinyinSearchEngine tone filters across word lengths', () => {
 
   it('drops a shorter word that cannot supply the tone that was typed', () => {
     const engine = engineOf([
-      entry({ simplified: '安', pinyinClean: 'an', pinyinNumbers: 'an', pinyinSyllables: ['an'], shortGloss: 'toneless' }),
+      entry({ simplified: '安', pinyinNumbers: 'an', shortGloss: 'toneless' }),
     ]);
 
     expect(engine.search('an1').candidates).toEqual([]);

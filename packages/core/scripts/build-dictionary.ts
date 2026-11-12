@@ -3,20 +3,21 @@
  *
  * Reads CC-CEDICT (committed under packages/core/data/) and downloads the OpenSubtitles
  * Chinese frequency list and the HSK 2012 word list; joins them on the simplified form; and emits the B-tree asset that
- * `@pinyinduck/core` loads lazily at runtime.
+ * `@pinyinduck/core` reads at runtime.
  *
- * The default output is a paged B+ tree (`dictionary.btree`) keyed on toneless
- * pinyin. A client opens it by reading only its header and page directory, then
- * fetches the handful of pages a query touches, so a low-memory Android keyboard can
- * search the full corpus without materializing it. The legacy JSON tuple asset
- * (`--format json`) is still emitted for callers that want the whole dictionary in a
- * single parse.
+ * The output is a paged B+ tree (`dictionary.btree`) keyed on toneless pinyin. A
+ * client opens it by reading only its header and page directory and decodes just the
+ * pages a query touches, so a low-memory Android keyboard can search the full corpus
+ * without materializing it.
+ *
+ * The build also writes a gzip copy (`dictionary.btree.gz`) for the web app, which
+ * downloads the whole asset and decompresses it in the browser. Shipping it compressed
+ * keeps the download small on hosts that do not compress binary files themselves.
  *
  * Usage:
  *   npm run build:dict                 # download (cached) and emit the B-tree asset
  *   npm run build:dict -- --no-cache   # ignore the local download cache
- *   npm run build:dict -- --out <path> # write the asset somewhere else
- *   npm run build:dict -- --format json # emit the whole-dictionary JSON instead
+ *   npm run build:dict -- --out <path> # write the asset (and <path>.gz) somewhere else
  *
  * Sources (each pinned by SHA-256 in ./sources.ts):
  *   CC-CEDICT   https://www.mdbg.net/chinese/export/cedict/ (a dated copy in packages/core/data/)
@@ -39,10 +40,12 @@ const PACKAGE_DIR = path.resolve(__dirname, '..');
 const CACHE_DIR = path.join(PACKAGE_DIR, '.cache');
 const OUT_DIR = path.resolve(__dirname, '../../web/public');
 const DEFAULT_OUT = path.join(OUT_DIR, 'dictionary.btree');
-const DEFAULT_JSON_OUT = path.join(OUT_DIR, 'dictionary.json');
-
-/** Asset layouts the builder can emit. */
-export type DictionaryFormat = 'btree' | 'json';
+/**
+ * The web app imports the compressed copy from here, so Vite gives its production URL
+ * a content hash and a browser can cache it for good. Rime, the Android build and the
+ * parity generator read the uncompressed asset at `DEFAULT_OUT`.
+ */
+const DEFAULT_COMPRESSED_OUT = path.resolve(__dirname, '../../web/src/generated/dictionary.btree.gz');
 
 /** The two sources a build downloads. CC-CEDICT is committed rather than downloaded. */
 export const SOURCE_URLS = {
@@ -93,8 +96,8 @@ export function normalizeFrequency(count: number, corpusMax: number): number {
 
 /**
  * Builds a compact wire row from a parsed CC-CEDICT line.
- * Derived fields (tone marks, clean pinyin, syllables) are recomputed by the loader
- * so the asset only ever stores the source data.
+ * Derived fields (clean pinyin as the B-tree key, tone marks at search time) are
+ * recomputed from the pinyin column, so the asset only ever stores the source data.
  */
 export function buildDictRow(
   raw: RawCedictLine,
@@ -325,7 +328,7 @@ export function joinCorpora(
     rowIsSurname.push(isSurname);
   }
 
-  // Sanity check: the loader derives tone marks and clean pinyin from these columns,
+  // Sanity check: the B-tree key and the displayed tone marks derive from these columns,
   // so a bad pinyin column here would silently corrupt every downstream candidate.
   for (const row of rows) {
     if (!pinyinNumbersToMarks(row[2]) || !cleanPinyin(row[2])) {
@@ -342,7 +345,7 @@ export function joinCorpora(
 async function build(
   outPath: string,
   useCache: boolean,
-  format: DictionaryFormat = 'btree'
+  compressedOutPath: string = `${outPath}.gz`
 ): Promise<BuildStats> {
   const started = Date.now();
   console.log('Building the PinyinDuck dictionary from CC-CEDICT...\n');
@@ -361,27 +364,24 @@ async function build(
   );
 
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  const payload =
-    format === 'btree'
-      ? Buffer.from(buildBTree(rows))
-      : Buffer.from(JSON.stringify(rows), 'utf8');
+  const payload = Buffer.from(buildBTree(rows));
   fs.writeFileSync(outPath, payload);
+  // The web asset URL is a hash of these bytes, so the same rows must give the same bytes
+  // on every machine. Node writes a zero mtime into the gzip header, but zlib stamps the
+  // build OS into byte 9 (3 on Unix, 10 on Windows), so that is set to 255, "unknown".
+  // The header has no checksum of its own, so nothing else needs to change.
+  const compressed = zlib.gzipSync(payload, { level: 9 });
+  compressed[9] = 255;
+  fs.mkdirSync(path.dirname(compressedOutPath), { recursive: true });
+  fs.writeFileSync(compressedOutPath, compressed);
 
   console.log(`\n  parsed  ${stats.cedictLines} CC-CEDICT lines`);
   console.log(`  emitted ${stats.emitted} rows (${stats.dropped} duplicate readings dropped)`);
   console.log(`  coverage ${stats.withFrequency} with frequency, ${stats.withHsk} on the HSK list`);
   console.log(`  coverage ${stats.singleChar} single characters`);
-  console.log(
-    `  wrote   ${outPath} (${(payload.length / 1048576).toFixed(2)}MB, ${(
-      zlib.gzipSync(payload).length /
-      1048576
-    ).toFixed(2)}MB gzipped)`
-  );
-  if (format === 'btree') {
-    console.log('         B+ tree: a client reads only the header and the pages it needs');
-  } else {
-    console.log('         JSON: the whole dictionary is parsed into memory at once');
-  }
+  console.log(`  wrote   ${outPath} (${(payload.length / 1048576).toFixed(2)}MB)`);
+  console.log(`  wrote   ${compressedOutPath} (${(compressed.length / 1048576).toFixed(2)}MB)`);
+  console.log('         B+ tree: a client reads only the header and the pages it needs');
   console.log(`\nDone in ${((Date.now() - started) / 1000).toFixed(1)}s.`);
 
   return stats;
@@ -389,8 +389,8 @@ async function build(
 
 export interface BuildOptions {
   outPath: string;
+  compressedOutPath: string;
   useCache: boolean;
-  format: DictionaryFormat;
 }
 
 /**
@@ -400,26 +400,19 @@ export interface BuildOptions {
  */
 export function parseArgs(args: string[]): BuildOptions {
   const outIndex = args.indexOf('--out');
-  const formatIndex = args.indexOf('--format');
-  // Only read a value when the flag is present: with no --format, indexOf is -1 and
-  // args[0] would be mistaken for its value. An unknown value still means B-tree.
-  const format: DictionaryFormat =
-    formatIndex >= 0 && args[formatIndex + 1] === 'json' ? 'json' : 'btree';
+  const customOut = outIndex >= 0 && args[outIndex + 1] ? args[outIndex + 1] : null;
   return {
+    outPath: customOut ?? DEFAULT_OUT,
+    // A custom asset gets its compressed copy beside it, so a build to a scratch path
+    // never overwrites the copy the web app serves.
+    compressedOutPath: customOut ? `${customOut}.gz` : DEFAULT_COMPRESSED_OUT,
     useCache: !args.includes('--no-cache'),
-    format,
-    outPath:
-      outIndex >= 0 && args[outIndex + 1]
-        ? args[outIndex + 1]
-        : format === 'btree'
-          ? DEFAULT_OUT
-          : DEFAULT_JSON_OUT,
   };
 }
 
 async function main() {
-  const { outPath, useCache, format } = parseArgs(process.argv.slice(2));
-  await build(outPath, useCache, format);
+  const { outPath, compressedOutPath, useCache } = parseArgs(process.argv.slice(2));
+  await build(outPath, useCache, compressedOutPath);
 }
 
 // pathToFileURL rather than a `file://` template, which never matches a Windows path

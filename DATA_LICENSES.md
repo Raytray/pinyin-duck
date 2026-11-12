@@ -27,7 +27,8 @@ FrequencyWords. They are licensed under
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), and anyone who receives
 them may reuse them on those terms:
 
-- `dictionary.btree` and `dictionary.json`, used by the web app and bundled in the Android APK
+- `dictionary.btree`, bundled in the Android APK, and its gzip copy `dictionary.btree.gz`,
+  which the web app downloads
 - the Rime dictionaries `pinyinduck.dict.yaml` and `pinyinduck_trad.dict.yaml`
 - the Rime gloss data `lua/pinyinduck_gloss.lua`
 - `packages/android/app/src/test/resources/engine-parity.tsv`, the parity test golden

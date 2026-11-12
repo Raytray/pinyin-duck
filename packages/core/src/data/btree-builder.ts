@@ -3,8 +3,8 @@
  *
  * Entries are sorted by toneless pinyin, then by descending frequency, so a bounded
  * forward scan over a prefix range meets the most useful readings first. Leaves are
- * packed up to a byte budget, which keeps every page small enough to fetch in one
- * range request, and each level is grouped into a fixed fan-out until a single root
+ * packed up to a byte budget, which keeps every page cheap to read and decode on its
+ * own, and each level is grouped into a fixed fan-out until a single root
  * remains.
  */
 
@@ -18,6 +18,7 @@ import {
   encodeHeader,
   encodeInternalPage,
   encodeLeafPage,
+  writeStoredEntry,
   type BTreeHeader,
   type PageLocation,
   type StoredEntry,
@@ -71,19 +72,12 @@ export function sortStoredEntries(entries: StoredEntry[]): StoredEntry[] {
 
 function encodedEntrySize(entry: StoredEntry): number {
   const writer = new ByteWriter();
-  writer.string(entry.key);
-  writer.string(entry.simplified);
-  writer.string(entry.traditional);
-  writer.string(entry.pinyinNumbers);
-  writer.string(entry.shortGloss);
-  writer.varint(entry.frequency);
-  writer.u8(entry.hskLevel);
+  writeStoredEntry(writer, entry);
   return writer.size;
 }
 
 interface PageRef {
   id: number;
-  firstKey: string;
   /** Last key held by the page, used as the high-key separator of its parent. */
   lastKey: string;
 }
@@ -133,7 +127,6 @@ export function buildBTree(rows: DictionaryRow[], options: BuildBTreeOptions = {
   // Leaves are page ids 0..L-1 in order; the root grows on top of them.
   let level: PageRef[] = leaves.map((leaf, id) => ({
     id,
-    firstKey: leaf[0]?.key ?? '',
     lastKey: leaf[leaf.length - 1]?.key ?? '',
   }));
   while (level.length > 1) {
@@ -148,7 +141,6 @@ export function buildBTree(rows: DictionaryRow[], options: BuildBTreeOptions = {
       });
       parents.push({
         id,
-        firstKey: chunk[0].firstKey,
         lastKey: chunk[chunk.length - 1].lastKey,
       });
     }

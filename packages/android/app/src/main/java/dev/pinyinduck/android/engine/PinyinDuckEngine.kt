@@ -135,9 +135,9 @@ class PinyinDuckEngine(
         /**
          * Deterministic ordering for equal scores.
          *
-         * The in-memory trie engine's tie order falls out of trie insertion order, which
-         * a B-tree scan cannot reproduce. Sorting ties by frequency, then key, then form
-         * keeps the keyboard and the web app returning the same list in the same order.
+         * Page scan order is a storage detail, so it must not decide a tie. Sorting ties by
+         * frequency, then key, then form (core's `compareScored`) keeps the keyboard and the
+         * web app returning the same list in the same order.
          */
         val SCORED_ORDER: Comparator<ScoredEntry> =
             compareByDescending<ScoredEntry> { it.score }

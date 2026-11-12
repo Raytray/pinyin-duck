@@ -8,8 +8,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 
 /**
- * Byte-range source for the B-tree reader, the `PageSource` port of
- * `packages/core/src/data/page-source.ts`.
+ * Byte-range source for the B-tree reader.
  *
  * [read] returns a buffer positioned over the requested range. An mmap-backed source
  * hands out a zero-copy view; only a source that cannot map has to copy. That is what

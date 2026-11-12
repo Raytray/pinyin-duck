@@ -1,9 +1,9 @@
 /**
  * Shared candidate scoring and projection.
  *
- * Both the in-memory trie engine and the lazy B-tree engine rank the same way. Keeping
- * the formula in one place means a change to the ranking rules cannot drift between the
- * web client, the native clients and the on-disk scan.
+ * The search engine and the parity cases the Android port is checked against both rank
+ * through these functions. Keeping the formula in one place means a change to the
+ * ranking rules lands everywhere the TypeScript engine is used.
  */
 
 import { Candidate, ScriptType } from '../types.js';
@@ -15,9 +15,8 @@ import { syllableToneEnds, type ToneConstraint } from '../parser/pinyin.js';
  * A one-letter query such as `n` prefixes more than ten thousand dictionary entries, so
  * the scan needs a ceiling to stay bounded on a corpus that grows. It is set above the
  * widest prefix in the shipped CC-CEDICT corpus (10,266 entries, for `s`) so that the
- * default path never truncates and both engines report the same `total` for the same
- * query; a caller that wants a hard latency bound can pass a smaller `maxMatches` and
- * accept the truncated result.
+ * default path never truncates and `total` counts every match; a caller that wants a
+ * hard latency bound can pass a smaller `maxMatches` and accept the truncated result.
  */
 export const DEFAULT_MAX_MATCHES = 16384;
 
@@ -45,7 +44,6 @@ export interface CandidateSource extends ScorableEntry {
   traditional: string;
   pinyinMarks: string;
   shortGloss: string;
-  definitions?: string[];
 }
 
 /**
@@ -142,11 +140,10 @@ export interface ScoredEntry<E extends ScorableEntry = ScorableEntry> {
  * The one ordering every engine ranks by: score, then frequency, then key, form and
  * reading.
  *
- * Both TypeScript engines and the Android port sort with this exact chain, and use it
- * to pick which reading represents a hanzi that appears under several, so the same
- * query yields the same list in the same order whatever the storage layout. Insertion
- * or scan order must never decide a tie, because a trie and a B-tree enumerate entries
- * differently.
+ * The TypeScript engine and the Android port sort with this exact chain, and use it to
+ * pick which reading represents a hanzi that appears under several, so the same query
+ * yields the same list in the same order on every client. Insertion or scan order must
+ * never decide a tie, because page scan order is a storage detail.
  */
 export function compareScored(a: ScoredEntry, b: ScoredEntry): number {
   if (a.score !== b.score) return b.score - a.score;
@@ -182,7 +179,6 @@ export function entryToCandidate(
     pinyinMarks: entry.pinyinMarks,
     pinyinNumbers: entry.pinyinNumbers,
     shortGloss: entry.shortGloss,
-    definitions: entry.definitions,
     frequency: entry.frequency,
     matchedPinyin: entry.pinyinClean,
     remainingPinyin,

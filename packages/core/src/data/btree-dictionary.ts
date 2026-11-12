@@ -1,14 +1,12 @@
 /**
- * Lazy B-tree reader for the generated CC-CEDICT asset.
+ * B-tree reader for the generated CC-CEDICT asset.
  *
- * Opening the dictionary reads only the fixed header and the small page directory.
- * Every later operation descends the tree and fetches just the pages it needs, via a
- * `PageSource`, so memory stays bounded by an LRU page cache instead of the full
- * 122k-entry object graph the eager loader builds.
+ * The reader works over the asset's bytes in memory, so every operation is synchronous.
+ * Opening it parses only the fixed header and the small page directory, and checks that
+ * every page lies inside the asset; each lookup then decodes just the pages it descends
+ * through, and an LRU cache keeps the decoded pages that were used most recently. Decoding all 122k entries up front is never needed.
  *
- * This is the runtime an Android keyboard should use: point it at a `PageSource`
- * backed by a positioned file read (or an mmap) and the same lookup code works with
- * no whole-file allocation.
+ * The Android keyboard has its own Kotlin port of this reader over an mmapped file.
  */
 
 import {
@@ -25,13 +23,14 @@ import {
   type PageLocation,
   type StoredEntry,
 } from './btree-codec.js';
-import { createHttpPageSource, type HttpPageSourceOptions, type PageSource } from './page-source.js';
-
-/** Where the web app serves the generated B-tree asset from. */
-export const DEFAULT_BTREE_URL = '/dictionary.btree';
-
-/** Default resident page-cache budget. Roughly a hundred pages. */
-export const DEFAULT_PAGE_CACHE_BYTES = 256 * 1024;
+/**
+ * Default budget for decoded pages, counted in their encoded bytes.
+ *
+ * A one-letter prefix such as "s" spans about 800KB of pages, and the web app scans it
+ * again on every keystroke, so the budget holds a few such scans. With a smaller one a
+ * repeated "s" decoded every page again: about 15ms per keystroke instead of 2ms.
+ */
+export const DEFAULT_PAGE_CACHE_BYTES = 4 * 1024 * 1024;
 
 export interface BTreeDictionaryOptions {
   /** Maximum bytes of decoded pages kept in memory. */
@@ -43,7 +42,8 @@ interface CacheSlot {
   bytes: number;
 }
 
-function malformed(reason: string): Error {
+/** The error for an asset that cannot be decoded, which a rebuild fixes. */
+export function malformedDictionary(reason: string): Error {
   return new Error(
     `The dictionary payload is malformed or truncated (${reason}). ` +
       `Run "npm run build:dict" to regenerate it.`
@@ -54,20 +54,14 @@ function errorReason(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/**
- * A read-only B+ tree over dictionary entries keyed on toneless pinyin.
- *
- * Instances are safe to share: page reads are deduplicated in flight and the cache
- * is bounded, so concurrent searches cannot grow it without limit.
- */
+/** A read-only B+ tree over dictionary entries keyed on toneless pinyin. */
 export class BTreeDictionary {
   private readonly cache = new Map<number, CacheSlot>();
-  private readonly inflight = new Map<number, Promise<BTreeNodePage>>();
   private cacheBytes = 0;
   private readonly pageCacheBytes: number;
 
   private constructor(
-    private readonly source: PageSource,
+    private readonly bytes: Uint8Array,
     private readonly header: BTreeHeader,
     private readonly directory: PageLocation[],
     options: BTreeDictionaryOptions
@@ -75,34 +69,35 @@ export class BTreeDictionary {
     this.pageCacheBytes = options.pageCacheBytes ?? DEFAULT_PAGE_CACHE_BYTES;
   }
 
-  /** Reads the header and directory, leaving the pages on disk. */
-  static async open(
-    source: PageSource,
-    options: BTreeDictionaryOptions = {}
-  ): Promise<BTreeDictionary> {
-    // A source failure (HTTP status, network) propagates untouched, so callers can
-    // surface the original message. Only a decode failure is rewritten, because that
-    // is where a broken asset is distinguishable from a broken connection.
-    const headerBytes = await source.read(0, HEADER_SIZE);
+  /** Parses the header and directory of `bytes`, leaving the pages to be decoded on use. */
+  static open(bytes: Uint8Array, options: BTreeDictionaryOptions = {}): BTreeDictionary {
+    const headerBytes = slice(bytes, 0, HEADER_SIZE);
     let header: BTreeHeader;
     try {
       header = decodeHeader(headerBytes);
     } catch (error) {
-      throw malformed(errorReason(error));
+      throw malformedDictionary(errorReason(error));
     }
 
-    const directoryBytes = await source.read(header.directoryOffset, header.pageCount * 8);
+    const directoryBytes = slice(bytes, header.directoryOffset, header.pageCount * 8);
     let directory: PageLocation[];
     try {
       directory = decodeDirectory(directoryBytes, header.pageCount);
     } catch (error) {
-      throw malformed(errorReason(error));
+      throw malformedDictionary(errorReason(error));
     }
+    // The whole asset is in memory, so a truncated one is caught here rather than by
+    // whichever lookup first reaches a cut-off page.
+    directory.forEach(({ offset, length }, id) => {
+      if (offset + length > bytes.byteLength) {
+        throw malformedDictionary(`page ${id} ends past the end of the asset`);
+      }
+    });
 
-    return new BTreeDictionary(source, header, directory, options);
+    return new BTreeDictionary(bytes, header, directory, options);
   }
 
-  /** Number of entries the asset holds, known without reading a single page. */
+  /** Number of entries the asset holds, known without decoding a single page. */
   get entryCount(): number {
     return this.header.entryCount;
   }
@@ -119,8 +114,8 @@ export class BTreeDictionary {
    * runs), so this follows the leaf chain for as long as the key keeps going. It
    * normally stops after the first leaf.
    */
-  async lookupExact(key: string): Promise<StoredEntry[]> {
-    let leaf: LeafPage = await this.findLeaf(key);
+  lookupExact(key: string): StoredEntry[] {
+    let leaf: LeafPage = this.findLeaf(key);
     const matches: StoredEntry[] = [];
     for (;;) {
       for (const entry of leaf.entries) {
@@ -130,7 +125,7 @@ export class BTreeDictionary {
       // Only keep walking while the key is still running; `nextLeaf` is ordered, so a
       // leaf whose last key is past `key` means there is nothing left to find.
       if (!last || last.key !== key || leaf.nextLeaf === NO_PAGE) return matches;
-      leaf = await this.readLeaf(leaf.nextLeaf);
+      leaf = this.readLeaf(leaf.nextLeaf);
     }
   }
 
@@ -140,8 +135,8 @@ export class BTreeDictionary {
    * The visitor may return `false` to stop early, which the search engine uses to
    * enforce its scan budget.
    */
-  async scanPrefix(prefix: string, visit: (entry: StoredEntry) => boolean | void): Promise<void> {
-    let leaf: LeafPage = await this.findLeaf(prefix);
+  scanPrefix(prefix: string, visit: (entry: StoredEntry) => boolean | void): void {
+    let leaf: LeafPage = this.findLeaf(prefix);
     for (;;) {
       for (const entry of leaf.entries) {
         if (entry.key.startsWith(prefix)) {
@@ -153,7 +148,7 @@ export class BTreeDictionary {
         }
       }
       if (leaf.nextLeaf === NO_PAGE) return;
-      leaf = await this.readLeaf(leaf.nextLeaf);
+      leaf = this.readLeaf(leaf.nextLeaf);
     }
   }
 
@@ -163,10 +158,10 @@ export class BTreeDictionary {
     this.cacheBytes = 0;
   }
 
-  private async findLeaf(key: string): Promise<LeafPage> {
-    let page = await this.readPage(this.header.rootPageId);
+  private findLeaf(key: string): LeafPage {
+    let page = this.readPage(this.header.rootPageId);
     while (page.kind === 'internal') {
-      page = await this.readPage(this.childFor(page, key));
+      page = this.readPage(this.childFor(page, key));
     }
     return page;
   }
@@ -189,13 +184,13 @@ export class BTreeDictionary {
     return page.children[low];
   }
 
-  private async readLeaf(id: number): Promise<LeafPage> {
-    const page = await this.readPage(id);
-    if (page.kind !== 'leaf') throw malformed(`page ${id} is not a leaf`);
+  private readLeaf(id: number): LeafPage {
+    const page = this.readPage(id);
+    if (page.kind !== 'leaf') throw malformedDictionary(`page ${id} is not a leaf`);
     return page;
   }
 
-  private async readPage(id: number): Promise<BTreeNodePage> {
+  private readPage(id: number): BTreeNodePage {
     const cached = this.cache.get(id);
     if (cached) {
       // Refresh LRU position.
@@ -204,20 +199,10 @@ export class BTreeDictionary {
       return cached.page;
     }
 
-    const pending = this.inflight.get(id);
-    if (pending) return pending;
-
-    const promise = this.loadPage(id).finally(() => this.inflight.delete(id));
-    this.inflight.set(id, promise);
-    return promise;
-  }
-
-  private async loadPage(id: number): Promise<BTreeNodePage> {
     const location = this.directory[id];
-    if (!location) throw malformed(`page ${id} is outside the directory`);
+    if (!location) throw malformedDictionary(`page ${id} is outside the directory`);
 
-    // As in `open`, a read failure is the source's to report, not a decode problem.
-    const bytes = await this.source.read(location.offset, location.length);
+    const bytes = slice(this.bytes, location.offset, location.length);
     let page: BTreeNodePage;
     try {
       const kind = bytes.byteLength > 0 ? bytes[0] : -1;
@@ -225,7 +210,7 @@ export class BTreeDictionary {
       else if (kind === 1) page = decodeLeafPage(bytes);
       else throw new Error(`unknown page kind ${kind}`);
     } catch (error) {
-      throw malformed(errorReason(error));
+      throw malformedDictionary(errorReason(error));
     }
 
     this.remember(id, page, bytes.byteLength);
@@ -246,22 +231,7 @@ export class BTreeDictionary {
   }
 }
 
-export interface OpenBTreeDictionaryOptions extends BTreeDictionaryOptions, HttpPageSourceOptions {}
-
-/** Opens the dictionary served at `url` over HTTP, using range requests when supported. */
-export async function openBTreeDictionary(
-  url: string = DEFAULT_BTREE_URL,
-  options: OpenBTreeDictionaryOptions = {}
-): Promise<BTreeDictionary> {
-  const { fetchImpl, signal, ...dictionaryOptions } = options;
-  const source = createHttpPageSource(url, { fetchImpl, signal });
-  return BTreeDictionary.open(source, dictionaryOptions);
-}
-
-/** Opens a dictionary from an already constructed source (files, mmaps, tests). */
-export async function openBTreeDictionaryFromSource(
-  source: PageSource,
-  options: BTreeDictionaryOptions = {}
-): Promise<BTreeDictionary> {
-  return BTreeDictionary.open(source, options);
+/** Up to `length` bytes of `bytes` from `offset`, without copying. */
+function slice(bytes: Uint8Array, offset: number, length: number): Uint8Array {
+  return bytes.subarray(offset, Math.min(offset + length, bytes.byteLength));
 }
