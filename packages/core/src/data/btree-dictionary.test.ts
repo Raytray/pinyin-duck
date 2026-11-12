@@ -46,6 +46,14 @@ describe('opening', () => {
     expect(() => BTreeDictionary.open(asset.subarray(0, HEADER_SIZE + 4))).toThrow(/build:dict/);
   });
 
+  it('rejects an asset whose last page is cut short, before any lookup', () => {
+    // The header and directory are intact, so only the directory's page bounds show
+    // the asset is truncated. Opening checks them so a lookup never decodes a stub.
+    expect(() => BTreeDictionary.open(asset.subarray(0, asset.byteLength - 1))).toThrow(
+      /malformed or truncated \(page \d+ ends past the end of the asset\).*build:dict/
+    );
+  });
+
   it('throws a clear message when a page cannot be decoded', () => {
     // Corrupt a page body without touching the header or the directory, so the
     // failure is in the page itself rather than in opening the asset.

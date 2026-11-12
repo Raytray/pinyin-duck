@@ -2,9 +2,9 @@
  * B-tree reader for the generated CC-CEDICT asset.
  *
  * The reader works over the asset's bytes in memory, so every operation is synchronous.
- * Opening it parses only the fixed header and the small page directory; each lookup then
- * decodes just the pages it descends through, and an LRU cache keeps the decoded pages
- * that were used most recently. Decoding all 122k entries up front is never needed.
+ * Opening it parses only the fixed header and the small page directory, and checks that
+ * every page lies inside the asset; each lookup then decodes just the pages it descends
+ * through, and an LRU cache keeps the decoded pages that were used most recently. Decoding all 122k entries up front is never needed.
  *
  * The Android keyboard has its own Kotlin port of this reader over an mmapped file.
  */
@@ -80,6 +80,13 @@ export class BTreeDictionary {
     } catch (error) {
       throw malformedDictionary(errorReason(error));
     }
+    // The whole asset is in memory, so a truncated one is caught here rather than by
+    // whichever lookup first reaches a cut-off page.
+    directory.forEach(({ offset, length }, id) => {
+      if (offset + length > bytes.byteLength) {
+        throw malformedDictionary(`page ${id} ends past the end of the asset`);
+      }
+    });
 
     return new BTreeDictionary(bytes, header, directory, options);
   }
