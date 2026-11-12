@@ -101,16 +101,27 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
 
   // The search is synchronous and takes a few milliseconds, so the candidate list is
   // derived while rendering and always belongs to the buffer on screen.
-  const searchResult = useMemo((): SearchResult => {
-    if (!engine || !compositionBuffer) return EMPTY_RESULT;
+  const search = useMemo((): { result: SearchResult; error: string | null } => {
+    if (!engine || !compositionBuffer) return { result: EMPTY_RESULT, error: null };
     try {
-      return engine.search(compositionBuffer, { script, limit: CANDIDATE_LIMIT, offset: 0 });
-    } catch {
-      // Only a corrupt page throws here. Opening the asset already checked its header
-      // and directory, so treat the query as having no matches rather than crash.
-      return EMPTY_RESULT;
+      const result = engine.search(compositionBuffer, { script, limit: CANDIDATE_LIMIT, offset: 0 });
+      return { result, error: null };
+    } catch (err) {
+      // Only a corrupt page throws here: opening the asset already checked its header,
+      // directory and page bounds. The query has no candidates, and the effect below
+      // reports the broken asset rather than letting it pass for "no match".
+      return { result: EMPTY_RESULT, error: err instanceof Error ? err.message : String(err) };
     }
   }, [engine, compositionBuffer, script]);
+  const searchResult = search.result;
+
+  // A corrupt page means the asset is broken for good, so the failure sticks, as a
+  // failed load does, and raw pinyin can still be committed.
+  useEffect(() => {
+    if (search.error === null) return;
+    setDictionaryError(search.error);
+    setDictionaryStatus('error');
+  }, [search.error]);
 
   const allCandidates = searchResult.candidates;
   const totalCandidates = allCandidates.length;

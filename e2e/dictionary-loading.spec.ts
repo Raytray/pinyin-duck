@@ -1,4 +1,8 @@
+import { readFileSync } from 'fs';
+import path from 'path';
+import { gunzipSync, gzipSync } from 'zlib';
 import { test, expect } from './coverage-fixtures.js';
+import { HEADER_SIZE, decodeDirectory, decodeHeader } from '../packages/core/src/data/btree-codec';
 import {
   editor,
   candidateList,
@@ -116,6 +120,42 @@ test('reports a dictionary payload that is not a B-tree asset at all', async ({ 
   // The parse error is a real message rather than an empty or "undefined" one.
   await expect(page.locator('.dictionary-error span')).not.toBeEmpty();
   await expect(dictionaryStatus(page)).toContainText('Failed to load');
+});
+
+/** The real asset, gzipped, with its root page's kind byte corrupted. */
+function assetWithCorruptRoot(): Buffer {
+  const asset = gunzipSync(
+    readFileSync(path.resolve(__dirname, '../packages/web/src/generated/dictionary.btree.gz'))
+  );
+  const header = decodeHeader(asset.subarray(0, HEADER_SIZE));
+  const directory = decodeDirectory(
+    asset.subarray(header.directoryOffset, header.directoryOffset + header.pageCount * 8),
+    header.pageCount
+  );
+  asset[directory[header.rootPageId].offset] = 0x7f;
+  return gzipSync(asset);
+}
+
+test('surfaces a corrupt dictionary page instead of showing no match', async ({ page }) => {
+  // The header and directory are intact, so the asset opens, but every search reaches
+  // the broken root page. That must not look like a pinyin with no candidates.
+  const body = assetWithCorruptRoot();
+  await page.route(DICTIONARY_ASSET, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/octet-stream', body })
+  );
+
+  await page.goto('/');
+  await expect(dictionaryStatus(page)).toContainText('entries');
+
+  await editor(page).pressSequentially('nihao');
+  await expect(dictionaryError(page)).toContainText('malformed or truncated');
+  await expect(dictionaryError(page)).toContainText('build:dict');
+  await expect(dictionaryStatus(page)).toContainText('Failed to load');
+  await expect(page.locator('.candidate-empty-msg')).toContainText('Dictionary unavailable');
+
+  // As with any failed dictionary, the pinyin typed can still be committed.
+  await editor(page).press('Enter');
+  await expect(editor(page)).toHaveValue('nihao');
 });
 
 test('stringifies a load failure that is not an Error instance', async ({ page }) => {
