@@ -321,6 +321,20 @@ describe('build', () => {
     expect(new Uint8Array(gunzipSync(compressed))).toEqual(readBytes(out));
   });
 
+  it('writes a gzip header that does not depend on the build machine', async () => {
+    // The web asset URL is a hash of these bytes. zlib stamps the OS it ran on into
+    // header byte 9 (3 on Unix, 10 on Windows), so the build marks it "unknown" (255)
+    // instead, and the mtime (bytes 4-7) is zero.
+    installFetch(defaultHandlers());
+    const out = '/tmp/pinyinduck-gzip-header/dictionary.btree';
+
+    await build(out, false);
+
+    const header = readBytes(`${out}.gz`).subarray(0, 10);
+    expect(Array.from(header.subarray(4, 8))).toEqual([0, 0, 0, 0]);
+    expect(header[9]).toBe(255);
+  });
+
   it('writes the gzip copy to the path it is given', async () => {
     installFetch(defaultHandlers());
     const out = '/tmp/pinyinduck-gzip-elsewhere/dictionary.btree';

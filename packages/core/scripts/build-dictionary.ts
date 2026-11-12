@@ -366,8 +366,12 @@ async function build(
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   const payload = Buffer.from(buildBTree(rows));
   fs.writeFileSync(outPath, payload);
-  // Node writes a zero mtime into the gzip header, so the same rows give the same bytes.
+  // The web asset URL is a hash of these bytes, so the same rows must give the same bytes
+  // on every machine. Node writes a zero mtime into the gzip header, but zlib stamps the
+  // build OS into byte 9 (3 on Unix, 10 on Windows), so that is set to 255, "unknown".
+  // The header has no checksum of its own, so nothing else needs to change.
   const compressed = zlib.gzipSync(payload, { level: 9 });
+  compressed[9] = 255;
   fs.mkdirSync(path.dirname(compressedOutPath), { recursive: true });
   fs.writeFileSync(compressedOutPath, compressed);
 
