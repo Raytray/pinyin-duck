@@ -37,10 +37,17 @@ export async function loadDictionary(
     );
   }
 
-  const downloaded = await readBody(response, onProgress);
-  return BTreeDictionary.open(await gunzip(downloaded));
+  return BTreeDictionary.open(await readBody(response, onProgress));
 }
 
+/**
+ * Reads the body, decompressing it on the way when it is gzip, into one buffer.
+ *
+ * A host that serves `.gz` files with `Content-Encoding: gzip` has the browser decompress
+ * the body before it reaches the app. Checking the gzip magic number on the first bytes
+ * covers that host and every other without asking which one this is. The body streams
+ * straight into the decompressor, so the download is never held twice.
+ */
 async function readBody(
   response: Response,
   onProgress: LoadDictionaryOptions['onProgress']
@@ -53,38 +60,59 @@ async function readBody(
 
   if (!response.body) throw malformedDictionary('empty response');
   const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
   let loaded = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
+  // A failure reading the body (an abort, a dropped connection) is passed on as it is,
+  // so only a failure to decompress is reported as a malformed asset.
+  let readError: unknown;
+  const read = async () => {
+    try {
+      const result = await reader.read();
+      if (!result.done) {
+        loaded += result.value.byteLength;
+        onProgress?.({ loaded, total });
+      }
+      return result;
+    } catch (error) {
+      readError = error;
+      throw error;
+    }
+  };
+
+  // Enough of the body to see the two magic bytes, which a tiny first chunk may not hold.
+  const head: Uint8Array[] = [];
+  while (loaded < 2) {
+    const { done, value } = await read();
     if (done) break;
-    chunks.push(value);
-    loaded += value.byteLength;
-    onProgress?.({ loaded, total });
+    head.push(value);
   }
+  const magic = head.flatMap((chunk) => Array.from(chunk.subarray(0, 2))).slice(0, 2);
+  const gzipped = magic[0] === 0x1f && magic[1] === 0x8b;
 
-  const body = new Uint8Array(loaded);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return body;
-}
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of head) controller.enqueue(chunk);
+    },
+    async pull(controller) {
+      const { done, value } = await read();
+      if (done) controller.close();
+      else controller.enqueue(value);
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
 
-/**
- * Decompresses a gzip payload, or returns it untouched when it is not gzip.
- *
- * A host that serves `.gz` files with `Content-Encoding: gzip` has the browser decompress
- * the body before it reaches the app. Checking the gzip magic number covers that host
- * and every other without asking which one this is.
- */
-async function gunzip(bytes: Uint8Array): Promise<Uint8Array> {
-  if (bytes.byteLength < 2 || bytes[0] !== 0x1f || bytes[1] !== 0x8b) return bytes;
   try {
-    const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream('gzip'));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
+    // The DOM types declare the decompressor's input as `BufferSource`, which a
+    // `Uint8Array` over any buffer is at runtime but not to the type checker.
+    const bytes = gzipped
+      ? body.pipeThrough(
+          new DecompressionStream('gzip') as ReadableWritablePair<Uint8Array, Uint8Array>
+        )
+      : body;
+    return new Uint8Array(await new Response(bytes).arrayBuffer());
   } catch (error) {
+    if (readError !== undefined && error === readError) throw error;
     throw malformedDictionary(error instanceof Error ? error.message : String(error));
   }
 }

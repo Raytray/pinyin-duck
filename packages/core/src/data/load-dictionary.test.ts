@@ -113,6 +113,24 @@ describe('loadDictionary', () => {
     expect(seen).toBe(controller.signal);
   });
 
+  it('passes on a failure while reading the body rather than calling the asset malformed', async () => {
+    // The web hook ignores an AbortError, so an abort mid-download must keep its name.
+    const aborted = new DOMException('The download was aborted', 'AbortError');
+    let sent = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sent) controller.error(aborted);
+        else controller.enqueue(compressed.slice(0, 100));
+        sent = true;
+      },
+    });
+    const failure = loadDictionary('/d.btree.gz', {
+      fetchImpl: fetchReturning(() => new Response(body)),
+    });
+
+    await expect(failure).rejects.toBe(aborted);
+  });
+
   it('names the status and the rebuild command when the request fails', async () => {
     const failure = loadDictionary('/d.btree.gz', {
       fetchImpl: fetchReturning(
