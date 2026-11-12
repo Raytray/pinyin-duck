@@ -1,8 +1,8 @@
 /**
- * Search over the lazy B-tree dictionary.
+ * Search over the B-tree dictionary.
  *
- * Loading every entry into memory would be too much resident memory for an Android
- * keyboard, so this engine walks only the pages a query touches:
+ * The search is synchronous, and it decodes only the pages a query touches rather than
+ * materializing all 122k entries:
  *
  *   1. exact matches come from a single root-to-leaf descent
  *   2. prefix matches come from that descent plus a bounded forward leaf scan
@@ -33,7 +33,7 @@ interface ScoredStoredEntry extends ScoredEntry {
 export class LazyPinyinSearchEngine {
   constructor(private readonly dictionary: BTreeDictionary) {}
 
-  async search(query: string, options: SearchOptions = {}): Promise<SearchResult> {
+  search(query: string, options: SearchOptions = {}): SearchResult {
     const rawQuery = query.trim().toLowerCase();
     if (!rawQuery) {
       return { query: rawQuery, segments: [], candidates: [], total: 0 };
@@ -65,11 +65,11 @@ export class LazyPinyinSearchEngine {
       if (!previous || compareScored(candidate, previous) < 0) chosen.set(hanzi, candidate);
     };
 
-    for (const entry of await this.dictionary.lookupExact(tonelessQuery)) consider(entry);
+    for (const entry of this.dictionary.lookupExact(tonelessQuery)) consider(entry);
 
     let scanned = 0;
     if (!options.exactOnly) {
-      await this.dictionary.scanPrefix(tonelessQuery, (entry) => {
+      this.dictionary.scanPrefix(tonelessQuery, (entry) => {
         consider(entry);
         scanned++;
         return scanned < maxMatches;
@@ -80,7 +80,7 @@ export class LazyPinyinSearchEngine {
     // also offers matches for the first full syllable.
     const firstSyllable = segments[0] ? cleanPinyin(segments[0]) : '';
     if (segments.length > 1 && firstSyllable && firstSyllable !== tonelessQuery) {
-      for (const entry of await this.dictionary.lookupExact(firstSyllable)) consider(entry);
+      for (const entry of this.dictionary.lookupExact(firstSyllable)) consider(entry);
     }
 
     const ranked = Array.from(chosen.values()).sort(compareScored);

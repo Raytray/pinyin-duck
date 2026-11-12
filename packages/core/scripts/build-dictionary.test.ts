@@ -10,7 +10,6 @@ import {
 } from './build-dictionary';
 import { normalizePinyin } from '../src/parser/pinyin.js';
 import { buildBTree } from '../src/data/btree-builder.js';
-import { MemoryPageSource } from '../src/data/page-source.js';
 import { BTreeDictionary } from '../src/data/btree-dictionary.js';
 
 const cctv: RawCedictLine = {
@@ -320,10 +319,10 @@ describe('joinCorpora', () => {
     expect(() => joinCorpora(broken, '', '')).toThrow(/unparsable pinyin/);
   });
 
-  it('round-trips its rows through the B-tree, each reachable by its toneless key', async () => {
+  it('round-trips its rows through the B-tree, each reachable by its toneless key', () => {
     const { rows } = joinCorpora(cedict, frequency, hsk);
-    const dictionary = await BTreeDictionary.open(
-      new MemoryPageSource(buildBTree(rows))
+    const dictionary = BTreeDictionary.open(
+      buildBTree(rows)
     );
     expect(rows).toHaveLength(5);
     expect(dictionary.entryCount).toBe(5);
@@ -335,7 +334,7 @@ describe('joinCorpora', () => {
       ['da', '龘'],
     ];
     for (const [key, simplified] of expected) {
-      const found = await dictionary.lookupExact(key);
+      const found = dictionary.lookupExact(key);
       expect(found.map((e) => e.simplified), key).toEqual([simplified]);
     }
   });

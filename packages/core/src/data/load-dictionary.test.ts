@@ -40,7 +40,7 @@ describe('loadDictionary', () => {
     });
 
     expect(dictionary.entryCount).toBe(rows.length);
-    expect((await dictionary.lookupExact('zhongguo'))[0].simplified).toBe('中国');
+    expect(dictionary.lookupExact('zhongguo')[0].simplified).toBe('中国');
   });
 
   it('reports download progress against the compressed size', async () => {

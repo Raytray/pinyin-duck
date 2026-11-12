@@ -53,7 +53,6 @@ vi.mock('fs', () => ({
 import { build, parseArgs, sha256, SOURCE_URLS, type BuildStats } from './build-dictionary';
 import { SOURCES } from './sources';
 import { BTreeDictionary } from '../src/data/btree-dictionary';
-import { MemoryPageSource } from '../src/data/page-source';
 import { LazyPinyinSearchEngine } from '../src/index/lazy-search';
 
 const CACHE_DIR = path.resolve(__dirname, '../.cache');
@@ -76,7 +75,7 @@ function readBytes(p: string): Uint8Array {
 
 /** Opens the written asset as a B-tree dictionary. */
 function openAsset(p: string) {
-  return BTreeDictionary.open(new MemoryPageSource(readBytes(p)));
+  return BTreeDictionary.open(readBytes(p));
 }
 
 /** Minimal stand-in for the parts of `Response` that `readPinned` reads. */
@@ -145,9 +144,9 @@ describe('build', () => {
 
     expect(calls.sort()).toEqual([SOURCE_URLS.frequency, SOURCE_URLS.hsk].sort());
     expect(logs.join('\n')).toContain('local   data/cedict.txt');
-    const dictionary = await openAsset(out);
+    const dictionary = openAsset(out);
     expect(dictionary.entryCount).toBe(2);
-    expect((await dictionary.lookupExact('zhongguo'))[0].simplified).toBe('中国');
+    expect(dictionary.lookupExact('zhongguo')[0].simplified).toBe('中国');
     expect(stats.emitted).toBe(2);
     expect(stats.cedictLines).toBe(2);
   });
@@ -298,9 +297,9 @@ describe('build', () => {
 
     await build(out, false);
 
-    const dictionary = await openAsset(out);
+    const dictionary = openAsset(out);
     const engine = new LazyPinyinSearchEngine(dictionary);
-    const result = await engine.search('nihao', { limit: 5 });
+    const result = engine.search('nihao', { limit: 5 });
 
     expect(dictionary.entryCount).toBe(2);
     // The fixture has no 你 entry, so the only "nihao" reading is the two-character
@@ -342,10 +341,10 @@ describe('build', () => {
 
     await build(out, false);
 
-    const dictionary = await openAsset(out);
+    const dictionary = openAsset(out);
     expect(dictionary.pageCount).toBeGreaterThan(0);
 
-    const china = await dictionary.lookupExact('zhongguo');
+    const china = dictionary.lookupExact('zhongguo');
     expect(china).toHaveLength(1);
     expect(china[0].simplified).toBe('中国');
     expect(china[0].traditional).toBe('中國');
@@ -353,7 +352,7 @@ describe('build', () => {
     // 中国 is the busiest word in the fixture corpus, so it anchors the frequency scale.
     expect(china[0].frequency).toBe(100000);
 
-    const nihao = await dictionary.lookupExact('nihao');
+    const nihao = dictionary.lookupExact('nihao');
     expect(nihao[0].simplified).toBe('你好');
     expect(nihao[0].hskLevel).toBe(1);
     expect(nihao[0].frequency).toBeGreaterThan(0);
@@ -472,7 +471,7 @@ describe('command line entry point', () => {
     await runAsScript(['--out', out]);
     await flush();
 
-    const dictionary = await openAsset(out);
+    const dictionary = openAsset(out);
     expect(dictionary.entryCount).toBe(2);
     expect(process.exitCode).toBe(originalExitCode);
   });
@@ -486,7 +485,7 @@ describe('command line entry point', () => {
     await flush();
 
     expect(calls).toEqual([]);
-    expect((await openAsset(out)).entryCount).toBe(2);
+    expect(openAsset(out).entryCount).toBe(2);
   });
 
   it('reports a download failure and sets a failing exit code', async () => {

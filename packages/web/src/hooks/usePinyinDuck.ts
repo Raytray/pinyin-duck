@@ -227,8 +227,9 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       const current = engineRef.current;
       if (!current || !query) return Promise.resolve(EMPTY_RESULT);
 
-      const promise = current
-        .search(query, { script: forScript, limit: CANDIDATE_LIMIT, offset: 0 })
+      // The engine is synchronous now; this hook's queue is removed in the next change.
+      const promise = Promise.resolve()
+        .then(() => current.search(query, { script: forScript, limit: CANDIDATE_LIMIT, offset: 0 }))
         .catch(() => EMPTY_RESULT);
       searchRunRef.current = { key, promise };
       return promise;

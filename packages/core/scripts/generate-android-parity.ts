@@ -24,7 +24,6 @@ import { fileURLToPath } from 'url';
 
 import { LazyPinyinSearchEngine } from '../src/index/lazy-search.js';
 import { BTreeDictionary } from '../src/data/btree-dictionary.js';
-import { MemoryPageSource } from '../src/data/page-source.js';
 import { buildParityCases } from './parity-cases.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -44,7 +43,7 @@ const CANDIDATE_DEPTH = 12;
 /** The queries to pin, generated in `parity-cases.ts`. */
 const CASES = buildParityCases();
 
-async function main(): Promise<void> {
+function main(): void {
   if (!fs.existsSync(DICTIONARY_PATH)) {
     throw new Error(
       `Missing ${DICTIONARY_PATH}. Run "npm run build:dict" at the repository root first.`
@@ -52,7 +51,7 @@ async function main(): Promise<void> {
   }
 
   const bytes = fs.readFileSync(DICTIONARY_PATH);
-  const dictionary = await BTreeDictionary.open(new MemoryPageSource(bytes));
+  const dictionary = BTreeDictionary.open(bytes);
   const engine = new LazyPinyinSearchEngine(dictionary);
 
   const lines: string[] = [
@@ -71,7 +70,7 @@ async function main(): Promise<void> {
   ];
 
   for (const testCase of CASES) {
-    const result = await engine.search(testCase.query, {
+    const result = engine.search(testCase.query, {
       script: testCase.script,
       limit: CANDIDATE_DEPTH,
     });
@@ -91,7 +90,9 @@ async function main(): Promise<void> {
   console.log(`Pinned ${CASES.length} queries over ${dictionary.entryCount} entries.`);
 }
 
-main().catch((error: unknown) => {
+try {
+  main();
+} catch (error: unknown) {
   console.error(error);
   process.exitCode = 1;
-});
+}

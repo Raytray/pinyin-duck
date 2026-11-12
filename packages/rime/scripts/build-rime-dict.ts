@@ -20,7 +20,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
-import { BTreeDictionary, MemoryPageSource } from '@pinyinduck/core';
+import { BTreeDictionary } from '@pinyinduck/core';
 import {
   RIME_SCRIPTS,
   RimeDictWriter,
@@ -240,9 +240,7 @@ export async function buildRimeDictionaries(
     );
   }
 
-  const dictionary = await BTreeDictionary.open(
-    new MemoryPageSource(deps.readAsset(options.btreePath))
-  );
+  const dictionary = BTreeDictionary.open(deps.readAsset(options.btreePath));
 
   deps.ensureDir(options.outDir);
 
@@ -285,7 +283,7 @@ export async function buildRimeDictionaries(
     sinks[script] = sink;
   }
 
-  await dictionary.scanPrefix('', (entry) => {
+  dictionary.scanPrefix('', (entry) => {
     for (const script of RIME_SCRIPTS) writers[script].add(entry);
     return true;
   });

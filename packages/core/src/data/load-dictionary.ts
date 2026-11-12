@@ -8,7 +8,6 @@
  */
 
 import { BTreeDictionary, malformedDictionary } from './btree-dictionary.js';
-import { MemoryPageSource } from './page-source.js';
 
 export interface DownloadProgress {
   /** Bytes of the body received so far. */
@@ -39,7 +38,7 @@ export async function loadDictionary(
   }
 
   const downloaded = await readBody(response, onProgress);
-  return BTreeDictionary.open(new MemoryPageSource(await gunzip(downloaded)));
+  return BTreeDictionary.open(await gunzip(downloaded));
 }
 
 async function readBody(

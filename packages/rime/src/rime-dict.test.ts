@@ -11,7 +11,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   BTreeDictionary,
-  MemoryPageSource,
   buildBTree,
   scoreEntry,
   storedEntryToScorable,
@@ -524,14 +523,14 @@ describe('a whole dictionary', () => {
     script: 'simplified' | 'traditional' = 'simplified'
   ) {
     const encoded = buildBTree(rows.map((row) => [...row] as never));
-    const dictionary = await BTreeDictionary.open(new MemoryPageSource(encoded));
+    const dictionary = BTreeDictionary.open(encoded);
     const emitted: RimeRow[] = [];
     const writer = new RimeDictWriter(
       { name: 'pinyinduck', version: '0.1.0', entryCount: dictionary.entryCount },
       script,
       (row) => emitted.push(row)
     );
-    await dictionary.scanPrefix('', (stored) => {
+    dictionary.scanPrefix('', (stored) => {
       writer.add(stored);
       return true;
     });

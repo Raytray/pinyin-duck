@@ -8,7 +8,6 @@ import {
   type StoredEntry,
 } from './btree-codec';
 import { BTreeDictionary } from './btree-dictionary';
-import { MemoryPageSource } from './page-source';
 import type { DictionaryRow } from './dictionary-codec';
 
 const china: DictionaryRow = ['中国', '中國', 'zhong1 guo2', 'China', 58468, 1];
@@ -27,10 +26,10 @@ function stored(partial: Partial<StoredEntry> & { key: string }): StoredEntry {
 }
 
 /** Reads back every entry in the tree, so assertions do not depend on page layout. */
-async function readAll(bytes: Uint8Array): Promise<StoredEntry[]> {
-  const dictionary = await BTreeDictionary.open(new MemoryPageSource(bytes));
+function readAll(bytes: Uint8Array): StoredEntry[] {
+  const dictionary = BTreeDictionary.open(bytes);
   const all: StoredEntry[] = [];
-  await dictionary.scanPrefix('', (entry) => {
+  dictionary.scanPrefix('', (entry) => {
     all.push(entry);
   });
   return all;
@@ -83,7 +82,7 @@ describe('sortStoredEntries', () => {
 });
 
 describe('buildBTree', () => {
-  it('emits a header describing the entries it holds', async () => {
+  it('emits a header describing the entries it holds', () => {
     const bytes = buildBTree([china, hello]);
 
     expect(bytes.length).toBeGreaterThan(HEADER_SIZE);
@@ -95,24 +94,24 @@ describe('buildBTree', () => {
     expect(header.rootPageId).toBe(0);
   });
 
-  it('round-trips every field of every entry', async () => {
-    const all = await readAll(buildBTree([china, hello]));
+  it('round-trips every field of every entry', () => {
+    const all = readAll(buildBTree([china, hello]));
 
     expect(all).toEqual([storedEntryFromRow(hello), storedEntryFromRow(china)]);
   });
 
-  it('stores entries in key order', async () => {
+  it('stores entries in key order', () => {
     const rows: DictionaryRow[] = [
       ['好', '好', 'hao3', 'good', 50000, 1],
       ['尼', '尼', 'ni2', 'nun', 40000, 0],
       ['你', '你', 'ni3', 'you', 90000, 1],
     ];
 
-    const all = await readAll(buildBTree(rows));
+    const all = readAll(buildBTree(rows));
     expect(all.map((e) => e.key)).toEqual(['hao', 'ni', 'ni']);
   });
 
-  it('packs many entries into a multi-level tree that still reads back exactly', async () => {
+  it('packs many entries into a multi-level tree that still reads back exactly', () => {
     // Enough distinct keys to force leaves to split and internal levels to fan out.
     const rows: DictionaryRow[] = Array.from({ length: 500 }, (_, i) => [
       `字${i}`,
@@ -128,7 +127,7 @@ describe('buildBTree', () => {
     expect(header.entryCount).toBe(500);
     expect(header.pageCount).toBeGreaterThan(3);
 
-    const all = await readAll(bytes);
+    const all = readAll(bytes);
     expect(all).toHaveLength(500);
     expect(all.map((e) => e.simplified).sort()).toEqual(rows.map((r) => r[0]).sort());
 
@@ -148,7 +147,7 @@ describe('buildBTree', () => {
     }
   });
 
-  it('honours tighter leaf and fan-out budgets without losing entries', async () => {
+  it('honours tighter leaf and fan-out budgets without losing entries', () => {
     const rows: DictionaryRow[] = Array.from({ length: 60 }, (_, i) => [
       `字${i}`,
       `字${i}`,
@@ -159,13 +158,13 @@ describe('buildBTree', () => {
     ]);
 
     const bytes = buildBTree(rows, { maxLeafEntries: 3, maxFanout: 2 });
-    const all = await readAll(bytes);
+    const all = readAll(bytes);
 
     expect(all).toHaveLength(60);
     expect(all.map((e) => e.simplified).sort()).toEqual(rows.map((r) => r[0]).sort());
   });
 
-  it('keeps one key findable when that key spans several leaves', async () => {
+  it('keeps one key findable when that key spans several leaves', () => {
     // A single pinyin reading can be shared by far more entries than fit in one
     // leaf. Descent has to resolve to the leaf that *starts* holding the key, or the
     // earlier (here: higher-scoring) entries are silently skipped.
@@ -179,24 +178,24 @@ describe('buildBTree', () => {
     ]);
     const rows: DictionaryRow[] = [...many, ['尾', '尾', 'wei3', 'tail', 90000, 0]];
 
-    const dictionary = await BTreeDictionary.open(
-      new MemoryPageSource(buildBTree(rows, { maxLeafEntries: 4, maxFanout: 3 }))
+    const dictionary = BTreeDictionary.open(
+      buildBTree(rows, { maxLeafEntries: 4, maxFanout: 3 })
     );
 
-    const exact = await dictionary.lookupExact('ni');
+    const exact = dictionary.lookupExact('ni');
     expect(exact).toHaveLength(40);
     // Sorted by descending frequency, so the most frequent reading must be first.
     expect(exact[0].simplified).toBe('字0');
     expect(exact[39].simplified).toBe('字39');
 
     const scanned: string[] = [];
-    await dictionary.scanPrefix('ni', (entry) => {
+    dictionary.scanPrefix('ni', (entry) => {
       scanned.push(entry.simplified);
     });
     expect(scanned).toHaveLength(40);
   });
 
-  it('links the leaf chain so a prefix scan can walk forward across leaves', async () => {
+  it('links the leaf chain so a prefix scan can walk forward across leaves', () => {
     const rows: DictionaryRow[] = Array.from({ length: 20 }, (_, i) => [
       `字${i}`,
       `字${i}`,
@@ -207,10 +206,10 @@ describe('buildBTree', () => {
     ]);
 
     const bytes = buildBTree(rows, { maxLeafEntries: 2 });
-    const dictionary = await BTreeDictionary.open(new MemoryPageSource(bytes));
+    const dictionary = BTreeDictionary.open(bytes);
 
     const seen: string[] = [];
-    await dictionary.scanPrefix('hao', (entry) => {
+    dictionary.scanPrefix('hao', (entry) => {
       seen.push(entry.simplified);
     });
 
