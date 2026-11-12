@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { buildBTree, sortStoredEntries, storedEntryFromRow } from './btree-builder';
-import { HEADER_SIZE, decodeHeader, type StoredEntry } from './btree-codec';
-import { openBTreeDictionaryFromSource } from './btree-dictionary';
+import {
+  HEADER_SIZE,
+  decodeDirectory,
+  decodeHeader,
+  decodeLeafPage,
+  type StoredEntry,
+} from './btree-codec';
+import { BTreeDictionary } from './btree-dictionary';
 import { MemoryPageSource } from './page-source';
 import type { DictionaryRow } from './dictionary-codec';
 
@@ -22,7 +28,7 @@ function stored(partial: Partial<StoredEntry> & { key: string }): StoredEntry {
 
 /** Reads back every entry in the tree, so assertions do not depend on page layout. */
 async function readAll(bytes: Uint8Array): Promise<StoredEntry[]> {
-  const dictionary = await openBTreeDictionaryFromSource(new MemoryPageSource(bytes));
+  const dictionary = await BTreeDictionary.open(new MemoryPageSource(bytes));
   const all: StoredEntry[] = [];
   await dictionary.scanPrefix('', (entry) => {
     all.push(entry);
@@ -173,7 +179,7 @@ describe('buildBTree', () => {
     ]);
     const rows: DictionaryRow[] = [...many, ['尾', '尾', 'wei3', 'tail', 90000, 0]];
 
-    const dictionary = await openBTreeDictionaryFromSource(
+    const dictionary = await BTreeDictionary.open(
       new MemoryPageSource(buildBTree(rows, { maxLeafEntries: 4, maxFanout: 3 }))
     );
 
@@ -201,7 +207,7 @@ describe('buildBTree', () => {
     ]);
 
     const bytes = buildBTree(rows, { maxLeafEntries: 2 });
-    const dictionary = await openBTreeDictionaryFromSource(new MemoryPageSource(bytes));
+    const dictionary = await BTreeDictionary.open(new MemoryPageSource(bytes));
 
     const seen: string[] = [];
     await dictionary.scanPrefix('hao', (entry) => {
@@ -213,6 +219,31 @@ describe('buildBTree', () => {
     // Within the key, frequency descending: the largest index is the busiest.
     expect(seen[0]).toBe('字19');
     expect(seen[19]).toBe('字0');
+  });
+
+  it('fills each leaf right up to the byte budget and never past it', () => {
+    // Each of these entries encodes to 17 bytes: key "a" (2), two 3-byte hanzi (4 + 4),
+    // "a1" (3), gloss "g" (2), a one-byte frequency varint and the HSK byte. A leaf page
+    // adds a 7-byte header, so a 58-byte budget holds exactly three entries.
+    const rows: DictionaryRow[] = Array.from({ length: 10 }, (_, i) => ['字', '字', 'a1', 'g', i, 0]);
+
+    const leafSizes = (maxLeafBytes: number) => {
+      const bytes = buildBTree(rows, { maxLeafBytes });
+      const header = decodeHeader(bytes);
+      return decodeDirectory(bytes.subarray(header.directoryOffset), header.pageCount)
+        .map(({ offset, length }) => bytes.subarray(offset, offset + length))
+        .filter((page) => page[0] === 1)
+        .map((page) => ({ entries: decodeLeafPage(page).entries.length, bytes: page.byteLength }));
+    };
+
+    expect(leafSizes(58)).toEqual([
+      { entries: 3, bytes: 58 },
+      { entries: 3, bytes: 58 },
+      { entries: 3, bytes: 58 },
+      { entries: 1, bytes: 24 },
+    ]);
+    // One byte less and the third entry no longer fits.
+    expect(leafSizes(57).map((leaf) => leaf.entries)).toEqual([2, 2, 2, 2, 2]);
   });
 
   it('reports a build that fits in the format without a directory overflow', () => {

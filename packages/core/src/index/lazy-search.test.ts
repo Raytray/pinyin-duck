@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { LazyPinyinSearchEngine, storedEntryToCandidate, storedEntryToScorable } from './lazy-search';
 import { DEFAULT_MAX_MATCHES } from './ranking';
-import { openBTreeDictionaryFromSource } from '../data/btree-dictionary';
+import { BTreeDictionary } from '../data/btree-dictionary';
 import { MemoryPageSource } from '../data/page-source';
 import { buildBTree } from '../data/btree-builder';
 import type { DictionaryRow } from '../data/dictionary-codec';
@@ -20,7 +20,7 @@ const rows: DictionaryRow[] = [
 ];
 
 async function engineWith(source = rows) {
-  const dictionary = await openBTreeDictionaryFromSource(
+  const dictionary = await BTreeDictionary.open(
     new MemoryPageSource(buildBTree(source))
   );
   return { dictionary, engine: new LazyPinyinSearchEngine(dictionary) };
@@ -30,12 +30,6 @@ const hanziOf = (result: { candidates: { hanzi: string }[] }) =>
   result.candidates.map((c) => c.hanzi);
 
 describe('LazyPinyinSearchEngine', () => {
-  it('exposes the entry count of the dictionary it reads', async () => {
-    const { dictionary, engine } = await engineWith();
-    expect(engine.entryCount).toBe(dictionary.entryCount);
-    expect(engine.entryCount).toBe(rows.length);
-  });
-
   it('returns an empty result for a blank query', async () => {
     const { engine } = await engineWith();
     for (const query of ['', '   ']) {

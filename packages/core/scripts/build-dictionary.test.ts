@@ -11,7 +11,7 @@ import {
 import { normalizePinyin } from '../src/parser/pinyin.js';
 import { buildBTree } from '../src/data/btree-builder.js';
 import { MemoryPageSource } from '../src/data/page-source.js';
-import { openBTreeDictionaryFromSource } from '../src/data/btree-dictionary.js';
+import { BTreeDictionary } from '../src/data/btree-dictionary.js';
 
 const cctv: RawCedictLine = {
   traditional: '中國中央電視台',
@@ -322,7 +322,7 @@ describe('joinCorpora', () => {
 
   it('round-trips its rows through the B-tree, each reachable by its toneless key', async () => {
     const { rows } = joinCorpora(cedict, frequency, hsk);
-    const dictionary = await openBTreeDictionaryFromSource(
+    const dictionary = await BTreeDictionary.open(
       new MemoryPageSource(buildBTree(rows))
     );
     expect(rows).toHaveLength(5);

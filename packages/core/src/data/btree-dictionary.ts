@@ -25,7 +25,7 @@ import {
   type PageLocation,
   type StoredEntry,
 } from './btree-codec.js';
-import { createHttpPageSource, type HttpPageSourceOptions, type PageSource } from './page-source.js';
+import { HttpPageSource, type HttpPageSourceOptions, type PageSource } from './page-source.js';
 
 /** Where the web app serves the generated B-tree asset from. */
 export const DEFAULT_BTREE_URL = '/dictionary.btree';
@@ -254,14 +254,6 @@ export async function openBTreeDictionary(
   options: OpenBTreeDictionaryOptions = {}
 ): Promise<BTreeDictionary> {
   const { fetchImpl, signal, ...dictionaryOptions } = options;
-  const source = createHttpPageSource(url, { fetchImpl, signal });
+  const source = new HttpPageSource(url, { fetchImpl, signal });
   return BTreeDictionary.open(source, dictionaryOptions);
-}
-
-/** Opens a dictionary from an already constructed source (files, mmaps, tests). */
-export async function openBTreeDictionaryFromSource(
-  source: PageSource,
-  options: BTreeDictionaryOptions = {}
-): Promise<BTreeDictionary> {
-  return BTreeDictionary.open(source, options);
 }

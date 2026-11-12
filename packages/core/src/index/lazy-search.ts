@@ -26,29 +26,12 @@ import {
   type ScoredEntry,
 } from './ranking.js';
 
-export interface LazySearchEngineOptions {
-  /** Default scan budget, overridable per `search` call via `SearchOptions.maxMatches`. */
-  maxMatches?: number;
-}
-
 interface ScoredStoredEntry extends ScoredEntry {
   stored: StoredEntry;
 }
 
 export class LazyPinyinSearchEngine {
-  private readonly maxMatches: number;
-
-  constructor(
-    private readonly dictionary: BTreeDictionary,
-    options: LazySearchEngineOptions = {}
-  ) {
-    this.maxMatches = options.maxMatches ?? DEFAULT_MAX_MATCHES;
-  }
-
-  /** The number of entries in the backing dictionary. */
-  get entryCount(): number {
-    return this.dictionary.entryCount;
-  }
+  constructor(private readonly dictionary: BTreeDictionary) {}
 
   async search(query: string, options: SearchOptions = {}): Promise<SearchResult> {
     const rawQuery = query.trim().toLowerCase();
@@ -59,7 +42,7 @@ export class LazyPinyinSearchEngine {
     const script: ScriptType = options.script || 'simplified';
     const limit = options.limit ?? 10;
     const offset = options.offset ?? 0;
-    const maxMatches = options.maxMatches ?? this.maxMatches;
+    const maxMatches = options.maxMatches ?? DEFAULT_MAX_MATCHES;
 
     const segments = segmentPinyin(rawQuery);
     const tonelessQuery = cleanPinyin(rawQuery);

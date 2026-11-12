@@ -3,7 +3,6 @@ import {
   DictionaryChangedError,
   HttpPageSource,
   MemoryPageSource,
-  createHttpPageSource,
 } from './page-source';
 
 const bytes = Uint8Array.from({ length: 40 }, (_, i) => i);
@@ -213,16 +212,5 @@ describe('HttpPageSource build consistency', () => {
     await expect(source.read(0, 4)).rejects.toThrow('offline');
     expect(Array.from(await source.read(0, 4))).toEqual([0, 1, 2, 3]);
     expect(Array.from(await source.read(4, 4))).toEqual([4, 5, 6, 7]);
-  });
-});
-
-describe('createHttpPageSource', () => {
-  it('builds a range-backed source for the URL', async () => {
-    const fetchMock = vi.fn(async () => stubResponse(bytes.subarray(0, 3)));
-    const source = createHttpPageSource('/asset.btree', { fetchImpl: fetchMock as never });
-
-    expect(source).toBeInstanceOf(HttpPageSource);
-    await source.read(0, 3);
-    expect(fetchMock).toHaveBeenCalledWith('/asset.btree', { headers: { Range: 'bytes=0-2' } });
   });
 });

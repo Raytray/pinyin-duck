@@ -147,11 +147,3 @@ export class HttpPageSource implements PageSource {
     return body.subarray(offset, Math.min(offset + length, body.byteLength));
   }
 }
-
-/** Builds an HTTP range source. Kept separate so callers can inject a fetcher. */
-export function createHttpPageSource(
-  url: string,
-  options: HttpPageSourceOptions = {}
-): HttpPageSource {
-  return new HttpPageSource(url, options);
-}

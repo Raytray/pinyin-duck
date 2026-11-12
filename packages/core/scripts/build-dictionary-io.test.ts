@@ -51,7 +51,7 @@ vi.mock('fs', () => ({
 
 import { build, parseArgs, sha256, SOURCE_URLS, type BuildStats } from './build-dictionary';
 import { SOURCES } from './sources';
-import { openBTreeDictionaryFromSource } from '../src/data/btree-dictionary';
+import { BTreeDictionary } from '../src/data/btree-dictionary';
 import { MemoryPageSource } from '../src/data/page-source';
 import { LazyPinyinSearchEngine } from '../src/index/lazy-search';
 
@@ -75,7 +75,7 @@ function readBytes(p: string): Uint8Array {
 
 /** Opens the written asset as a B-tree dictionary. */
 function openAsset(p: string) {
-  return openBTreeDictionaryFromSource(new MemoryPageSource(readBytes(p)));
+  return BTreeDictionary.open(new MemoryPageSource(readBytes(p)));
 }
 
 /** Minimal stand-in for the parts of `Response` that `readPinned` reads. */

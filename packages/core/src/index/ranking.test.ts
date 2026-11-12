@@ -4,7 +4,7 @@ import { compareScored, countCharacters } from './ranking';
 import { parseToneFilter, syllableToneEnds } from '../parser/pinyin';
 import { buildBTree } from '../data/btree-builder';
 import { MemoryPageSource } from '../data/page-source';
-import { openBTreeDictionaryFromSource } from '../data/btree-dictionary';
+import { BTreeDictionary } from '../data/btree-dictionary';
 import type { DictionaryRow } from '../data/dictionary-codec';
 
 /**
@@ -35,7 +35,7 @@ function entry(fixture: Fixture): DictionaryRow {
 /** A lazy engine over an in-memory B-tree built from `rows`. */
 async function engineOf(rows: DictionaryRow[]): Promise<LazyPinyinSearchEngine> {
   return new LazyPinyinSearchEngine(
-    await openBTreeDictionaryFromSource(new MemoryPageSource(buildBTree(rows)))
+    await BTreeDictionary.open(new MemoryPageSource(buildBTree(rows)))
   );
 }
 

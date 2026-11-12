@@ -223,19 +223,6 @@ export class ByteReader {
   }
 }
 
-/**
- * Compares two dictionary keys.
- *
- * Keys only ever contain ASCII `a-z` plus `ü`, and code-unit order agrees with UTF-8
- * byte order for that alphabet, so a plain string comparison is both the tree order
- * and the on-disk sort order.
- */
-export function compareKeys(a: string, b: string): number {
-  if (a < b) return -1;
-  if (a > b) return 1;
-  return 0;
-}
-
 /** Serializes one leaf record onto the writer. */
 export function writeStoredEntry(writer: ByteWriter, entry: StoredEntry): void {
   writer.string(entry.key);
