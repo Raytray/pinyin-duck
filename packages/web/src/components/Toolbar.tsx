@@ -35,7 +35,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <div className="duck-logo">🦆</div>
         <div className="brand-text">
           <h1>PinyinDuck</h1>
-          <span className="brand-sub">TypeDuck for Mandarin Learners</span>
+          <span className="brand-sub">Pinyin input for Mandarin learners</span>
         </div>
       </div>
 

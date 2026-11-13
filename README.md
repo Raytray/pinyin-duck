@@ -4,6 +4,10 @@ PinyinDuck is a Mandarin input method for language learners. As you type pinyin,
 tone-marked candidates with concise English definitions, ranked by match quality, word
 length, frequency, and HSK level.
 
+PinyinDuck is inspired by [TypeDuck](https://typeduck.hk), a Cantonese input method.
+It is an independent project, not an official TypeDuck spin-off, and it is not affiliated
+with or endorsed by the TypeDuck team.
+
 ## Packages
 
 | Package | Description |
@@ -101,7 +105,6 @@ cd packages/android && ./gradlew check
 - [`packages/rime/README.md`](packages/rime/README.md)
 - [`packages/windows/README.md`](packages/windows/README.md)
 - [`packages/macos/README.md`](packages/macos/README.md)
-- [`docs/roadmap.md`](docs/roadmap.md)
 
 ## License
 

@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
 
 test('loads the shell with an idle, empty editor', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'PinyinDuck' })).toBeVisible();
-  await expect(page.getByText('TypeDuck for Mandarin Learners')).toBeVisible();
+  await expect(page.getByText('Pinyin input for Mandarin learners')).toBeVisible();
   await expect(editor(page)).toHaveValue('');
   await expect(page.locator('.empty-placeholder-layer')).toContainText('Start typing Pinyin here');
   await expect(page.locator('.status-item').first()).toContainText('Active (Ready to type)');
