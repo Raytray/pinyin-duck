@@ -25,13 +25,14 @@ jobs:
   build:
     # `branches: [main]` above matches the run's branch name only, and a pull request from a
     # fork can have a branch called main too. Requiring a push event in this repository
-    # rules that out.
+    # rules that out. GitHub Pages can only be published from GitHub, so skip on Forgejo.
     if: >-
+      github.server_url == 'https://github.com' && (
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push' &&
-       github.event.workflow_run.head_repository.full_name == github.repository)
+       github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest
     steps:
       # Build exactly the commit CI checked, not whatever main points at by now.
