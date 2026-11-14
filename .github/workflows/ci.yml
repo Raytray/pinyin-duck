@@ -227,6 +227,8 @@ jobs:
           npm run build:rime
 
       - name: Upload the Rime files
+        # Artifact actions v4+ refuse to run off github.com (GHES check), e.g. on Forgejo.
+        if: github.server_url == 'https://github.com'
         uses: actions/upload-artifact@v7
         with:
           name: rime-files
@@ -239,6 +241,8 @@ jobs:
 
   installers:
     needs: rime-files
+    # Needs the Rime files artifact and Windows/macOS runners: GitHub only.
+    if: github.server_url == 'https://github.com'
     strategy:
       fail-fast: false
       matrix:
@@ -311,7 +315,8 @@ jobs:
         run: npm run test:e2e
 
       - name: Upload Playwright report
-        if: always()
+        # Artifact actions v4+ refuse to run off github.com (GHES check), e.g. on Forgejo.
+        if: always() && github.server_url == 'https://github.com'
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report
