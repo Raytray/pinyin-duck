@@ -1,6 +1,7 @@
-# Keeps the actions in .github/workflows current. Third-party actions are pinned to commit
-# SHAs (a tag can be moved to point at other code); Dependabot updates the SHA and the
-# version comment next to it together, so pinning does not mean falling behind.
+# Keeps GitHub Actions, npm and Gradle dependencies current. Third-party actions are pinned
+# to commit SHAs (a tag can be moved to point at other code); Dependabot updates the SHA and
+# the version comment next to it together, so pinning does not mean falling behind.
+# Minor and patch bumps are grouped per ecosystem; major bumps arrive as their own PRs.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -11,3 +12,27 @@ updates:
       github-actions:
         patterns:
           - '*'
+
+  # One npm workspace: the root package-lock.json covers every packages/* package.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # One group, not split by dependency type: react and @types/react (or vite and its
+    # plugins) have to move together, and separate PRs would each fail the typecheck.
+    groups:
+      npm:
+        update-types:
+          - minor
+          - patch
+
+  # Reads packages/android/gradle/libs.versions.toml and the Gradle wrapper.
+  - package-ecosystem: gradle
+    directory: /packages/android
+    schedule:
+      interval: weekly
+    groups:
+      gradle:
+        update-types:
+          - minor
+          - patch
