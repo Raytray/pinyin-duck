@@ -317,3 +317,25 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 14
+
+  # ─── Single required check ────────────────────────────────────────────────
+  # Branch protection can't require the per-package jobs: they only exist when a PR touches
+  # that package, so a required `web` check would wait forever on an Android-only PR. This
+  # job always runs and reports one result. A skipped job is fine, because the change
+  # detection skipped it; a failed or cancelled one fails the gate.
+  ci-passed:
+    if: ${{ always() }}
+    needs: [changes, root-checks, package-checks, rime-files, installers, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check every job passed or was skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: $RESULTS"
+          for result in $RESULTS; do
+            if [[ "$result" != success && "$result" != skipped ]]; then
+              echo "::error::a CI job ended with '$result'"
+              exit 1
+            fi
+          done
