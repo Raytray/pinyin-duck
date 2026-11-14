@@ -32,7 +32,7 @@
     "language-learning",
     "ime"
   ],
-  "author": "",
+  "author": "Raymond Tang (https://github.com/Raytray)",
   "license": "MIT",
   "devDependencies": {
     "@playwright/test": "^1.63.0",
