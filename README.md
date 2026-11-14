@@ -8,6 +8,22 @@ PinyinDuck is inspired by [TypeDuck](https://typeduck.hk), a Cantonese input met
 It is an independent project, not an official TypeDuck spin-off, and it is not affiliated
 with or endorsed by the TypeDuck team.
 
+**[Try it in your browser](https://raytray.github.io/pinyin-duck/)**: no install needed.
+
+![Typing "zhongwen" in the PinyinDuck web playground shows 中文 zhōng wén "Chinese language" as the first candidate, with tone-marked pinyin and an English definition beside every candidate.](docs/images/web-demo.png)
+
+## Status
+
+| Platform | Status | How to get it |
+| --- | --- | --- |
+| Web | Working | [Live demo](https://raytray.github.io/pinyin-duck/), or `npm run dev` |
+| Android | Beta | Build from source: [`packages/android`](packages/android/README.md) |
+| Windows | Beta, needs [Weasel](https://rime.im) | Build from source: [`packages/windows`](packages/windows/README.md) |
+| macOS | Beta, needs [Squirrel](https://rime.im) | Build from source: [`packages/macos`](packages/macos/README.md) |
+
+Beta means usable day to day, but with no prebuilt releases yet and rough edges you may
+hit. [Bug reports](CONTRIBUTING.md#reporting-bugs) are welcome.
+
 ## Packages
 
 | Package | Description |
@@ -98,6 +114,26 @@ Android:
 cd packages/android && ./gradlew test
 cd packages/android && ./gradlew check
 ```
+
+## Deployment
+
+`.github/workflows/deploy-pages.yml` publishes `packages/web` to GitHub Pages after CI
+passes on a push to `main`, building the exact commit CI checked. It can also be run by
+hand from `main`. It builds with `BASE_PATH=/<repo>/` so asset URLs resolve under the
+project-site path. The repository's **Settings → Pages → Source** must be set to
+**GitHub Actions**.
+
+To check the base-path build locally:
+
+```bash
+BASE_PATH=/pinyin-duck/ npm run build -w @pinyinduck/web
+BASE_PATH=/pinyin-duck/ npm run preview -w @pinyinduck/web
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues privately as described in
+[SECURITY.md](SECURITY.md).
 
 ## Package docs
 

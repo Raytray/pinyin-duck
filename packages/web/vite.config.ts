@@ -7,6 +7,8 @@ import react from '@vitejs/plugin-react';
 // TypeScript source, so Vite and `tsc` both resolve it there.
 export default defineConfig({
   plugins: [react()],
+  // GitHub Pages serves the site under /<repo>/; deploy-pages.yml sets BASE_PATH to that.
+  base: process.env.BASE_PATH ?? '/',
   build: {
     // `public/` holds only the uncompressed `dictionary.btree`, which Rime, the Android
     // build and the parity generator read from there. The app downloads the gzipped,
