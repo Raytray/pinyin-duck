@@ -35,11 +35,11 @@
   "author": "Raymond Tang (https://github.com/Raytray)",
   "license": "MIT",
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.65.0",
     "istanbul-lib-coverage": "^3.2.2",
     "istanbul-lib-report": "^3.0.1",
     "istanbul-reports": "^3.2.0",
-    "oxlint": "^1.86.0",
+    "oxlint": "^1.93.0",
     "v8-to-istanbul": "^9.3.0"
   }
 }
