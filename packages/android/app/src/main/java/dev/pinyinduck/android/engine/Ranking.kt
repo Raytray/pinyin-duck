@@ -120,6 +120,7 @@ fun entryToCandidate(
     shortGloss: String,
     script: ScriptType,
     tonelessQuery: String,
+    entryIds: List<Int> = emptyList(),
 ): Candidate {
     val hanzi = if (script == ScriptType.TRADITIONAL) traditional else entry.simplified
     val remainingPinyin =
@@ -141,5 +142,6 @@ fun entryToCandidate(
         matchedPinyin = entry.pinyinClean,
         remainingPinyin = remainingPinyin,
         hskLevel = entry.hskLevel?.takeIf { it != 0 },
+        entryIds = entryIds,
     )
 }

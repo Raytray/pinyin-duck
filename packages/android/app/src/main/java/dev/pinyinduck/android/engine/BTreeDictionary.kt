@@ -33,6 +33,9 @@ class BTreeDictionary private constructor(
     /** Number of pages the asset is split into. */
     val pageCount: Int get() = header.pageCount
 
+    /** The build this asset came from, which its Candidate detail file must share. */
+    val buildId: Int get() = header.buildId
+
     /**
      * Every entry whose key is exactly [key].
      *

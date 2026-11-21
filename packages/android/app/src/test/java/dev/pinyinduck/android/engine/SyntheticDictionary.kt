@@ -64,6 +64,7 @@ object SyntheticDictionary {
         out.u32(pages.size)
         out.u32(rootPageId)
         out.u32(directoryOffset)
+        out.u32(0) // buildId
         locations.forEach { (pageOffset, length) ->
             out.u32(pageOffset)
             out.u32(length)
@@ -115,6 +116,8 @@ object SyntheticDictionary {
             out.string("") // shortGloss
             out.varint(0) // frequency
             out.u8(0) // hskLevel
+            out.varint(0) // no entry ids
+            out.u8(0) // a candidate in both scripts
         }
         return out.toByteArray()
     }

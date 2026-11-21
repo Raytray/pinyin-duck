@@ -78,16 +78,37 @@ class BTreeCodecTest {
 
     @Test
     fun readsAValidHeader() {
-        val header = encodeHeaderForTest(entryCount = 122746, pageCount = 1196, root = 1195, directoryOffset = 24)
+        val header =
+            encodeHeaderForTest(
+                entryCount = 122746,
+                pageCount = 1196,
+                root = 1195,
+                directoryOffset = 28,
+                buildId = 0x1234abcd,
+            )
         assertEquals(122746, decodeHeader(header).entryCount)
         assertEquals(1196, decodeHeader(header).pageCount)
         assertEquals(1195, decodeHeader(header).rootPageId)
-        assertEquals(24, decodeHeader(header).directoryOffset)
+        assertEquals(28, decodeHeader(header).directoryOffset)
+        assertEquals(0x1234abcd, decodeHeader(header).buildId)
+    }
+
+    @Test
+    fun isFormat2AndRejectsAFormat1Asset() {
+        // Format 2 added entry ids, a script marker and the build id; a format 1 asset lacks them.
+        assertEquals(2, BTREE_FORMAT_VERSION)
+        assertEquals(28, HEADER_SIZE)
+        val header =
+            ByteBuffer.wrap(
+                "PDBT".toByteArray(Charsets.US_ASCII) + byteArrayOf(1) + ByteArray(HEADER_SIZE - 5),
+            )
+        val error = assertThrows(DictionaryFormatException::class.java) { decodeHeader(header) }
+        assertTrue(error.message!!.contains("built with B-tree format 1"))
     }
 
     @Test
     fun rejectsAHeaderWithTheWrongMagic() {
-        val header = ByteBuffer.wrap("XXXX".toByteArray(Charsets.US_ASCII) + ByteArray(20))
+        val header = ByteBuffer.wrap("XXXX".toByteArray(Charsets.US_ASCII) + ByteArray(HEADER_SIZE - 4))
         val error = assertThrows(DictionaryFormatException::class.java) { decodeHeader(header) }
         assertTrue(error.message!!.contains("not a PinyinDuck B-tree"))
     }
@@ -96,7 +117,7 @@ class BTreeCodecTest {
     fun rejectsAnUnsupportedFormatVersion() {
         val header =
             ByteBuffer.wrap(
-                "PDBT".toByteArray(Charsets.US_ASCII) + byteArrayOf(99.toByte()) + ByteArray(19),
+                "PDBT".toByteArray(Charsets.US_ASCII) + byteArrayOf(99.toByte()) + ByteArray(HEADER_SIZE - 5),
             )
         val error = assertThrows(DictionaryFormatException::class.java) { decodeHeader(header) }
         assertTrue(error.message!!.contains("format 99"))
@@ -152,6 +173,34 @@ class BTreeCodecTest {
         assertEquals("hello", page.entries[0].shortGloss)
         assertEquals(50_000, page.entries[0].frequency)
         assertEquals(3, page.entries[0].hskLevel)
+        assertEquals(emptyList<Int>(), page.entries[0].entryIds)
+        assertEquals(null, page.entries[0].onlyIn)
+    }
+
+    @Test
+    fun decodesTheEntryIdsARecordStandsForAndItsScript() {
+        // 后 hòu stands for 後 and 后, in headword order; 300 needs a two-byte varint.
+        val simplifiedOnly = decodeLeafPage(encodeLeafForTest(listOf("hou"), NO_PAGE, listOf(300, 7), script = 1))
+        assertEquals(listOf(300, 7), simplifiedOnly.entries[0].entryIds)
+        assertEquals(ScriptType.SIMPLIFIED, simplifiedOnly.entries[0].onlyIn)
+
+        val traditionalOnly = decodeLeafPage(encodeLeafForTest(listOf("hou"), NO_PAGE, listOf(7), script = 2))
+        assertEquals(ScriptType.TRADITIONAL, traditionalOnly.entries[0].onlyIn)
+    }
+
+    @Test
+    fun readsEachIdAsADeltaFromThePreviousIdInTheLeaf() {
+        // Two records in one leaf: the second's first id is stored relative to the first's last.
+        val page = decodeLeafPage(encodeLeafForTest(listOf("hou", "hou"), NO_PAGE, listOf(70_000, 3)))
+        assertEquals(listOf(70_000, 3), page.entries[0].entryIds)
+        assertEquals(listOf(70_000, 3), page.entries[1].entryIds)
+    }
+
+    @Test
+    fun rejectsAnUnknownScriptMarker() {
+        val bytes = encodeLeafForTest(listOf("hou"), NO_PAGE, script = 9)
+        val error = assertThrows(DictionaryFormatException::class.java) { decodeLeafPage(bytes) }
+        assertTrue(error.message!!.contains("script"))
     }
 
     @Test
@@ -215,11 +264,13 @@ class BTreeCodecTest {
         pageCount: Int,
         root: Int,
         directoryOffset: Int,
+        buildId: Int,
     ): ByteBuffer =
         ByteBuffer.wrap(
             byteArrayOf('P'.code.toByte(), 'D'.code.toByte(), 'B'.code.toByte(), 'T'.code.toByte()) +
                 byteArrayOf(BTREE_FORMAT_VERSION.toByte(), 0, 0, 0) +
-                intBytes(entryCount) + intBytes(pageCount) + intBytes(root) + intBytes(directoryOffset),
+                intBytes(entryCount) + intBytes(pageCount) + intBytes(root) + intBytes(directoryOffset) +
+                intBytes(buildId),
         )
 
     private fun intBytes(value: Int) =
@@ -233,6 +284,8 @@ class BTreeCodecTest {
     private fun encodeLeafForTest(
         keys: List<String>,
         nextLeaf: Int,
+        entryIds: List<Int> = emptyList(),
+        script: Int = 0,
     ): ByteBuffer {
         val out = mutableListOf<Byte>()
 
@@ -252,6 +305,8 @@ class BTreeCodecTest {
         out.add(intBytes(keys.size)[1])
         intBytes(nextLeaf).forEach { out.add(it) }
 
+        // Ids are zigzag deltas from the previous id in the leaf, starting from 0.
+        var previousId = 0
         for (key in keys) {
             writeString(key)
             writeString("你好") // simplified
@@ -260,6 +315,13 @@ class BTreeCodecTest {
             writeString("hello") // shortGloss
             varintBytes(50_000).forEach { out.add(it) } // frequency
             out.add(3) // hskLevel
+            varintBytes(entryIds.size).forEach { out.add(it) }
+            for (id in entryIds) {
+                val delta = id - previousId
+                varintBytes(if (delta >= 0) delta * 2 else -delta * 2 - 1).forEach { out.add(it) }
+                previousId = id
+            }
+            out.add(script.toByte()) // 0 both, 1 simplified only, 2 traditional only
         }
 
         return ByteBuffer.wrap(out.toByteArray())
