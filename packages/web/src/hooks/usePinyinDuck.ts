@@ -61,10 +61,10 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   const cursorToRestoreRef = useRef<number | null>(null);
 
   /** Replaces the committed text and puts the caret at `caret`. */
-  const setText = useCallback((text: string, caret: number, restoreCaret = true) => {
+  const setText = useCallback((text: string, caret: number) => {
     setCommittedText(text);
     setInsertPos(caret);
-    if (restoreCaret) cursorToRestoreRef.current = caret;
+    cursorToRestoreRef.current = caret;
   }, []);
 
   /** Sets the composition buffer and goes back to the first candidate on page one. */
@@ -150,12 +150,8 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
 
   /** Replaces committed text `[from, to)` with `insert`, leaving the caret after it. */
   const replaceText = useCallback(
-    (from: number, to: number, insert: string, restoreCaret = true) =>
-      setText(
-        committedText.slice(0, from) + insert + committedText.slice(to),
-        from + insert.length,
-        restoreCaret
-      ),
+    (from: number, to: number, insert: string) =>
+      setText(committedText.slice(0, from) + insert + committedText.slice(to), from + insert.length),
     [committedText, setText]
   );
 
@@ -404,9 +400,8 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       if (/^[a-zA-Z']$/.test(e.key)) {
         e.preventDefault();
         if (!isComposing) {
-          // Starting a composition replaces any selection. This path has never restored
-          // the caret, unlike every other edit; kept as-is so behaviour does not change.
-          if (hasSelection) replaceText(start, end, '', false);
+          // Starting a composition replaces any selection, so the commit lands where it was.
+          if (hasSelection) replaceText(start, end, '');
           else setInsertPos(start);
         }
         setBuffer(compositionBuffer + e.key.toLowerCase());
