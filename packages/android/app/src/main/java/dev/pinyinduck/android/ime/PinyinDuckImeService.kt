@@ -2,6 +2,7 @@ package dev.pinyinduck.android.ime
 
 import android.content.res.AssetManager
 import android.inputmethodservice.InputMethodService
+import android.util.Log
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
@@ -29,7 +30,7 @@ import dev.pinyinduck.android.data.DictionaryLoader
 import dev.pinyinduck.android.data.OpenedDictionary
 import dev.pinyinduck.android.ui.KeyAction
 import dev.pinyinduck.android.ui.KeyboardCallbacks
-import dev.pinyinduck.android.ui.PinyinDuckKeyboard
+import dev.pinyinduck.android.ui.KeyboardWindow
 import dev.pinyinduck.android.ui.PinyinDuckTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +38,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
+
+private const val LOG_TAG = "PinyinDuckIme"
 
 /**
  * The PinyinDuck input method.
@@ -191,7 +195,7 @@ class PinyinDuckImeService :
         view.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
         view.setContent {
             PinyinDuckTheme {
-                PinyinDuckKeyboard(uiState, callbacks())
+                KeyboardWindow(uiState, callbacks(), onKeyboardTop = ::onKeyboardTop)
             }
         }
         // A new input view has not been laid out, so whatever the old one reported is stale.
@@ -274,7 +278,12 @@ class PinyinDuckImeService :
      * Robolectric never performs.
      */
     internal fun onKeyboardTop(top: Int) {
+        if (keyboardTop == top) return
         keyboardTop = top
+        // The space above the keyboard is the Candidate detail bubble's maximum height. Logged
+        // so it can be read off a device (`adb logcat -s PinyinDuckIme`); #16 asks for it to be
+        // measured on a landscape phone, where it may be only ~100-150 dp.
+        Log.d(LOG_TAG, "keyboard top $top px: ${(top / resources.displayMetrics.density).roundToInt()} dp above it for the bubble")
     }
 
     /**
@@ -358,6 +367,9 @@ class PinyinDuckImeService :
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
+        // The bubble keeps no state and never comes back on its own (#11). Left open, the next
+        // show would start with the whole window swallowing the app's touches.
+        closeDetail()
         lifecycleRegistry.currentState = Lifecycle.State.CREATED
         super.onFinishInputView(finishingInput)
     }
@@ -374,7 +386,8 @@ class PinyinDuckImeService :
         // password must never pass through composition, and a phone field wants digits.
         fieldPolicy = FieldPolicy.forInputType(info?.inputType ?: 0)
         session?.direct = fieldPolicy.direct
-        uiState = uiState.copy(shift = false, expanded = false, layout = fieldPolicy.layout)
+        // A new field also closes the Candidate detail bubble (#11).
+        uiState = uiState.copy(shift = false, expanded = false, layout = fieldPolicy.layout, detailIndex = null)
     }
 
     override fun onFinishInput() {

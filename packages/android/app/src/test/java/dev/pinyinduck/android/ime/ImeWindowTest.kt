@@ -5,6 +5,7 @@ import android.graphics.Rect
 import android.inputmethodservice.InputMethodService
 import android.view.ContextThemeWrapper
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.inputmethod.EditorInfo
 import dev.pinyinduck.android.R
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -151,6 +152,27 @@ class ImeWindowTest {
         service.callbacks().onCloseDetail()
 
         assertEquals(Rect(0, 1400, 1080, 2200), computeInsets().touchableRegion.bounds)
+    }
+
+    // --- what else closes the bubble ----------------------------------------------
+
+    @Test
+    fun hidingTheKeyboardClosesTheDetail() {
+        // Otherwise the next show would open with the whole window swallowing the app's touches.
+        service.callbacks().onShowDetail(0)
+
+        service.onFinishInputView(true)
+
+        assertFalse(service.uiState.detailOpen)
+    }
+
+    @Test
+    fun aNewFieldClosesTheDetail() {
+        service.callbacks().onShowDetail(0)
+
+        service.onStartInput(EditorInfo(), false)
+
+        assertFalse(service.uiState.detailOpen)
     }
 
     /**
