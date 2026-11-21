@@ -466,10 +466,29 @@ describe('verifyRime end to end, against a stub harness', () => {
     // Two temp directories per run, on a machine where the whole point of running this is
     // to do it many times. Leaking them would fill a disk with 18MB of copies of the
     // dictionaries before anyone noticed a failure.
-    const before = fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('pinyinduck-rime-'));
-    run(writeStubHarness(tmp));
-    const after = fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('pinyinduck-rime-'));
-    expect(after.length).toBe(before.length);
+    //
+    // The run stages into a temp root of its own, not the shared one: build-rime-dict-io
+    // makes and removes `pinyinduck-rime-` directories there too, from a test file running
+    // in parallel, so counting the shared root before and after raced with it.
+    const harness = writeStubHarness(tmp);
+    const tmpRoot = path.join(tmp, 'tmp-root');
+    fs.mkdirSync(tmpRoot);
+    const saved = { TMPDIR: process.env.TMPDIR, TMP: process.env.TMP, TEMP: process.env.TEMP };
+    process.env.TMPDIR = process.env.TMP = process.env.TEMP = tmpRoot;
+    try {
+      // Without these the check below passes whether or not anything is cleaned up: the
+      // run has to stage into tmpRoot, and a skipped run stages nothing at all.
+      expect(os.tmpdir()).toBe(tmpRoot);
+      const result = run(harness);
+      expect(result.ok).toBe(true);
+      expect(result.skipped).toBe(false);
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+    expect(fs.readdirSync(tmpRoot)).toEqual([]);
   });
 });
 
