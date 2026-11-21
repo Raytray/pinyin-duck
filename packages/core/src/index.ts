@@ -10,3 +10,4 @@ export * from './data/btree-dictionary.js';
 export * from './data/load-dictionary.js';
 export * from './detail/detail-codec.js';
 export * from './detail/detail-view.js';
+export * from './detail/load-detail.js';
