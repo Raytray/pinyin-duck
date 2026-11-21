@@ -8,7 +8,7 @@ package dev.pinyinduck.android.engine
  * offset rather than I/O or a promise. That is the whole reason the keyboard can run the
  * full 122k-entry corpus without the memory cost that stops it in a browser.
  *
- * Opening reads only the 24-byte header and the page directory. Everything afterwards is
+ * Opening reads only the 28-byte header and the page directory. Everything afterwards is
  * one root-to-leaf descent plus a bounded forward scan, held down to a fixed byte budget
  * by an LRU page cache.
  */

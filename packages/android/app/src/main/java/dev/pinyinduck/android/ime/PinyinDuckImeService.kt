@@ -144,7 +144,7 @@ class PinyinDuckImeService :
     /**
      * Maps the dictionary in the background.
      *
-     * Opening only reads a 24-byte header and the page directory, so this is quick, but it
+     * Opening only reads a 28-byte header and the page directory, so this is quick, but it
      * is still file I/O and the first frame of the keyboard should not wait on it.
      *
      * The result is posted back on the main dispatcher, and the scope's cancellation is
