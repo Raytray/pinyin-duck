@@ -222,6 +222,17 @@ class PinyinDuckImeService :
         decorView.setViewTreeSavedStateRegistryOwner(this)
     }
 
+    /**
+     * Never fullscreen (extract) mode, in any orientation.
+     *
+     * The framework default goes fullscreen on a landscape editor, and in that mode the input
+     * view is laid out `WRAP_CONTENT` under the extract text area, which leaves the Candidate
+     * detail bubble no room above the keyboard. Decided on #11: landscape behaves like
+     * portrait, at the cost of a shorter app area on landscape phones, and no setting brings
+     * extract mode back.
+     */
+    override fun onEvaluateFullscreenMode(): Boolean = false
+
     override fun onStartInputView(
         info: EditorInfo?,
         restarting: Boolean,
