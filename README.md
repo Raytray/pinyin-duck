@@ -108,6 +108,11 @@ npm run test:e2e
 
 Use `npx playwright install chromium` once if the browser binary is missing.
 
+Locally, the e2e suite reuses a dev server already running on its port (5173 by default),
+so `npm run dev` keeps reruns fast. If that server belongs to another checkout or
+worktree, the run stops before any test with a message saying so. Stop that server, or
+give this checkout its own port with `E2E_PORT=5174 npm run test:e2e`.
+
 Android:
 
 ```bash
