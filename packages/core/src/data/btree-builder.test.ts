@@ -140,6 +140,23 @@ describe('buildBTree', () => {
     expect(all.map((e) => e.key)).toEqual(['hao', 'ni', 'ni']);
   });
 
+  it('reads back every entry id across leaf boundaries, where the id deltas restart', () => {
+    const rows: DictionaryRow[] = Array.from({ length: 300 }, (_, i) => [
+      `字${i}`,
+      `字${i}`,
+      `zi${(i % 4) + 1}`,
+      'g',
+      i,
+      0,
+      i % 7 === 0 ? [200000 - i, i] : [200000 - i],
+    ]);
+
+    const bytes = buildBTree(rows, { maxLeafEntries: 16 });
+    expect(decodeHeader(bytes).pageCount).toBeGreaterThan(10);
+    const ids = new Map(readAll(bytes).map((e) => [e.simplified, e.entryIds]));
+    for (const row of rows) expect(ids.get(row[0]), row[0]).toEqual(row[6]);
+  });
+
   it('packs many entries into a multi-level tree that still reads back exactly', () => {
     // Enough distinct keys to force leaves to split and internal levels to fan out.
     const rows: DictionaryRow[] = Array.from({ length: 500 }, (_, i) => [

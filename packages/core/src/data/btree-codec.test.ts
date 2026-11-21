@@ -157,6 +157,21 @@ describe('leaf pages', () => {
     expect(decodeLeafPage(encodeLeafPage([hou], NO_PAGE)).entries).toEqual([hou]);
   });
 
+  it('round-trips entry ids that go down as well as up within a leaf', () => {
+    const entries = [[900], [1000, 4], [5], [70000]].map((entryIds) => ({ ...entry, entryIds }));
+    expect(decodeLeafPage(encodeLeafPage(entries, NO_PAGE)).entries).toEqual(entries);
+  });
+
+  it('stores each id as a delta from the previous id in its leaf, so a run of ids stays small', () => {
+    // Entry ids follow storage order, so neighbouring rows have neighbouring ids. Stored
+    // whole, ids past 16383 take three bytes each; as deltas, all but the first take one.
+    const run = (first: number) =>
+      Array.from({ length: 10 }, (_, i) => ({ ...entry, entryIds: [first + i] }));
+    const near = encodeLeafPage(run(0), NO_PAGE).length;
+    const far = encodeLeafPage(run(100000), NO_PAGE).length;
+    expect(far - near).toBe(2);
+  });
+
   it('round-trips a record that is a candidate in one script only', () => {
     const simplifiedOnly = { ...entry, onlyIn: 'simplified' as const };
     const traditionalOnly = { ...entry, onlyIn: 'traditional' as const };

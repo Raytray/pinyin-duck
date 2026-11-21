@@ -18,6 +18,7 @@ import {
   encodeHeader,
   encodeInternalPage,
   encodeLeafPage,
+  lastEntryId,
   writeStoredEntry,
   type BTreeHeader,
   type PageLocation,
@@ -82,9 +83,9 @@ function scriptOrder(entry: StoredEntry): number {
   return entry.onlyIn === 'simplified' ? 1 : entry.onlyIn === 'traditional' ? 2 : 0;
 }
 
-function encodedEntrySize(entry: StoredEntry): number {
+function encodedEntrySize(entry: StoredEntry, previousId: number): number {
   const writer = new ByteWriter();
-  writeStoredEntry(writer, entry);
+  writeStoredEntry(writer, entry, previousId);
   return writer.size;
 }
 
@@ -118,8 +119,11 @@ export function buildBTree(rows: DictionaryRow[], options: BuildBTreeOptions = {
   const leaves: StoredEntry[][] = [];
   let current: StoredEntry[] = [];
   let currentBytes = 7;
+  // Entry ids are stored as deltas within a leaf, so an entry's size depends on the leaf it
+  // lands in: measured against its predecessor, and again from 0 if it starts a new leaf.
+  let previousId = 0;
   for (const entry of entries) {
-    const size = encodedEntrySize(entry);
+    let size = encodedEntrySize(entry, previousId);
     if (
       current.length > 0 &&
       (current.length >= maxLeafEntries || currentBytes + size > maxLeafBytes)
@@ -127,9 +131,12 @@ export function buildBTree(rows: DictionaryRow[], options: BuildBTreeOptions = {
       leaves.push(current);
       current = [];
       currentBytes = 7;
+      previousId = 0;
+      size = encodedEntrySize(entry, previousId);
     }
     current.push(entry);
     currentBytes += size;
+    previousId = lastEntryId(entry, previousId);
   }
   leaves.push(current);
 

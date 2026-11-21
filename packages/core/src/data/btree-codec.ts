@@ -36,8 +36,13 @@
  * Leaf record:
  *   string key, string simplified, string traditional, string pinyinNumbers,
  *   string shortGloss, varint frequency, u8 hskLevel,
- *   varint entryIdCount, entryIdCount * varint entryId,
+ *   varint entryIdCount, entryIdCount * varint entryIdDelta,
  *   u8 script (0 both, 1 simplified only, 2 traditional only)
+ *
+ * Each entry id is stored as the zigzag-encoded difference from the id before it in the
+ * same leaf (0 before the first). Ids are numbered in storage order, so neighbouring rows
+ * have neighbouring ids and almost every delta is one byte, where whole ids would take
+ * three and add about 0.4 MB to the gzipped web download.
  *
  * Strings are a varint byte length followed by UTF-8.
  *
@@ -263,8 +268,22 @@ export class ByteReader {
   }
 }
 
-/** Serializes one leaf record onto the writer. */
-export function writeStoredEntry(writer: ByteWriter, entry: StoredEntry): void {
+/** Maps a signed delta onto an unsigned varint: 0, -1, 1, -2, 2 become 0, 1, 2, 3, 4. */
+function zigzag(value: number): number {
+  return value >= 0 ? value * 2 : -value * 2 - 1;
+}
+
+function unzigzag(value: number): number {
+  return value % 2 === 0 ? value / 2 : -(value + 1) / 2;
+}
+
+/**
+ * Serializes one leaf record onto the writer.
+ *
+ * `previousId` is the last entry id written earlier in the same leaf (0 for the first
+ * record); the record's ids are stored as deltas from it.
+ */
+export function writeStoredEntry(writer: ByteWriter, entry: StoredEntry, previousId = 0): void {
   writer.string(entry.key);
   writer.string(entry.simplified);
   writer.string(entry.traditional);
@@ -273,7 +292,11 @@ export function writeStoredEntry(writer: ByteWriter, entry: StoredEntry): void {
   writer.varint(entry.frequency);
   writer.u8(entry.hskLevel);
   writer.varint(entry.entryIds.length);
-  for (const id of entry.entryIds) writer.varint(id);
+  let previous = previousId;
+  for (const id of entry.entryIds) {
+    writer.varint(zigzag(id - previous));
+    previous = id;
+  }
   writer.u8(
     entry.onlyIn === 'simplified'
       ? SCRIPT_SIMPLIFIED
@@ -283,8 +306,13 @@ export function writeStoredEntry(writer: ByteWriter, entry: StoredEntry): void {
   );
 }
 
-/** Reads one leaf record from the reader. */
-export function readStoredEntry(reader: ByteReader): StoredEntry {
+/** The id a record's successor in the leaf takes its first delta from. */
+export function lastEntryId(entry: StoredEntry, previousId: number): number {
+  return entry.entryIds.length > 0 ? entry.entryIds[entry.entryIds.length - 1] : previousId;
+}
+
+/** Reads one leaf record from the reader; `previousId` is as for `writeStoredEntry`. */
+export function readStoredEntry(reader: ByteReader, previousId = 0): StoredEntry {
   const entry: StoredEntry = {
     key: reader.string(),
     simplified: reader.string(),
@@ -296,7 +324,11 @@ export function readStoredEntry(reader: ByteReader): StoredEntry {
     entryIds: [],
   };
   const idCount = reader.varint();
-  for (let i = 0; i < idCount; i++) entry.entryIds.push(reader.varint());
+  let previous = previousId;
+  for (let i = 0; i < idCount; i++) {
+    previous += unzigzag(reader.varint());
+    entry.entryIds.push(previous);
+  }
   const script = reader.u8();
   if (script === SCRIPT_SIMPLIFIED) entry.onlyIn = 'simplified';
   else if (script === SCRIPT_TRADITIONAL) entry.onlyIn = 'traditional';
@@ -309,7 +341,11 @@ export function encodeLeafPage(entries: StoredEntry[], nextLeaf: number): Uint8A
   writer.u8(LEAF_KIND);
   writer.u16(entries.length);
   writer.u32(nextLeaf);
-  for (const entry of entries) writeStoredEntry(writer, entry);
+  let previousId = 0;
+  for (const entry of entries) {
+    writeStoredEntry(writer, entry, previousId);
+    previousId = lastEntryId(entry, previousId);
+  }
   return writer.toUint8Array();
 }
 
@@ -320,7 +356,11 @@ export function decodeLeafPage(bytes: Uint8Array): LeafPage {
   const entryCount = reader.u16();
   const nextLeaf = reader.u32();
   const entries: StoredEntry[] = new Array(entryCount);
-  for (let i = 0; i < entryCount; i++) entries[i] = readStoredEntry(reader);
+  let previousId = 0;
+  for (let i = 0; i < entryCount; i++) {
+    entries[i] = readStoredEntry(reader, previousId);
+    previousId = lastEntryId(entries[i], previousId);
+  }
   return { kind: 'leaf', nextLeaf, entries };
 }
 
