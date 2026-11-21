@@ -305,8 +305,11 @@ export class DetailFile {
     try {
       return readRecord(new ByteReader(this.bytes.subarray(start, end)));
     } catch (error) {
-      if (error instanceof Error && error.message.startsWith('The Candidate detail file')) throw error;
-      throw malformedDetailFile(error instanceof Error ? error.message : String(error));
+      // The reader's own errors (a string with no end, a varint too long) say nothing of
+      // which file they came from; the codes checked here already do.
+      const message = (error as Error).message;
+      if (message.startsWith('The Candidate detail file')) throw error;
+      throw malformedDetailFile(message);
     }
   }
 }

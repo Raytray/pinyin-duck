@@ -56,6 +56,33 @@ describe('the Candidate detail file', () => {
     expect(file.record(2)).toEqual(empty);
   });
 
+  it('writes the documented layout byte for byte', () => {
+    // Worked by hand from the layout in detail-codec.ts; the Kotlin reader is held to it too.
+    const record: DetailRecord = {
+      heading: '',
+      senses: [{ proper: false, text: ['ab', { traditional: '個', simplified: '个', pinyinNumbers: 'ge4' }, ''] }],
+      tags: [],
+      measureWords: [],
+      partsOfSpeech: ['noun'],
+    };
+    const hex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join(' ');
+
+    expect(hex(encodeDetailFile([record], 0x01020304))).toBe(
+      [
+        '50 44 44 54 01 00 00 00', // "PDDT", format 1, reserved
+        '01 00 00 00 04 03 02 01', // one entry, build id 0x01020304
+        '18 00 00 00 30 00 00 00', // the record runs from byte 24 to byte 48
+        '00', // no heading
+        '01 00 01', // one sense: common, one reference
+        '61 62 00', // "ab"
+        'e5 80 8b 00 e4 b8 aa 00 67 65 34 00', // 個 个 ge4
+        '00', // "" after the reference
+        '00 00', // no tags, no measure words
+        '01 00', // one part of speech: noun
+      ].join(' ')
+    );
+  });
+
   it('starts with its magic number', () => {
     const bytes = encodeDetailFile([empty], 1);
     expect(String.fromCharCode(...bytes.subarray(0, 4))).toBe(DETAIL_MAGIC);
@@ -101,6 +128,27 @@ describe('the Candidate detail file', () => {
     const start = view.getUint32(16, true);
     view.setUint32(20, start + 4, true);
     expect(() => DetailFile.open(bytes, 1).record(0)).toThrow(/malformed or truncated/);
+  });
+
+  it('refuses an offset table that runs past the end of the file', () => {
+    const bytes = encodeDetailFile([empty], 1);
+    new DataView(bytes.buffer).setUint32(8, 1000, true);
+    expect(() => DetailFile.open(bytes, 1)).toThrow(/offset table is truncated/);
+  });
+
+  it('refuses a record that ends before it starts', () => {
+    const bytes = encodeDetailFile([shu, empty], 1);
+    const view = new DataView(bytes.buffer);
+    view.setUint32(20, view.getUint32(16, true) - 1, true);
+    expect(() => DetailFile.open(bytes, 1).record(0)).toThrow(/entry 0 ends before it starts/);
+  });
+
+  it('refuses a record that names an unknown sense kind', () => {
+    const bytes = encodeDetailFile([shu], 1);
+    // The record is the empty heading, the sense count, then the first sense kind.
+    const recordStart = new DataView(bytes.buffer).getUint32(16, true);
+    bytes[recordStart + 2] = 7;
+    expect(() => DetailFile.open(bytes, 1).record(0)).toThrow(/sense kind 7/);
   });
 
   it('refuses a record that names an unknown tag or part of speech', () => {

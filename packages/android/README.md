@@ -98,7 +98,7 @@ The coverage report is written to `app/build/reports/jacoco/jacocoTestReport/htm
 
 ### Parity with the web engine
 
-The search engine in `engine/` is a Kotlin port of `packages/core/src/index/lazy-search.ts`. `PinyinEngineParityTest` compares it to the TypeScript engine's output, which is recorded in `app/src/test/resources/engine-parity.tsv`. If you change ranking, tie-breaking or search in core, regenerate that file and commit it with the change:
+The search engine in `engine/` is a Kotlin port of `packages/core/src/index/lazy-search.ts`. `PinyinEngineParityTest` compares it to the TypeScript engine's output, which is recorded in `app/src/test/resources/engine-parity.tsv`. If you change ranking, tie-breaking or search in core, regenerate that file and commit it with the change. The same command writes `detail-parity.tsv`, the Candidate detail view for every entry those queries reach, which the Kotlin detail view is pinned to; regenerate it when the detail file or the detail view in core changes:
 
 ```bash
 npm run build:parity -w @pinyinduck/core

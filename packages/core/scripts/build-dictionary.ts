@@ -14,10 +14,15 @@
  * downloads the whole asset and decompresses it in the browser. Shipping it compressed
  * keeps the download small on hosts that do not compress binary files themselves.
  *
+ * Beside each it writes the Candidate detail file (`detail.bin`, and `detail.bin.gz` for
+ * the web app): every entry's senses, tags and measure words, parsed here (`build-detail.ts`)
+ * and found by the entry ids on B+ tree rows. Both files carry the same build id (ADR 0002).
+ *
  * Usage:
  *   npm run build:dict                 # download (cached) and emit the B-tree asset
  *   npm run build:dict -- --no-cache   # ignore the local download cache
- *   npm run build:dict -- --out <path> # write the asset (and <path>.gz) somewhere else
+ *   npm run build:dict -- --out <path> # write the asset (and <path>.gz, and the detail
+ *                                      # file and its gzip copy beside them) somewhere else
  *
  * Sources (each pinned by SHA-256 in ./sources.ts):
  *   CC-CEDICT   https://www.mdbg.net/chinese/export/cedict/ (a dated copy in packages/core/data/)

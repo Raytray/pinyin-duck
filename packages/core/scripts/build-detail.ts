@@ -211,8 +211,7 @@ export function detailRecords(
   for (const entry of inFileOrder) {
     records[entry.id] = parseEntry(entry);
     const hanzi = `${entry.traditional}|${entry.simplified}`;
-    const reading = `${hanzi}|${entry.pinyinNumbers}`;
-    if (!byReading.has(reading)) byReading.set(reading, entry);
+    byReading.set(`${hanzi}|${entry.pinyinNumbers}`, entry);
     if (!byHanzi.has(hanzi)) byHanzi.set(hanzi, entry);
     const group = `${entry.simplified}|${entry.pinyinNumbers}`;
     groupSizes.set(group, (groupSizes.get(group) ?? 0) + 1);

@@ -132,6 +132,24 @@ describe('detailRecords', () => {
     expect(records[2].tags[0].gloss).toBeUndefined();
   });
 
+  it('finds a target CC-CEDICT gives no reading for by its Hanzi, first in file order', () => {
+    const records = recordsOf('癎 癎 [xian2] /variant of 癇|痫/', '癇 痫 [xian2] /epilepsy/', '癇 痫 [jian4] /later/');
+
+    expect(records[0].tags[0].gloss).toBe('epilepsy');
+  });
+
+  it('gives no gloss for a target that is itself only a pointer, or a tag that is more than a target', () => {
+    const records = recordsOf(
+      '甲 甲 [jia3] /variant of 乙[yi3]/',
+      '乙 乙 [yi3] /variant of 丙[bing3]/',
+      '掱 掱 [pa2] /variant of 扒[pa2] in 扒手[pa2 shou3]/abbr. for 扒[pa2]/',
+      '扒 扒 [pa2] /to steal/'
+    );
+
+    expect(records[0].tags[0].gloss).toBeUndefined();
+    expect(records[2].tags.map((tag) => tag.gloss)).toEqual([undefined, undefined]);
+  });
+
   it('only glosses the variant tags of a variant-only entry', () => {
     const records = recordsOf('勾 勾 [gou1] /to hook/variant of 鉤|钩[gou1]/', '鉤 钩 [gou1] /hook/');
 

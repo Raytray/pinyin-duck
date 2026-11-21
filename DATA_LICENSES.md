@@ -31,13 +31,17 @@ them may reuse them on those terms:
   which the web app downloads
 - the Rime dictionaries `pinyinduck.dict.yaml` and `pinyinduck_trad.dict.yaml`
 - the Rime gloss data `lua/pinyinduck_gloss.lua`
-- `packages/android/app/src/test/resources/engine-parity.tsv`, the parity test golden
+- the Candidate detail file `detail.bin` and its gzip copy `detail.bin.gz`, which hold every
+  sense, tag and measure word of each entry
+- `packages/android/app/src/test/resources/engine-parity.tsv` and `detail-parity.tsv`, the
+  parity test goldens
 
 **Changes made to the sources:** the build joins the three on the simplified form, skips
 CC-CEDICT lines it cannot parse, keeps one entry per word and reading, ranks entries by
 the frequency list (with surname readings lowered), shortens definitions to at most three
-senses without classifier notes and cross-references, and stores the result in the
-formats above.
+senses without classifier notes and cross-references for the short gloss, keeps every
+sense for the Candidate detail with tags, measure words and cross-references parsed into
+fields of their own, and stores the result in the formats above.
 
 The license on these files covers only the data. The code that builds and reads them is
 MIT.
