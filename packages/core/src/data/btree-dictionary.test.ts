@@ -82,6 +82,7 @@ describe('opening', () => {
         pageCount: PAGE_COUNT,
         rootPageId: 0,
         directoryOffset,
+        buildId: 0,
       }),
       0
     );
@@ -227,6 +228,7 @@ describe('stored entries', () => {
       shortGloss: 'China',
       frequency: 58468,
       hskLevel: 1,
+      entryIds: [],
     });
   });
 });

@@ -31,6 +31,7 @@ const entry: StoredEntry = {
   shortGloss: 'you',
   frequency: 71309,
   hskLevel: 1,
+  entryIds: [3, 1000],
 };
 
 const header: BTreeHeader = {
@@ -38,6 +39,7 @@ const header: BTreeHeader = {
   pageCount: 1196,
   rootPageId: 1195,
   directoryOffset: HEADER_SIZE,
+  buildId: 0xdeadbeef,
 };
 
 describe('ByteWriter and ByteReader', () => {
@@ -149,6 +151,41 @@ describe('leaf pages', () => {
     expect(() => decodeLeafPage(bytes.subarray(0, bytes.length - 4))).toThrow();
   });
 
+  it('round-trips the entry ids a record stands for, in order', () => {
+    // 后 hòu stands for 後 and 后, and the order is the headword order the detail view uses.
+    const hou = { ...entry, entryIds: [41, 7], onlyIn: 'simplified' as const };
+    expect(decodeLeafPage(encodeLeafPage([hou], NO_PAGE)).entries).toEqual([hou]);
+  });
+
+  it('round-trips entry ids that go down as well as up within a leaf', () => {
+    const entries = [[900], [1000, 4], [5], [70000]].map((entryIds) => ({ ...entry, entryIds }));
+    expect(decodeLeafPage(encodeLeafPage(entries, NO_PAGE)).entries).toEqual(entries);
+  });
+
+  it('stores each id as a delta from the previous id in its leaf, so a run of ids stays small', () => {
+    // Entry ids follow storage order, so neighbouring rows have neighbouring ids. Stored
+    // whole, ids past 16383 take three bytes each; as deltas, all but the first take one.
+    const run = (first: number) =>
+      Array.from({ length: 10 }, (_, i) => ({ ...entry, entryIds: [first + i] }));
+    const near = encodeLeafPage(run(0), NO_PAGE).length;
+    const far = encodeLeafPage(run(100000), NO_PAGE).length;
+    expect(far - near).toBe(2);
+  });
+
+  it('round-trips a record that is a candidate in one script only', () => {
+    const simplifiedOnly = { ...entry, onlyIn: 'simplified' as const };
+    const traditionalOnly = { ...entry, onlyIn: 'traditional' as const };
+    const page = decodeLeafPage(encodeLeafPage([entry, simplifiedOnly, traditionalOnly], NO_PAGE));
+    expect(page.entries.map((e) => e.onlyIn)).toEqual([undefined, 'simplified', 'traditional']);
+  });
+
+  it('rejects a record whose script marker is not one the format defines', () => {
+    const bytes = encodeLeafPage([entry], NO_PAGE);
+    // The script marker is the record's last byte.
+    bytes[bytes.length - 1] = 9;
+    expect(() => decodeLeafPage(bytes)).toThrow(/script/);
+  });
+
   it('round-trips a single record through the standalone helpers', () => {
     const writer = new ByteWriter();
     writeStoredEntry(writer, entry);
@@ -221,6 +258,17 @@ describe('header', () => {
     const bytes = encodeHeader(header);
     bytes[4] = BTREE_FORMAT_VERSION + 1;
     expect(() => decodeHeader(bytes)).toThrow(/B-tree format/);
+  });
+
+  it('is format 2, the first with entry ids on rows, and rejects a format 1 asset', () => {
+    expect(BTREE_FORMAT_VERSION).toBe(2);
+    const bytes = encodeHeader(header);
+    bytes[4] = 1;
+    expect(() => decodeHeader(bytes)).toThrow(/built with B-tree format 1/);
+  });
+
+  it('carries the build id the Candidate detail file must match', () => {
+    expect(decodeHeader(encodeHeader(header)).buildId).toBe(0xdeadbeef);
   });
 
   it('rejects a header that is shorter than the fixed header', () => {

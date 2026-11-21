@@ -9,7 +9,17 @@
  *
  * Layout:
  *
- *   header (24 bytes) | page directory (pageCount * 8 bytes) | pages
+ *   header (28 bytes) | page directory (pageCount * 8 bytes) | pages
+ *
+ * Header:
+ *   0  4 bytes  magic "PDBT"
+ *   4  u8       format version
+ *   5  u8, u16  reserved (0)
+ *   8  u32      entryCount
+ *  12  u32      pageCount
+ *  16  u32      rootPageId
+ *  20  u32      directoryOffset
+ *  24  u32      buildId, which the Candidate detail file built alongside must match
  *
  * Each directory entry is a byte offset and length, so a page can be sliced out of the
  * asset in memory (the web app) or read from a mapped file (Android). Pages are stored in ascending page id
@@ -23,6 +33,19 @@
  *   3  u32  nextLeaf (NO_PAGE when last)
  *   7  ...  records
  *
+ * Leaf record:
+ *   string key, string simplified, string traditional, string pinyinNumbers,
+ *   string shortGloss, varint frequency, u8 hskLevel,
+ *   varint entryIdCount, entryIdCount * varint entryIdDelta,
+ *   u8 script (0 both, 1 simplified only, 2 traditional only)
+ *
+ * Each entry id is stored as the zigzag-encoded difference from the id before it in the
+ * same leaf (0 before the first). Ids are numbered in storage order, so neighbouring rows
+ * have neighbouring ids and almost every delta is one byte, where whole ids would take
+ * three and add about 0.4 MB to the gzipped web download.
+ *
+ * Strings are a varint byte length followed by UTF-8.
+ *
  * Internal page:
  *   0  u8   kind (0)
  *   1  u16  childCount
@@ -35,15 +58,28 @@
  * *after* the first one, silently dropping the higher-ranked entries.
  */
 
+import type { ScriptType } from '../types.js';
+
 export const BTREE_MAGIC = 'PDBT';
-export const BTREE_FORMAT_VERSION = 1;
-export const HEADER_SIZE = 24;
+/**
+ * Format 2 keys entries by headword and caseless reading (ADR 0001), so rows gained the
+ * entry ids they stand for, a script marker and the header's build id (ADR 0002).
+ */
+export const BTREE_FORMAT_VERSION = 2;
+export const HEADER_SIZE = 28;
+/** Where the header holds the build id. */
+export const BUILD_ID_OFFSET = 24;
 
 export const INTERNAL_KIND = 0;
 export const LEAF_KIND = 1;
 
 /** Sentinel page id meaning "no page" (used by the last leaf's `nextLeaf`). */
 export const NO_PAGE = 0xffffffff;
+
+/** The script marker of a leaf record. */
+const SCRIPT_BOTH = 0;
+const SCRIPT_SIMPLIFIED = 1;
+const SCRIPT_TRADITIONAL = 2;
 
 /** A dictionary row as stored in a leaf, before tone marks are derived. */
 export interface StoredEntry {
@@ -55,6 +91,13 @@ export interface StoredEntry {
   shortGloss: string;
   frequency: number;
   hskLevel: number;
+  /**
+   * The entries this row stands for, in headword order. One for most rows; a simplified
+   * candidate standing for several headwords (后 hòu for 後 and 后) lists each of them.
+   */
+  entryIds: number[];
+  /** The only script this row is a candidate in, or absent when it is one in both. */
+  onlyIn?: ScriptType;
 }
 
 export interface LeafPage {
@@ -78,6 +121,8 @@ export interface BTreeHeader {
   pageCount: number;
   rootPageId: number;
   directoryOffset: number;
+  /** Identifies the build, so a Candidate detail file from another build is refused. */
+  buildId: number;
 }
 
 export interface PageLocation {
@@ -223,8 +268,22 @@ export class ByteReader {
   }
 }
 
-/** Serializes one leaf record onto the writer. */
-export function writeStoredEntry(writer: ByteWriter, entry: StoredEntry): void {
+/** Maps a signed delta onto an unsigned varint: 0, -1, 1, -2, 2 become 0, 1, 2, 3, 4. */
+function zigzag(value: number): number {
+  return value >= 0 ? value * 2 : -value * 2 - 1;
+}
+
+function unzigzag(value: number): number {
+  return value % 2 === 0 ? value / 2 : -(value + 1) / 2;
+}
+
+/**
+ * Serializes one leaf record onto the writer.
+ *
+ * `previousId` is the last entry id written earlier in the same leaf (0 for the first
+ * record); the record's ids are stored as deltas from it.
+ */
+export function writeStoredEntry(writer: ByteWriter, entry: StoredEntry, previousId = 0): void {
   writer.string(entry.key);
   writer.string(entry.simplified);
   writer.string(entry.traditional);
@@ -232,11 +291,29 @@ export function writeStoredEntry(writer: ByteWriter, entry: StoredEntry): void {
   writer.string(entry.shortGloss);
   writer.varint(entry.frequency);
   writer.u8(entry.hskLevel);
+  writer.varint(entry.entryIds.length);
+  let previous = previousId;
+  for (const id of entry.entryIds) {
+    writer.varint(zigzag(id - previous));
+    previous = id;
+  }
+  writer.u8(
+    entry.onlyIn === 'simplified'
+      ? SCRIPT_SIMPLIFIED
+      : entry.onlyIn === 'traditional'
+        ? SCRIPT_TRADITIONAL
+        : SCRIPT_BOTH
+  );
 }
 
-/** Reads one leaf record from the reader. */
-export function readStoredEntry(reader: ByteReader): StoredEntry {
-  return {
+/** The id a record's successor in the leaf takes its first delta from. */
+export function lastEntryId(entry: StoredEntry, previousId: number): number {
+  return entry.entryIds.length > 0 ? entry.entryIds[entry.entryIds.length - 1] : previousId;
+}
+
+/** Reads one leaf record from the reader; `previousId` is as for `writeStoredEntry`. */
+export function readStoredEntry(reader: ByteReader, previousId = 0): StoredEntry {
+  const entry: StoredEntry = {
     key: reader.string(),
     simplified: reader.string(),
     traditional: reader.string(),
@@ -244,7 +321,19 @@ export function readStoredEntry(reader: ByteReader): StoredEntry {
     shortGloss: reader.string(),
     frequency: reader.varint(),
     hskLevel: reader.u8(),
+    entryIds: [],
   };
+  const idCount = reader.varint();
+  let previous = previousId;
+  for (let i = 0; i < idCount; i++) {
+    previous += unzigzag(reader.varint());
+    entry.entryIds.push(previous);
+  }
+  const script = reader.u8();
+  if (script === SCRIPT_SIMPLIFIED) entry.onlyIn = 'simplified';
+  else if (script === SCRIPT_TRADITIONAL) entry.onlyIn = 'traditional';
+  else if (script !== SCRIPT_BOTH) throw new Error(`Unknown script marker ${script} on a B-tree record`);
+  return entry;
 }
 
 export function encodeLeafPage(entries: StoredEntry[], nextLeaf: number): Uint8Array {
@@ -252,7 +341,11 @@ export function encodeLeafPage(entries: StoredEntry[], nextLeaf: number): Uint8A
   writer.u8(LEAF_KIND);
   writer.u16(entries.length);
   writer.u32(nextLeaf);
-  for (const entry of entries) writeStoredEntry(writer, entry);
+  let previousId = 0;
+  for (const entry of entries) {
+    writeStoredEntry(writer, entry, previousId);
+    previousId = lastEntryId(entry, previousId);
+  }
   return writer.toUint8Array();
 }
 
@@ -263,7 +356,11 @@ export function decodeLeafPage(bytes: Uint8Array): LeafPage {
   const entryCount = reader.u16();
   const nextLeaf = reader.u32();
   const entries: StoredEntry[] = new Array(entryCount);
-  for (let i = 0; i < entryCount; i++) entries[i] = readStoredEntry(reader);
+  let previousId = 0;
+  for (let i = 0; i < entryCount; i++) {
+    entries[i] = readStoredEntry(reader, previousId);
+    previousId = lastEntryId(entries[i], previousId);
+  }
   return { kind: 'leaf', nextLeaf, entries };
 }
 
@@ -307,6 +404,7 @@ export function encodeHeader(header: BTreeHeader): Uint8Array {
   writer.u32(header.pageCount);
   writer.u32(header.rootPageId);
   writer.u32(header.directoryOffset);
+  writer.u32(header.buildId);
   return writer.toUint8Array();
 }
 
@@ -333,6 +431,7 @@ export function decodeHeader(bytes: Uint8Array): BTreeHeader {
     pageCount: reader.u32(),
     rootPageId: reader.u32(),
     directoryOffset: reader.u32(),
+    buildId: reader.u32(),
   };
 }
 

@@ -108,6 +108,37 @@ describe('LazyPinyinSearchEngine', () => {
     expect(result.candidates[0].simplified).toBe('霓虹灯');
   });
 
+  describe('a simplified form shared by several headwords', () => {
+    // What the dictionary build writes for 後 hòu (entry 1) and 后 hòu (entry 0).
+    const hou: DictionaryRow[] = [
+      ['后', '後', 'hou4', 'behind / empress', 70000, 0, [1, 0], 'simplified'],
+      ['后', '后', 'hou4', 'empress / queen', 70000, 0, [0], 'traditional'],
+      ['后', '後', 'hou4', 'behind / back / rear', 70000, 0, [1], 'traditional'],
+      ['猴', '猴', 'hou2', 'monkey', 20000, 0, [2]],
+    ];
+
+    it('is one candidate in simplified script, standing for both entries', () => {
+      const { engine } = engineWith(hou);
+      const result = engine.search('hou', { script: 'simplified' });
+      expect(result.candidates.map((c) => [c.hanzi, c.shortGloss, c.entryIds])).toEqual([
+        ['后', 'behind / empress', [1, 0]],
+        ['猴', 'monkey', [2]],
+      ]);
+      expect(result.total).toBe(2);
+    });
+
+    it('is one candidate per headword in traditional script', () => {
+      const { engine } = engineWith(hou);
+      const result = engine.search('hou', { script: 'traditional' });
+      expect(result.candidates.map((c) => [c.hanzi, c.shortGloss, c.entryIds])).toEqual([
+        // Equal in every ranking term, so the traditional form settles it.
+        ['后', 'empress / queen', [0]],
+        ['後', 'behind / back / rear', [1]],
+        ['猴', 'monkey', [2]],
+      ]);
+    });
+  });
+
   it('drops an entry whose tones cannot satisfy a typed tone filter', () => {
     const { engine } = engineWith();
 
@@ -253,6 +284,7 @@ describe('storedEntry projection', () => {
     shortGloss: 'you',
     frequency: 100,
     hskLevel: 1,
+    entryIds: [5],
   };
 
   it('exposes the key as the clean pinyin the scorer expects', () => {
@@ -262,6 +294,7 @@ describe('storedEntry projection', () => {
       pinyinNumbers: 'ni3',
       frequency: 100,
       hskLevel: 1,
+      traditional: '你',
     });
   });
 
@@ -275,5 +308,6 @@ describe('storedEntry projection', () => {
     expect(candidate.hanzi).toBe('你');
     expect(candidate.pinyinMarks).toBe('nǐ');
     expect(candidate.remainingPinyin).toBe('hao');
+    expect(candidate.entryIds).toEqual([5]);
   });
 });

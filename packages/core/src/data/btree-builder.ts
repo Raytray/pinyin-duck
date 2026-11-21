@@ -18,6 +18,7 @@ import {
   encodeHeader,
   encodeInternalPage,
   encodeLeafPage,
+  lastEntryId,
   writeStoredEntry,
   type BTreeHeader,
   type PageLocation,
@@ -31,6 +32,8 @@ export interface BuildBTreeOptions {
   maxLeafBytes?: number;
   /** Children per internal page. */
   maxFanout?: number;
+  /** Written into the header, for the Candidate detail file built alongside to match. */
+  buildId?: number;
 }
 
 const DEFAULTS = {
@@ -41,8 +44,9 @@ const DEFAULTS = {
 
 /** Converts a wire row into the leaf record the B-tree stores. */
 export function storedEntryFromRow(row: DictionaryRow): StoredEntry {
-  const [simplified, traditional, pinyinNumbers, shortGloss, frequency, hskLevel] = row;
-  return {
+  const [simplified, traditional, pinyinNumbers, shortGloss, frequency, hskLevel, entryIds, onlyIn] =
+    row;
+  const entry: StoredEntry = {
     key: cleanPinyin(pinyinNumbers),
     simplified,
     traditional: traditional || simplified,
@@ -50,7 +54,10 @@ export function storedEntryFromRow(row: DictionaryRow): StoredEntry {
     shortGloss,
     frequency,
     hskLevel,
+    entryIds: entryIds ?? [],
   };
+  if (onlyIn) entry.onlyIn = onlyIn;
+  return entry;
 }
 
 /**
@@ -66,13 +73,19 @@ export function sortStoredEntries(entries: StoredEntry[]): StoredEntry[] {
     if (a.hskLevel !== b.hskLevel) return a.hskLevel - b.hskLevel;
     if (a.simplified !== b.simplified) return a.simplified < b.simplified ? -1 : 1;
     if (a.pinyinNumbers !== b.pinyinNumbers) return a.pinyinNumbers < b.pinyinNumbers ? -1 : 1;
-    return 0;
+    if (a.traditional !== b.traditional) return a.traditional < b.traditional ? -1 : 1;
+    return scriptOrder(a) - scriptOrder(b);
   });
 }
 
-function encodedEntrySize(entry: StoredEntry): number {
+/** Both scripts, then simplified only, then traditional only. */
+function scriptOrder(entry: StoredEntry): number {
+  return entry.onlyIn === 'simplified' ? 1 : entry.onlyIn === 'traditional' ? 2 : 0;
+}
+
+function encodedEntrySize(entry: StoredEntry, previousId: number): number {
   const writer = new ByteWriter();
-  writeStoredEntry(writer, entry);
+  writeStoredEntry(writer, entry, previousId);
   return writer.size;
 }
 
@@ -106,8 +119,11 @@ export function buildBTree(rows: DictionaryRow[], options: BuildBTreeOptions = {
   const leaves: StoredEntry[][] = [];
   let current: StoredEntry[] = [];
   let currentBytes = 7;
+  // Entry ids are stored as deltas within a leaf, so an entry's size depends on the leaf it
+  // lands in: measured against its predecessor, and again from 0 if it starts a new leaf.
+  let previousId = 0;
   for (const entry of entries) {
-    const size = encodedEntrySize(entry);
+    let size = encodedEntrySize(entry, previousId);
     if (
       current.length > 0 &&
       (current.length >= maxLeafEntries || currentBytes + size > maxLeafBytes)
@@ -115,9 +131,12 @@ export function buildBTree(rows: DictionaryRow[], options: BuildBTreeOptions = {
       leaves.push(current);
       current = [];
       currentBytes = 7;
+      previousId = 0;
+      size = encodedEntrySize(entry, previousId);
     }
     current.push(entry);
     currentBytes += size;
+    previousId = lastEntryId(entry, previousId);
   }
   leaves.push(current);
 
@@ -167,7 +186,7 @@ export function buildBTree(rows: DictionaryRow[], options: BuildBTreeOptions = {
     cursor += pages[id].byteLength;
   }
   if (cursor > 0xffffffff) {
-    throw new Error('The dictionary exceeds the 4GB offset limit of B-tree format 1');
+    throw new Error('The dictionary exceeds the 4GB offset limit of the B-tree format');
   }
 
   const header: BTreeHeader = {
@@ -175,6 +194,7 @@ export function buildBTree(rows: DictionaryRow[], options: BuildBTreeOptions = {
     pageCount,
     rootPageId,
     directoryOffset,
+    buildId: options.buildId ?? 0,
   };
 
   const output = new Uint8Array(cursor);

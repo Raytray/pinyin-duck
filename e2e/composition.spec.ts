@@ -36,7 +36,9 @@ test('shows ranked candidates with pinyin and glosses while composing', async ({
   await expectPinyin(page, ['nǐ hǎo', 'nǐ', 'ní', 'ní', 'nī']);
   await expectGlosses(page, [
     'hello; hi',
-    'you (informal, as opposed to courteous 您)',
+    // 你 stands for both 你 and 妳 in simplified script, so its gloss joins the first sense
+    // of each (ADR 0001).
+    'you (informal, as opposed to courteous 您) / you (Note: In Taiwan…',
     'dense wool fabric (used for coats and jackets)',
     'Buddhist nun / (often used in phonetic spellings)',
     'girl / phonetic "ni" (in female names) / Taiwan pr.',

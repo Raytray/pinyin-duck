@@ -54,6 +54,8 @@ export class LazyPinyinSearchEngine {
     const chosen = new Map<string, ScoredStoredEntry>();
 
     const consider = (stored: StoredEntry): void => {
+      // A row for one script only stands in for rows the other script shows instead.
+      if (stored.onlyIn && stored.onlyIn !== script) return;
       const entry = storedEntryToScorable(stored);
       const score = scoreEntry(entry, tonelessQuery, toneFilter);
       if (hasToneFilter && score <= 0) return;
@@ -106,6 +108,7 @@ export function storedEntryToScorable(entry: StoredEntry): ScorableEntry {
     pinyinNumbers: entry.pinyinNumbers,
     frequency: entry.frequency,
     hskLevel: entry.hskLevel || undefined,
+    traditional: entry.traditional,
   };
 }
 
@@ -121,6 +124,7 @@ export function storedEntryToCandidate(
       traditional: entry.traditional,
       pinyinMarks: pinyinNumbersToMarks(entry.pinyinNumbers),
       shortGloss: entry.shortGloss,
+      entryIds: entry.entryIds,
     },
     script,
     tonelessQuery

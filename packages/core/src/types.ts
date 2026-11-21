@@ -12,6 +12,12 @@ export interface Candidate {
   matchedPinyin: string;
   remainingPinyin: string;
   hskLevel?: number;
+  /**
+   * The dictionary entries this candidate stands for, which key its Candidate detail. One
+   * for most candidates; several when a simplified candidate stands for headwords sharing
+   * its form (后 hòu for 後 and 后), in the order the detail groups them.
+   */
+  entryIds: number[];
 }
 
 export interface SearchOptions {

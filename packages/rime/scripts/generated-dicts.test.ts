@@ -121,6 +121,38 @@ const SPOT_CHECKS: SpotCheck[] = [
     weight: 41694,
     why: 'the traditional script comes from CC-CEDICT, not from a conversion step',
   },
+  {
+    script: 'traditional',
+    text: '後',
+    code: 'hou',
+    comment: 'hòu · back / behind / rear',
+    weight: 13992,
+    why: 'keyed by simplified form, the build used to drop 後 hòu for 后 hòu "empress" (ADR 0001)',
+  },
+  {
+    script: 'traditional',
+    text: '后',
+    code: 'hou',
+    comment: 'hòu · empress / queen / (archaic) monarch',
+    weight: 13992,
+    why: 'its own headword, so it keeps its own gloss beside 後',
+  },
+  {
+    script: 'simplified',
+    text: '后',
+    code: 'hou',
+    comment: 'hòu · back / empress',
+    weight: 13992,
+    why: 'one candidate standing for 後 and 后, glossed with the first sense of each',
+  },
+  {
+    script: 'simplified',
+    text: '书',
+    code: 'shu',
+    comment: 'shū · book / letter / document',
+    weight: 41698,
+    why: 'glossed from the common line; the proper-noun line used to win with "abbr. for 书经"',
+  },
 ];
 
 /** Every code that has to be typeable, with one entry to look for. */

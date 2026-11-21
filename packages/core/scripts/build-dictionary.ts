@@ -33,7 +33,8 @@ import * as zlib from 'zlib';
 import { pinyinNumbersToMarks, cleanPinyin, normalizePinyin } from '../src/parser/pinyin.js';
 import { formatGloss } from '../src/dictionary/gloss.js';
 import { DictionaryRow } from '../src/data/dictionary-codec.js';
-import { buildBTree } from '../src/data/btree-builder.js';
+import { buildBTree, sortStoredEntries, storedEntryFromRow } from '../src/data/btree-builder.js';
+import { BUILD_ID_OFFSET } from '../src/data/btree-codec.js';
 import { SOURCES, type PinnedSource, type VendoredSource } from './sources.js';
 
 const PACKAGE_DIR = path.resolve(__dirname, '..');
@@ -92,29 +93,6 @@ export function normalizeFrequency(count: number, corpusMax: number): number {
   if (count <= 0 || corpusMax <= 0) return 0;
   const ratio = Math.log1p(count) / Math.log1p(corpusMax);
   return Math.min(100000, Math.max(0, Math.round(100000 * ratio)));
-}
-
-/**
- * Builds a compact wire row from a parsed CC-CEDICT line.
- * Derived fields (clean pinyin as the B-tree key, tone marks at search time) are
- * recomputed from the pinyin column, so the asset only ever stores the source data.
- */
-export function buildDictRow(
-  raw: RawCedictLine,
-  frequency: number = 0,
-  hskLevel: number = 0
-): DictionaryRow {
-  const pinyinNumbers = normalizePinyin(raw.pinyin);
-  const shortGloss = formatGloss(raw.definitions);
-
-  return [
-    raw.simplified,
-    raw.traditional,
-    pinyinNumbers,
-    shortGloss,
-    frequency,
-    hskLevel,
-  ];
 }
 
 /** Parses the "word count" frequency list into a lookup map. */
@@ -227,38 +205,192 @@ function readVendored(source: VendoredSource): string {
 }
 
 export interface BuildStats {
+  /** Valid CC-CEDICT lines read. */
   cedictLines: number;
+  /** Entries those lines formed, one per (traditional, simplified, caseless reading). */
+  entries: number;
+  /** Lines folded into an entry an earlier line had already started. */
+  merged: number;
+  /** B-tree rows written. */
   emitted: number;
   withFrequency: number;
   withHsk: number;
   singleChar: number;
-  dropped: number;
+}
+
+/**
+ * One headword with one reading: every CC-CEDICT line with the same traditional form,
+ * simplified form and pinyin ignoring case (ADR 0001). 書 [Shu1] and 書 [shu1] are one
+ * entry; 後 [hou4] and 后 [hou4] are two.
+ */
+export interface DictionaryEntry {
+  /**
+   * The entry id: `collectEntries` numbers entries in the file order of their first line,
+   * and `joinCorpora` renumbers them in the order the B+ tree stores their rows, which is
+   * the id the asset and the Candidate detail file use. The same sources always give the
+   * same ids; ids mean nothing across builds (ADR 0002).
+   */
+  id: number;
+  /** Where the entry's first line falls among the entries in CC-CEDICT, from 0. */
+  fileOrder: number;
+  traditional: string;
+  simplified: string;
+  /** Lowercased, tone-numbered pinyin shared by every line of the entry. */
+  pinyinNumbers: string;
+  /** The entry's lines, in file order. */
+  lines: RawCedictLine[];
+}
+
+/** The key of the entry a line belongs to. */
+function entryKey(line: RawCedictLine): string {
+  return `${line.traditional}|${line.simplified}|${normalizePinyin(line.pinyin)}`;
+}
+
+/**
+ * Groups CC-CEDICT lines into entries, numbering them in the file order of their first line.
+ */
+export function collectEntries(cedictContent: string): DictionaryEntry[] {
+  const entries: DictionaryEntry[] = [];
+  const byKey = new Map<string, DictionaryEntry>();
+  for (const text of cedictContent.split('\n')) {
+    const line = parseCedictLine(text);
+    if (!line) continue;
+    const key = entryKey(line);
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.lines.push(line);
+      continue;
+    }
+    const entry: DictionaryEntry = {
+      id: entries.length,
+      fileOrder: entries.length,
+      traditional: line.traditional,
+      simplified: line.simplified,
+      pinyinNumbers: normalizePinyin(line.pinyin),
+      lines: [line],
+    };
+    byKey.set(key, entry);
+    entries.push(entry);
+  }
+  return entries;
+}
+
+/** A line whose senses include a surname ("surname Zhang"). */
+function isSurnameLine(line: RawCedictLine): boolean {
+  return line.definitions.some((def) => /^surname\s/i.test(def.trim()));
+}
+
+/** A line written with lowercase pinyin, which CC-CEDICT uses for common (not proper noun) senses. */
+function isCommonLine(line: RawCedictLine): boolean {
+  return line.pinyin === line.pinyin.toLowerCase();
+}
+
+/**
+ * The line an entry's short gloss comes from: the first common line that is not a
+ * surname, then the first common line, then the first that is not a surname, then the
+ * first. 书 [shu1] "book" therefore wins over 书 [Shu1] "abbr. for 书经".
+ */
+export function glossLine(entry: DictionaryEntry): RawCedictLine {
+  const { lines } = entry;
+  return (
+    lines.find((line) => isCommonLine(line) && !isSurnameLine(line)) ??
+    lines.find(isCommonLine) ??
+    lines.find((line) => !isSurnameLine(line)) ??
+    lines[0]
+  );
+}
+
+/**
+ * Whether an entry ranks as a surname: only when every one of its lines is a surname line.
+ *
+ * Surnames are very frequent in subtitle corpora because of person names, but someone
+ * typing pinyin usually wants the common word, so a surname-only entry has its frequency
+ * cut tenfold. An entry with any other sense keeps its full frequency, as the line-by-line
+ * dedup this replaced did by keeping the non-surname line.
+ */
+function isSurnameEntry(entry: DictionaryEntry): boolean {
+  return entry.lines.every(isSurnameLine);
+}
+
+/**
+ * Definitions that are tags rather than senses (decided in the Candidate detail data model):
+ * surname, variant of / old variant of / erhua variant of, abbr. for, also written, and
+ * also pr. / Taiwan pr.
+ */
+const TAG_DEFINITION = /^(surname\s|(old |erhua )?variant of\s|abbr\. for\s|also written\s|also pr\.|taiwan pr\.)/i;
+
+/** A `CL:` definition, which lists measure words rather than a sense. */
+const MEASURE_WORD_DEFINITION = /^CL:/i;
+
+/**
+ * An entry's senses: definitions from its common lines first, then from its proper-noun
+ * lines, each in file order, with exact duplicates, tags and measure words left out.
+ */
+export function entrySenses(entry: DictionaryEntry): string[] {
+  const ordered = [...entry.lines.filter(isCommonLine), ...entry.lines.filter((l) => !isCommonLine(l))];
+  const senses: string[] = [];
+  for (const line of ordered) {
+    for (const raw of line.definitions) {
+      const definition = raw.trim();
+      if (!definition || TAG_DEFINITION.test(definition) || MEASURE_WORD_DEFINITION.test(definition)) continue;
+      if (!senses.includes(definition)) senses.push(definition);
+    }
+  }
+  return senses;
+}
+
+/** The short gloss of a single entry, from its gloss line. */
+function entryGloss(entry: DictionaryEntry): string {
+  return formatGloss(glossLine(entry).definitions);
+}
+
+/**
+ * Orders the headwords one simplified candidate stands for: most senses first, ties in
+ * file order. The candidate's short gloss and its Candidate detail groups both use this.
+ */
+export function orderHeadwords(entries: DictionaryEntry[]): DictionaryEntry[] {
+  const counts = new Map(entries.map((entry) => [entry, entrySenses(entry).length]));
+  return [...entries].sort((a, b) => counts.get(b)! - counts.get(a)! || a.fileOrder - b.fileOrder);
+}
+
+/**
+ * The short gloss of a candidate standing for several headwords: the first sense of each,
+ * in headword order, within the usual length limit ("back / empress").
+ *
+ * A headword with no sense of its own (a variant-only one, say) has no first sense to give,
+ * so it is left out: 是 shì is not glossed "to be / variant of 是" because of 昰. When only
+ * one headword is left, the candidate takes that headword's own short gloss, as it would if
+ * it stood alone; when none is, the first headword's.
+ */
+export function joinedGloss(ordered: DictionaryEntry[]): string {
+  const withSenses = ordered
+    .map((entry) => ({ entry, first: entrySenses(entry)[0] }))
+    .filter((item): item is { entry: DictionaryEntry; first: string } => item.first !== undefined);
+  if (withSenses.length === 0) return entryGloss(ordered[0]);
+  if (withSenses.length === 1) return entryGloss(withSenses[0].entry);
+  return formatGloss([withSenses.map((item) => formatGloss([item.first], Infinity)).join(' / ')]);
 }
 
 /**
  * Joins the three corpora into wire rows.
  *
- * Split out from `build` so the dedup, join and validation logic can be tested
+ * Every entry with a simplified form of its own gets one row for both scripts. When
+ * several headwords share a simplified form and reading (後 and 后, both hòu), simplified
+ * script shows them as one candidate and traditional script as one each, so the group gets
+ * a simplified-only row standing for all of them plus a traditional-only row per headword.
+ * Every row lists the entry ids it stands for.
+ *
+ * Split out from `build` so the merging, join and validation logic can be tested
  * without touching the network or the filesystem.
  */
 export function joinCorpora(
   cedictContent: string,
   frequencyContent: string,
   hskContent: string
-): { rows: DictionaryRow[]; stats: BuildStats } {
+): { rows: DictionaryRow[]; entries: DictionaryEntry[]; stats: BuildStats } {
   const frequencies = parseFrequencyList(frequencyContent);
   const hskLevels = parseHskList(hskContent);
-
-  const rows: DictionaryRow[] = [];
-  // Whether each emitted row came from a surname entry, judged on its full definition
-  // list. A row only keeps the shortened gloss, so this cannot be recovered from the row.
-  const rowIsSurname: boolean[] = [];
-  const seen = new Map<string, number>();
-  let cedictLines = 0;
-  let withFrequency = 0;
-  let withHsk = 0;
-  let singleChar = 0;
-  let dropped = 0;
+  const entries = collectEntries(cedictContent);
 
   // Normalize against the busiest word in the corpus, not a hardcoded constant, so
   // the top of the scale is actually reached regardless of corpus size.
@@ -267,66 +399,64 @@ export function joinCorpora(
     if (count > corpusMax) corpusMax = count;
   }
 
-  for (const line of cedictContent.split('\n')) {
-    const parsed = parseCedictLine(line);
-    if (!parsed) continue;
-    cedictLines++;
+  // Headwords that one simplified candidate stands for, in the file order of their first entry.
+  const groups = new Map<string, DictionaryEntry[]>();
+  for (const entry of entries) {
+    const key = `${entry.simplified}|${entry.pinyinNumbers}`;
+    const group = groups.get(key);
+    if (group) group.push(entry);
+    else groups.set(key, [entry]);
+  }
 
-    // The same word can appear with several readings; each reading is a distinct
-    // candidate, but an identical (word, reading) pair must not be repeated.
-    const pinyinNumbers = normalizePinyin(parsed.pinyin);
-    const key = `${parsed.simplified}|${pinyinNumbers}`;
+  const rows: DictionaryRow[] = [];
+  let withFrequency = 0;
+  let withHsk = 0;
+  let singleChar = 0;
 
-    const frequency = normalizeFrequency(frequencies.get(parsed.simplified) ?? 0, corpusMax);
-    const hskLevel = hskLevels.get(parsed.simplified) ?? 0;
+  for (const group of groups.values()) {
+    const { simplified, pinyinNumbers } = group[0];
+    // Frequency and HSK level are keyed by simplified form, so a group shares them.
+    const frequency = normalizeFrequency(frequencies.get(simplified) ?? 0, corpusMax);
+    const hskLevel = hskLevels.get(simplified) ?? 0;
+    const ranked = (members: DictionaryEntry[]) =>
+      members.every(isSurnameEntry) ? Math.round(frequency * 0.1) : frequency;
 
-    // Detect surname entries (definitions starting with "surname ") and reduce
-    // their frequency so they don't dominate prefix searches. Surnames are extremely
-    // frequent in subtitle corpora due to person names, but in an IME context users
-    // typing partial pinyin usually want regular vocabulary words first.
-    const isSurname = parsed.definitions.some((def) => /^surname\s/i.test(def.trim()));
-    const adjustedFrequency = isSurname ? Math.round(frequency * 0.1) : frequency;
-
-    const existingIndex = seen.get(key);
-    if (existingIndex !== undefined) {
-      // Duplicate reading: prefer the non-surname entry, or the one with higher frequency.
-      // The existing entry is judged by the same rule as the new one (any definition
-      // starting "surname "), not by its shortened gloss, which may not start with it.
-      const existingIsSurname = rowIsSurname[existingIndex];
-      // Row format: [simplified, traditional, pinyinNumbers, shortGloss, frequency, hskLevel]
-      const existingFrequency = rows[existingIndex][4];
-
-      if (isSurname && !existingIsSurname) {
-        // New entry is surname, existing is not: keep existing, drop new
-        dropped++;
-        continue;
-      } else if (!isSurname && existingIsSurname) {
-        // New entry is not surname, existing is: replace existing with new
-        rows[existingIndex] = buildDictRow(parsed, adjustedFrequency, hskLevel);
-        rowIsSurname[existingIndex] = false;
-        dropped++;
-        continue;
-      } else if (adjustedFrequency > existingFrequency) {
-        // Neither or both are surnames: keep the higher frequency one
-        rows[existingIndex] = buildDictRow(parsed, adjustedFrequency, hskLevel);
-        dropped++;
-        continue;
-      } else {
-        // Keep existing, drop new
-        dropped++;
-        continue;
-      }
-    }
-
-    // First time seeing this key
-    seen.set(key, rows.length);
     if (frequency > 0) withFrequency++;
     if (hskLevel > 0) withHsk++;
-    if ([...parsed.simplified].length === 1) singleChar++;
+    if ([...simplified].length === 1) singleChar++;
 
-    rows.push(buildDictRow(parsed, adjustedFrequency, hskLevel));
-    rowIsSurname.push(isSurname);
+    if (group.length === 1) {
+      const [entry] = group;
+      rows.push([simplified, entry.traditional, pinyinNumbers, entryGloss(entry), ranked(group), hskLevel, [entry.id]]);
+      continue;
+    }
+
+    const ordered = orderHeadwords(group);
+    rows.push([
+      simplified,
+      ordered[0].traditional,
+      pinyinNumbers,
+      joinedGloss(ordered),
+      ranked(group),
+      hskLevel,
+      ordered.map((entry) => entry.id),
+      'simplified',
+    ]);
+    for (const entry of group) {
+      rows.push([
+        simplified,
+        entry.traditional,
+        pinyinNumbers,
+        entryGloss(entry),
+        ranked([entry]),
+        hskLevel,
+        [entry.id],
+        'traditional',
+      ]);
+    }
   }
+
+  renumberInStorageOrder(rows, entries);
 
   // Sanity check: the B-tree key and the displayed tone marks derive from these columns,
   // so a bad pinyin column here would silently corrupt every downstream candidate.
@@ -336,10 +466,60 @@ export function joinCorpora(
     }
   }
 
+  const cedictLines = entries.reduce((total, entry) => total + entry.lines.length, 0);
   return {
     rows,
-    stats: { cedictLines, emitted: rows.length, withFrequency, withHsk, singleChar, dropped },
+    entries,
+    stats: {
+      cedictLines,
+      entries: entries.length,
+      merged: cedictLines - entries.length,
+      emitted: rows.length,
+      withFrequency,
+      withHsk,
+      singleChar,
+    },
   };
+}
+
+/**
+ * Renumbers entries in the order the B+ tree stores the rows that stand for them, and sorts
+ * `entries` by the new id.
+ *
+ * The tree stores each id as a delta from the one before it in the same leaf, so ids that
+ * follow storage order are almost all one byte. Numbered in file order they would be random
+ * from row to row and cost about 0.3 MB more in the gzipped web download.
+ */
+function renumberInStorageOrder(rows: DictionaryRow[], entries: DictionaryEntry[]): void {
+  const renumbered = new Map<number, number>();
+  for (const stored of sortStoredEntries(rows.map(storedEntryFromRow))) {
+    for (const id of stored.entryIds) {
+      if (!renumbered.has(id)) renumbered.set(id, renumbered.size);
+    }
+  }
+  for (const row of rows) row[6] = row[6]!.map((id) => renumbered.get(id)!);
+  for (const entry of entries) entry.id = renumbered.get(entry.id)!;
+  entries.sort((a, b) => a.id - b.id);
+}
+
+/**
+ * Encodes the rows as the B+ tree asset, stamped with a build id.
+ *
+ * The id is a hash of the asset written with a zero id, so it changes whenever any row or
+ * entry id does and stays the same when nothing did. The Candidate detail file built from
+ * the same entries carries the same id, and a reader refuses a pair that differ (ADR 0002).
+ */
+export function encodeDictionary(rows: DictionaryRow[]): { bytes: Uint8Array; buildId: number } {
+  const bytes = buildBTree(rows, { buildId: 0 });
+  const digest = createHash('sha256').update(bytes).digest();
+  // Zero is what an unstamped tree carries, so it is never a real build's id.
+  const buildId = digest.readUInt32LE(0) || 1;
+  new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).setUint32(
+    BUILD_ID_OFFSET,
+    buildId,
+    true
+  );
+  return { bytes, buildId };
 }
 
 async function build(
@@ -364,7 +544,8 @@ async function build(
   );
 
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  const payload = Buffer.from(buildBTree(rows));
+  const { bytes, buildId } = encodeDictionary(rows);
+  const payload = Buffer.from(bytes);
   fs.writeFileSync(outPath, payload);
   // The web asset URL is a hash of these bytes, so the same rows must give the same bytes
   // on every machine. Node writes a zero mtime into the gzip header, but zlib stamps the
@@ -376,9 +557,11 @@ async function build(
   fs.writeFileSync(compressedOutPath, compressed);
 
   console.log(`\n  parsed  ${stats.cedictLines} CC-CEDICT lines`);
-  console.log(`  emitted ${stats.emitted} rows (${stats.dropped} duplicate readings dropped)`);
+  console.log(`  merged  ${stats.cedictLines} lines into ${stats.entries} entries`);
+  console.log(`  emitted ${stats.emitted} rows`);
   console.log(`  coverage ${stats.withFrequency} with frequency, ${stats.withHsk} on the HSK list`);
   console.log(`  coverage ${stats.singleChar} single characters`);
+  console.log(`  build   id ${buildId.toString(16).padStart(8, '0')}`);
   console.log(`  wrote   ${outPath} (${(payload.length / 1048576).toFixed(2)}MB)`);
   console.log(`  wrote   ${compressedOutPath} (${(compressed.length / 1048576).toFixed(2)}MB)`);
   console.log('         B+ tree: a client reads only the header and the pages it needs');

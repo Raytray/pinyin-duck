@@ -21,6 +21,7 @@ function stored(partial: Partial<StoredEntry> & { key: string }): StoredEntry {
     shortGloss: 'gloss',
     frequency: 0,
     hskLevel: 0,
+    entryIds: [],
     ...partial,
   };
 }
@@ -45,7 +46,14 @@ describe('storedEntryFromRow', () => {
       shortGloss: 'China',
       frequency: 58468,
       hskLevel: 1,
+      entryIds: [],
     });
+  });
+
+  it('carries the entry ids and the script the row is a candidate in', () => {
+    const hou: DictionaryRow = ['后', '後', 'hou4', 'behind / empress', 9, 0, [41, 7], 'simplified'];
+    expect(storedEntryFromRow(hou)).toMatchObject({ entryIds: [41, 7], onlyIn: 'simplified' });
+    expect(storedEntryFromRow(china)).not.toHaveProperty('onlyIn');
   });
 
   it('falls back to the simplified form when no traditional form is stored', () => {
@@ -74,6 +82,22 @@ describe('sortStoredEntries', () => {
     expect(sorted.map((e) => e.simplified)).toEqual(['甲', '乙']);
   });
 
+  it('breaks a full tie by traditional form, then script, whatever order the rows came in', () => {
+    const rows = [
+      stored({ key: 'hou', simplified: '后', traditional: '后', onlyIn: 'traditional' }),
+      stored({ key: 'hou', simplified: '后', traditional: '後', onlyIn: 'traditional' }),
+      stored({ key: 'hou', simplified: '后', traditional: '後', onlyIn: 'simplified' }),
+    ];
+    const expected = [
+      ['后', 'traditional'],
+      ['後', 'simplified'],
+      ['後', 'traditional'],
+    ];
+    for (const order of [rows, [...rows].reverse()]) {
+      expect(sortStoredEntries(order).map((e) => [e.traditional, e.onlyIn])).toEqual(expected);
+    }
+  });
+
   it('does not mutate the input array', () => {
     const entries = [stored({ key: 'b' }), stored({ key: 'a' })];
     sortStoredEntries(entries);
@@ -92,6 +116,11 @@ describe('buildBTree', () => {
     // Two entries share a single leaf, so that leaf is also the root.
     expect(header.pageCount).toBe(1);
     expect(header.rootPageId).toBe(0);
+    expect(header.buildId).toBe(0);
+  });
+
+  it('writes the build id it is given into the header', () => {
+    expect(decodeHeader(buildBTree([china], { buildId: 0xcafe1234 })).buildId).toBe(0xcafe1234);
   });
 
   it('round-trips every field of every entry', () => {
@@ -109,6 +138,23 @@ describe('buildBTree', () => {
 
     const all = readAll(buildBTree(rows));
     expect(all.map((e) => e.key)).toEqual(['hao', 'ni', 'ni']);
+  });
+
+  it('reads back every entry id across leaf boundaries, where the id deltas restart', () => {
+    const rows: DictionaryRow[] = Array.from({ length: 300 }, (_, i) => [
+      `字${i}`,
+      `字${i}`,
+      `zi${(i % 4) + 1}`,
+      'g',
+      i,
+      0,
+      i % 7 === 0 ? [200000 - i, i] : [200000 - i],
+    ]);
+
+    const bytes = buildBTree(rows, { maxLeafEntries: 16 });
+    expect(decodeHeader(bytes).pageCount).toBeGreaterThan(10);
+    const ids = new Map(readAll(bytes).map((e) => [e.simplified, e.entryIds]));
+    for (const row of rows) expect(ids.get(row[0]), row[0]).toEqual(row[6]);
   });
 
   it('packs many entries into a multi-level tree that still reads back exactly', () => {
@@ -221,9 +267,10 @@ describe('buildBTree', () => {
   });
 
   it('fills each leaf right up to the byte budget and never past it', () => {
-    // Each of these entries encodes to 17 bytes: key "a" (2), two 3-byte hanzi (4 + 4),
-    // "a1" (3), gloss "g" (2), a one-byte frequency varint and the HSK byte. A leaf page
-    // adds a 7-byte header, so a 58-byte budget holds exactly three entries.
+    // Each of these entries encodes to 19 bytes: key "a" (2), two 3-byte hanzi (4 + 4),
+    // "a1" (3), gloss "g" (2), a one-byte frequency varint, the HSK byte, an empty entry id
+    // list (1) and the script byte. A leaf page adds a 7-byte header, so a 64-byte budget
+    // holds exactly three entries.
     const rows: DictionaryRow[] = Array.from({ length: 10 }, (_, i) => ['字', '字', 'a1', 'g', i, 0]);
 
     const leafSizes = (maxLeafBytes: number) => {
@@ -235,14 +282,14 @@ describe('buildBTree', () => {
         .map((page) => ({ entries: decodeLeafPage(page).entries.length, bytes: page.byteLength }));
     };
 
-    expect(leafSizes(58)).toEqual([
-      { entries: 3, bytes: 58 },
-      { entries: 3, bytes: 58 },
-      { entries: 3, bytes: 58 },
-      { entries: 1, bytes: 24 },
+    expect(leafSizes(64)).toEqual([
+      { entries: 3, bytes: 64 },
+      { entries: 3, bytes: 64 },
+      { entries: 3, bytes: 64 },
+      { entries: 1, bytes: 26 },
     ]);
     // One byte less and the third entry no longer fits.
-    expect(leafSizes(57).map((leaf) => leaf.entries)).toEqual([2, 2, 2, 2, 2]);
+    expect(leafSizes(63).map((leaf) => leaf.entries)).toEqual([2, 2, 2, 2, 2]);
   });
 
   it('reports a build that fits in the format without a directory overflow', () => {

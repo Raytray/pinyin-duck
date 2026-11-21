@@ -102,6 +102,11 @@ export class BTreeDictionary {
     return this.header.entryCount;
   }
 
+  /** The build this asset came from, which its Candidate detail file must share. */
+  get buildId(): number {
+    return this.header.buildId;
+  }
+
   /** Number of pages the asset is split into. */
   get pageCount(): number {
     return this.header.pageCount;

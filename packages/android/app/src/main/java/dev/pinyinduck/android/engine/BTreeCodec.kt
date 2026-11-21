@@ -8,18 +8,36 @@ import java.nio.ByteBuffer
  * A direct port of `packages/core/src/data/btree-codec.ts`. The layout is
  *
  * ```
- * header (24 bytes) | page directory (pageCount * 8 bytes) | pages
+ * header (28 bytes) | page directory (pageCount * 8 bytes) | pages
  * ```
  *
  * so a reader opens the file by reading only the header and the directory, then touches
  * just the pages a single lookup needs. Every constant and every decode step here is
  * kept byte-for-byte compatible with the TypeScript, which is what lets both clients read
  * the one committed `dictionary.btree`.
+ *
+ * The header ends with the build id (u32 at offset 24) that the Candidate detail file
+ * built alongside must match. A leaf record is key, simplified, traditional, pinyinNumbers
+ * and shortGloss (varint-length UTF-8 strings), a varint frequency, a u8 HSK level, a
+ * varint count of entry ids followed by each id as a varint, and a u8 script marker
+ * (0 both, 1 simplified only, 2 traditional only). Each id is stored as the zigzag-encoded
+ * difference from the id before it in the same leaf (0 before the first), because ids
+ * follow storage order and the deltas are almost all one byte.
  */
 
 const val BTREE_MAGIC = "PDBT"
-const val BTREE_FORMAT_VERSION = 1
-const val HEADER_SIZE = 24
+
+/**
+ * Format 2 keys entries by headword and caseless reading (ADR 0001), so rows gained the
+ * entry ids they stand for, a script marker and the header's build id (ADR 0002).
+ */
+const val BTREE_FORMAT_VERSION = 2
+const val HEADER_SIZE = 28
+
+/** Script markers on a leaf record. */
+private const val SCRIPT_BOTH = 0
+private const val SCRIPT_SIMPLIFIED = 1
+private const val SCRIPT_TRADITIONAL = 2
 
 const val INTERNAL_KIND = 0
 const val LEAF_KIND = 1
@@ -45,6 +63,13 @@ data class StoredEntry(
     val shortGloss: String,
     val frequency: Int,
     val hskLevel: Int,
+    /**
+     * The entries this row stands for, in headword order. One for most rows; a simplified
+     * candidate standing for several headwords (后 hòu for 後 and 后) lists each of them.
+     */
+    val entryIds: List<Int> = emptyList(),
+    /** The only script this row is a candidate in, or null when it is one in both. */
+    val onlyIn: ScriptType? = null,
 )
 
 /** A decoded B-tree node: either records or child pointers. */
@@ -74,6 +99,8 @@ data class BTreeHeader(
     val pageCount: Int,
     val rootPageId: Int,
     val directoryOffset: Int,
+    /** Identifies the build, so a Candidate detail file from another build is refused. */
+    val buildId: Int,
 )
 
 data class PageLocation(
@@ -143,17 +170,34 @@ internal class ByteReader(
     }
 }
 
-/** Reads one leaf record. */
-internal fun readStoredEntry(reader: ByteReader) =
-    StoredEntry(
-        key = reader.string(),
-        simplified = reader.string(),
-        traditional = reader.string(),
-        pinyinNumbers = reader.string(),
-        shortGloss = reader.string(),
-        frequency = reader.varint(),
-        hskLevel = reader.u8(),
-    )
+/** Reads one leaf record; its ids are deltas from [previousId], the leaf's last id so far. */
+internal fun readStoredEntry(
+    reader: ByteReader,
+    previousId: Int = 0,
+): StoredEntry {
+    val key = reader.string()
+    val simplified = reader.string()
+    val traditional = reader.string()
+    val pinyinNumbers = reader.string()
+    val shortGloss = reader.string()
+    val frequency = reader.varint()
+    val hskLevel = reader.u8()
+    var previous = previousId
+    val entryIds =
+        List(reader.varint()) {
+            val zigzag = reader.varint()
+            previous += (zigzag ushr 1) xor -(zigzag and 1)
+            previous
+        }
+    val onlyIn =
+        when (val script = reader.u8()) {
+            SCRIPT_BOTH -> null
+            SCRIPT_SIMPLIFIED -> ScriptType.SIMPLIFIED
+            SCRIPT_TRADITIONAL -> ScriptType.TRADITIONAL
+            else -> throw DictionaryFormatException("Unknown script marker $script on a B-tree record")
+        }
+    return StoredEntry(key, simplified, traditional, pinyinNumbers, shortGloss, frequency, hskLevel, entryIds, onlyIn)
+}
 
 internal fun decodeLeafPage(bytes: ByteBuffer): LeafPage {
     val reader = ByteReader(bytes)
@@ -162,7 +206,12 @@ internal fun decodeLeafPage(bytes: ByteBuffer): LeafPage {
     val entryCount = reader.u16()
     val nextLeaf = reader.u32()
     val entries = ArrayList<StoredEntry>(entryCount)
-    repeat(entryCount) { entries.add(readStoredEntry(reader)) }
+    var previousId = 0
+    repeat(entryCount) {
+        val entry = readStoredEntry(reader, previousId)
+        entries.add(entry)
+        previousId = entry.entryIds.lastOrNull() ?: previousId
+    }
     return LeafPage(nextLeaf, entries)
 }
 
@@ -202,6 +251,7 @@ internal fun decodeHeader(bytes: ByteBuffer): BTreeHeader {
         pageCount = reader.u32(),
         rootPageId = reader.u32(),
         directoryOffset = reader.u32(),
+        buildId = reader.u32(),
     )
 }
 

@@ -207,12 +207,14 @@ describe('buildRimeDictionaries', () => {
       skipped: 0,
       unencodable: 0,
       duplicates: 0,
+      otherScript: 0,
     });
     expect(stats.scripts.traditional).toEqual({
       rows: 4,
       skipped: 0,
       unencodable: 0,
       duplicates: 1,
+      otherScript: 0,
     });
   });
 

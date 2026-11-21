@@ -127,8 +127,9 @@ class PinyinDuckOptionsTest {
 
         assertEquals("中国", simplified.candidates.first().hanzi)
         assertEquals("中國", traditional.candidates.first().hanzi)
-        // Both scripts rank the same number of candidates; only the glyphs differ.
-        assertEquals(simplified.total, traditional.total)
+        // Traditional script can rank more candidates: headwords that share a simplified form
+        // (後 and 后, both hòu) are one candidate in simplified script and one each here.
+        assertTrue(traditional.total >= simplified.total)
         assertEquals(
             simplified.candidates.map { it.id },
             traditional.candidates.map { it.id },

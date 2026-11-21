@@ -4,8 +4,9 @@ import {
   parseFrequencyList,
   parseHskList,
   normalizeFrequency,
-  buildDictRow,
   joinCorpora,
+  encodeDictionary,
+  orderHeadwords,
   type RawCedictLine,
 } from './build-dictionary';
 import { normalizePinyin } from '../src/parser/pinyin.js';
@@ -158,36 +159,6 @@ describe('normalizeFrequency', () => {
   });
 });
 
-describe('buildDictRow', () => {
-  it('emits a row in the documented column order', () => {
-    expect(buildDictRow(cctv, 0, 0)).toEqual([
-      '中国中央电视台',
-      '中國中央電視台',
-      'zhong1 guo2 zhong1 yang2 dian4 shi4 tai2',
-      'China Central Television (CCTV) / PRC state TV network',
-      0,
-      0,
-    ]);
-  });
-
-  it('carries the normalized frequency and HSK level through', () => {
-    const row = buildDictRow(cctv, 58468, 1);
-    expect(row[4]).toBe(58468);
-    expect(row[5]).toBe(1);
-  });
-
-  it('defaults frequency and HSK level to 0 when the word is not in either corpus', () => {
-    const row = buildDictRow(cctv);
-    expect(row[4]).toBe(0);
-    expect(row[5]).toBe(0);
-  });
-
-  it('normalizes the pinyin column', () => {
-    const row = buildDictRow(cctv, 0, 0);
-    expect(row[2]).toBe('zhong1 guo2 zhong1 yang2 dian4 shi4 tai2');
-  });
-});
-
 describe('joinCorpora', () => {
   const cedict = [
     '# CC-CEDICT comment line',
@@ -238,20 +209,20 @@ describe('joinCorpora', () => {
     );
     const { rows, stats } = joinCorpora(multi, '', '');
     expect(rows.map((r) => r[2])).toEqual(['hang2', 'xing2']);
-    expect(stats.dropped).toBe(1);
+    expect(stats.merged).toBe(1);
   });
 
-  it('deduplicates an identical word and reading even when the definitions differ', () => {
+  it('merges lines with an identical headword and reading into one entry', () => {
     const dupe = ['行 行 [hang2] /to walk/', '行 行 [hang2] /to stroll/'].join('\n');
     const { rows, stats } = joinCorpora(dupe, '', '');
     expect(rows).toHaveLength(1);
-    expect(stats.dropped).toBe(1);
+    expect(stats.merged).toBe(1);
   });
 
   it('treats a differently-cased pinyin column as the same reading', () => {
     const dupe = ['中 中 [zhong1] /middle/', '中 中 [Zhong1] /middle/'].join('\n');
     const { stats } = joinCorpora(dupe, '', '');
-    expect(stats.dropped).toBe(1);
+    expect(stats.merged).toBe(1);
   });
 
   it('reduces frequency by 10x for surname entries', () => {
@@ -261,22 +232,22 @@ describe('joinCorpora', () => {
     expect(rows[0][4]).toBe(10000);
   });
 
-  it('keeps the non-surname entry when a duplicate entry is a surname', () => {
+  it('glosses a merged entry from its non-surname line when the surname line comes second', () => {
     const dupe = ['能 能 [neng2] /to be able to/', '能 能 [neng2] /surname Neng/'].join('\n');
     const { rows, stats } = joinCorpora(dupe, '', '');
     expect(rows).toHaveLength(1);
     expect(rows[0][3]).toBe('to be able to');
-    expect(stats.dropped).toBe(1);
+    expect(stats.merged).toBe(1);
   });
 
-  it('replaces a surname entry when a duplicate non-surname entry appears', () => {
+  it('glosses a merged entry from its non-surname line when the surname line comes first', () => {
     const dupe = ['能 能 [neng2] /surname Neng/', '能 能 [neng2] /to be able to/'].join('\n');
     const { rows } = joinCorpora(dupe, '', '');
     expect(rows).toHaveLength(1);
     expect(rows[0][3]).toBe('to be able to');
   });
 
-  it('replaces an existing entry when a duplicate entry has higher frequency', () => {
+  it('keeps full frequency for an entry that has any non-surname line', () => {
     const dupe = ['单 单 [dan1] /mountain/surname Shan/', '单 单 [dan1] /bill/list/'].join('\n');
     const frequency = '单 1000\n';
     const { rows } = joinCorpora(dupe, frequency, '');
@@ -285,7 +256,7 @@ describe('joinCorpora', () => {
     expect(rows[0][4]).toBe(100000);
   });
 
-  it('recognizes an existing surname entry whose surname sense is not listed first', () => {
+  it('treats a line as a surname line even when its surname sense is not listed first', () => {
     // With no frequency data both readings score 0, so only the surname rule can decide.
     // The shortened gloss "mountain / surname Shan" does not start with "surname ", and
     // judging the existing row by its gloss used to keep it.
@@ -295,28 +266,150 @@ describe('joinCorpora', () => {
     expect(rows[0][3]).toBe('bill / list');
   });
 
-  it('accounts for every CC-CEDICT line as emitted or dropped', () => {
+  it('accounts for every CC-CEDICT line as starting an entry or merged into one', () => {
     const dupes = [
       '能 能 [neng2] /surname Neng/',
-      '能 能 [neng2] /to be able to/', // replaces the surname row
-      '能 能 [neng2] /surname Neng/', // dropped in favour of the regular row
+      '能 能 [neng2] /to be able to/', // merged into the entry the first line started
+      '能 能 [neng2] /surname Neng/', // merged too
       '中 中 [zhong1] /middle/',
     ].join('\n');
     const { rows, stats } = joinCorpora(dupes, '', '');
     expect(rows).toHaveLength(2);
-    expect(stats.dropped).toBe(2);
-    expect(stats.emitted + stats.dropped).toBe(stats.cedictLines);
+    expect(stats.merged).toBe(2);
+    expect(stats.entries + stats.merged).toBe(stats.cedictLines);
   });
 
   it('returns no rows for an empty corpus', () => {
     const { rows, stats } = joinCorpora('', '', '');
     expect(rows).toEqual([]);
-    expect(stats).toMatchObject({ cedictLines: 0, emitted: 0, dropped: 0 });
+    expect(stats).toMatchObject({ cedictLines: 0, emitted: 0, merged: 0 });
   });
 
   it('refuses to emit a row whose pinyin column cannot be parsed', () => {
     const broken = '中 中 [1] /middle/';
     expect(() => joinCorpora(broken, '', '')).toThrow(/unparsable pinyin/);
+  });
+
+  it('merges a capitalised proper-noun line into the common entry with the same headword', () => {
+    const shu = [
+      '書 书 [Shu1] /abbr. for 書經|书经[Shu1 jing1]/',
+      '書 书 [shu1] /book/letter/document/CL:本[ben3],冊|册[ce4],部[bu4]/to write/',
+    ].join('\n');
+    const { rows, entries } = joinCorpora(shu, '', '');
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ traditional: '書', simplified: '书', pinyinNumbers: 'shu1' });
+    expect(entries[0].lines.map((line) => line.pinyin)).toEqual(['Shu1', 'shu1']);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('takes the short gloss from the common line, not an earlier proper-noun line', () => {
+    const shu = [
+      '書 书 [Shu1] /abbr. for 書經|书经[Shu1 jing1]/',
+      '書 书 [shu1] /book/letter/document/CL:本[ben3],冊|册[ce4],部[bu4]/to write/',
+    ].join('\n');
+    const { rows } = joinCorpora(shu, '', '');
+    expect(rows[0][3]).toBe('book / letter / document');
+  });
+
+  it('gives a single-headword entry one row, for both scripts, carrying its entry id', () => {
+    const { rows } = joinCorpora('好 好 [hao3] /good/\n你 你 [ni3] /you/', '', '');
+    expect(rows.map((row) => [row[0], row[6], row[7]])).toEqual([
+      ['好', [0], undefined],
+      ['你', [1], undefined],
+    ]);
+  });
+
+  it('numbers entries in the order the B+ tree stores their rows, and lists them by id', () => {
+    // Storage order is by toneless pinyin, so 好 hǎo comes before 你 nǐ whatever the file says.
+    // Neighbouring rows then have neighbouring ids, which is what keeps the asset small.
+    const { rows, entries } = joinCorpora('你 你 [ni3] /you/\n好 好 [hao3] /good/', '', '');
+    expect(entries.map((entry) => [entry.id, entry.simplified])).toEqual([
+      [0, '好'],
+      [1, '你'],
+    ]);
+    expect(rows.map((row) => [row[0], row[6]])).toEqual([
+      ['你', [1]],
+      ['好', [0]],
+    ]);
+  });
+
+  describe('headwords sharing a simplified form', () => {
+  const hou = [
+    '后 后 [Hou4] /surname Hou/',
+    '后 后 [hou4] /empress/queen/',
+    '後 后 [hou4] /behind/back/rear/',
+  ].join('\n');
+
+  it('keeps 後 hòu and 后 hòu as separate entries', () => {
+    const { entries } = joinCorpora(hou, '', '');
+    expect(entries.map((entry) => [entry.id, entry.traditional, entry.lines.length])).toEqual([
+      [0, '后', 2],
+      [1, '後', 1],
+    ]);
+  });
+
+  it('writes one simplified-only row standing for both, glossed with the first sense of each', () => {
+    // 後 has three senses and 后 two (its surname line is a tag, not a sense), so 後 leads.
+    const { rows } = joinCorpora(hou, '', '');
+    const simplified = rows.filter((row) => row[7] === 'simplified');
+    expect(simplified).toEqual([['后', '後', 'hou4', 'behind / empress', 0, 0, [1, 0], 'simplified']]);
+  });
+
+  it('writes one traditional-only row per headword, each with its own gloss', () => {
+    const { rows } = joinCorpora(hou, '', '');
+    const traditional = rows.filter((row) => row[7] === 'traditional');
+    expect(traditional.map((row) => [row[1], row[3], row[6]])).toEqual([
+      ['后', 'empress / queen', [0]],
+      ['後', 'behind / back / rear', [1]],
+    ]);
+    expect(rows).toHaveLength(3);
+  });
+
+  it('orders headwords with as many senses as each other by file order', () => {
+    const tied = ['乾 干 [gan1] /dry/', '幹 干 [gan1] /trunk/'].join('\n');
+    const { rows } = joinCorpora(tied, '', '');
+    expect(rows.find((row) => row[7] === 'simplified')?.[3]).toBe('dry / trunk');
+  });
+
+  it('leaves out a headword with no senses of its own, such as a variant-only one', () => {
+    // 昰 is only "variant of 是", so 是 shì keeps the gloss it has on its own.
+    const shi = [
+      '是 是 [shi4] /to be/correct; right; true/very well/',
+      '昰 是 [shi4] /variant of 是[shi4]/',
+    ].join('\n');
+    const { rows } = joinCorpora(shi, '', '');
+    expect(rows.find((row) => row[7] === 'simplified')?.[3]).toBe('to be / correct; right; true / very well');
+  });
+
+  it("falls back to the first headword's gloss when no headword has a sense", () => {
+    const variants = ['甲 丙 [bing3] /variant of 丙[bing3]/', '乙 丙 [bing3] /old variant of 丙[bing3]/'].join('\n');
+    const { rows } = joinCorpora(variants, '', '');
+    expect(rows.find((row) => row[7] === 'simplified')?.[3]).toBe('variant of 丙');
+  });
+
+  it('breaks a sense-count tie by file order, not by entry id', () => {
+    // Entry ids follow storage order, where 乾 sorts before 幹; the file lists 幹 first.
+    const tied = ['幹 干 [gan1] /trunk/', '乾 干 [gan1] /dry/'].join('\n');
+    const { rows, entries } = joinCorpora(tied, '', '');
+    expect(entries.map((entry) => entry.traditional)).toEqual(['乾', '幹']);
+    expect(orderHeadwords(entries).map((entry) => entry.traditional)).toEqual(['幹', '乾']);
+    expect(rows.find((row) => row[7] === 'simplified')?.[3]).toBe('trunk / dry');
+  });
+
+  it('keeps the joined gloss within the short gloss length limit', () => {
+    const long = [`甲 甲 [jia3] /${'a'.repeat(40)}/`, `乙 甲 [jia3] /${'b'.repeat(40)}/`].join('\n');
+    const { rows } = joinCorpora(long, '', '');
+    const gloss = rows.find((row) => row[7] === 'simplified')![3];
+    expect(gloss).toHaveLength(65);
+    expect(gloss.endsWith('…')).toBe(true);
+  });
+
+  it('ranks the merged row as the old single row did: the surname cut only when every line is a surname', () => {
+    const { rows } = joinCorpora(hou, '后 1000\n', '');
+    expect(rows.map((row) => row[4])).toEqual([100000, 100000, 100000]);
+    const surnames = joinCorpora('张 张 [Zhang1] /surname Zhang/\n張 张 [Zhang1] /surname Zhang/', '张 1000\n', '');
+    expect(surnames.rows.map((row) => row[4])).toEqual([10000, 10000, 10000]);
+  });
   });
 
   it('round-trips its rows through the B-tree, each reachable by its toneless key', () => {
@@ -337,5 +430,22 @@ describe('joinCorpora', () => {
       const found = dictionary.lookupExact(key);
       expect(found.map((e) => e.simplified), key).toEqual([simplified]);
     }
+  });
+});
+
+describe('encodeDictionary', () => {
+  const rows = joinCorpora('你 你 [ni3] /you/\n好 好 [hao3] /good/', '', '').rows;
+
+  it('stamps the asset with a build id derived from its contents', () => {
+    const { bytes, buildId } = encodeDictionary(rows);
+    const dictionary = BTreeDictionary.open(bytes);
+    expect(dictionary.buildId).toBe(buildId);
+    expect(buildId).not.toBe(0);
+    expect(encodeDictionary(rows).buildId).toBe(buildId);
+  });
+
+  it('gives a different build id when the entry ids change', () => {
+    const renumbered = rows.map((row): typeof row => [...row.slice(0, 6), [9]] as typeof row);
+    expect(encodeDictionary(renumbered).buildId).not.toBe(encodeDictionary(rows).buildId);
   });
 });
