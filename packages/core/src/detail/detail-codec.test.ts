@@ -90,6 +90,19 @@ describe('the Candidate detail file', () => {
     expect(() => file.record(-1)).toThrow(/entry -1/);
   });
 
+  it('refuses to write a string holding the zero byte that ends strings', () => {
+    expect(() => encodeDetailFile([{ ...empty, heading: 'a\0b' }], 1)).toThrow(/zero byte/);
+  });
+
+  it('calls a record cut off mid-string malformed', () => {
+    const bytes = encodeDetailFile([shu], 1);
+    // End the only record four bytes in, inside "book".
+    const view = new DataView(bytes.buffer, bytes.byteOffset);
+    const start = view.getUint32(16, true);
+    view.setUint32(20, start + 4, true);
+    expect(() => DetailFile.open(bytes, 1).record(0)).toThrow(/malformed or truncated/);
+  });
+
   it('refuses a record that names an unknown tag or part of speech', () => {
     const bytes = encodeDetailFile([nian], 1);
     // The record is heading, sense count, tag count, then the tag kind.
