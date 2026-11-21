@@ -1,0 +1,111 @@
+import { describe, it, expect } from 'vitest';
+import {
+  DETAIL_MAGIC,
+  DetailFile,
+  encodeDetailFile,
+  type DetailRecord,
+} from './detail-codec';
+
+/** 書 shū: common and proper noun senses, measure words, a cross-reference, a tag. */
+const shu: DetailRecord = {
+  heading: '',
+  senses: [
+    { proper: false, text: ['book'] },
+    { proper: false, text: ['letter'] },
+    {
+      proper: true,
+      text: ['', { traditional: '書經', simplified: '书经', pinyinNumbers: 'Shu1 jing1' }, ' (classic)'],
+    },
+  ],
+  tags: [
+    { kind: 'alsoPronounced', text: ['', { traditional: '', simplified: '', pinyinNumbers: 'shu4' }, ''] },
+  ],
+  measureWords: [
+    { traditional: '本', simplified: '本', pinyinNumbers: 'ben3' },
+    { traditional: '冊', simplified: '册', pinyinNumbers: 'ce4' },
+  ],
+  partsOfSpeech: [],
+};
+
+/** 唸 niàn: a variant-only entry, which carries its target's gloss. */
+const nian: DetailRecord = {
+  heading: '唸',
+  senses: [],
+  tags: [
+    {
+      kind: 'variant',
+      text: ['', { traditional: '念', simplified: '念', pinyinNumbers: 'nian4' }, ''],
+      gloss: 'to read aloud',
+    },
+  ],
+  measureWords: [],
+  partsOfSpeech: ['noun', 'verb'],
+};
+
+const empty: DetailRecord = { heading: '', senses: [], tags: [], measureWords: [], partsOfSpeech: [] };
+
+describe('the Candidate detail file', () => {
+  it('round-trips every record by entry id', () => {
+    const bytes = encodeDetailFile([shu, nian, empty], 0x1234abcd);
+    const file = DetailFile.open(bytes, 0x1234abcd);
+
+    expect(file.entryCount).toBe(3);
+    expect(file.buildId).toBe(0x1234abcd);
+    expect(file.record(0)).toEqual(shu);
+    expect(file.record(1)).toEqual(nian);
+    expect(file.record(2)).toEqual(empty);
+  });
+
+  it('starts with its magic number', () => {
+    const bytes = encodeDetailFile([empty], 1);
+    expect(String.fromCharCode(...bytes.subarray(0, 4))).toBe(DETAIL_MAGIC);
+  });
+
+  it('refuses a file from another build, as a failed load', () => {
+    const bytes = encodeDetailFile([shu], 7);
+    expect(() => DetailFile.open(bytes, 8)).toThrow(/build/);
+  });
+
+  it('refuses bytes that are not a detail file', () => {
+    expect(() => DetailFile.open(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]), 1)).toThrow(
+      /not a PinyinDuck Candidate detail file/
+    );
+    expect(() => DetailFile.open(new Uint8Array(3), 1)).toThrow(/truncated/);
+  });
+
+  it('refuses another format version', () => {
+    const bytes = encodeDetailFile([empty], 1);
+    bytes[4] = 99;
+    expect(() => DetailFile.open(bytes, 1)).toThrow(/format 99/);
+  });
+
+  it('refuses a file whose offset table runs past its end', () => {
+    const bytes = encodeDetailFile([shu, nian], 1);
+    expect(() => DetailFile.open(bytes.subarray(0, bytes.length - 5), 1)).toThrow(/truncated/);
+  });
+
+  it('refuses an entry id it does not hold', () => {
+    const file = DetailFile.open(encodeDetailFile([empty], 1), 1);
+    expect(() => file.record(1)).toThrow(/entry 1/);
+    expect(() => file.record(-1)).toThrow(/entry -1/);
+  });
+
+  it('refuses a record that names an unknown tag or part of speech', () => {
+    const bytes = encodeDetailFile([nian], 1);
+    // The record is heading, sense count, tag count, then the tag kind.
+    const recordStart = bytes.length - recordLength(nian);
+    const tagKindAt = recordStart + 1 + '唸'.length * 3 + 1 + 1;
+    const bad = bytes.slice();
+    bad[tagKindAt] = 200;
+    expect(() => DetailFile.open(bad, 1).record(0)).toThrow(/tag kind 200/);
+
+    const badPos = bytes.slice();
+    badPos[bytes.length - 1] = 200;
+    expect(() => DetailFile.open(badPos, 1).record(0)).toThrow(/part of speech 200/);
+  });
+});
+
+/** The encoded length of a lone record: the file minus its header and one-record offset table. */
+function recordLength(record: DetailRecord): number {
+  return encodeDetailFile([record], 1).length - encodeDetailFile([], 1).length - 4;
+}

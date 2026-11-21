@@ -8,3 +8,5 @@ export * from './data/btree-codec.js';
 export * from './data/btree-builder.js';
 export * from './data/btree-dictionary.js';
 export * from './data/load-dictionary.js';
+export * from './detail/detail-codec.js';
+export * from './detail/detail-view.js';

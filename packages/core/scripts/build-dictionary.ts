@@ -36,6 +36,7 @@ import { DictionaryRow } from '../src/data/dictionary-codec.js';
 import { buildBTree, sortStoredEntries, storedEntryFromRow } from '../src/data/btree-builder.js';
 import { BUILD_ID_OFFSET } from '../src/data/btree-codec.js';
 import { SOURCES, type PinnedSource, type VendoredSource } from './sources.js';
+import { classifyDefinition, isCommonLine } from './build-detail.js';
 
 const PACKAGE_DIR = path.resolve(__dirname, '..');
 const CACHE_DIR = path.join(PACKAGE_DIR, '.cache');
@@ -280,11 +281,6 @@ function isSurnameLine(line: RawCedictLine): boolean {
   return line.definitions.some((def) => /^surname\s/i.test(def.trim()));
 }
 
-/** A line written with lowercase pinyin, which CC-CEDICT uses for common (not proper noun) senses. */
-function isCommonLine(line: RawCedictLine): boolean {
-  return line.pinyin === line.pinyin.toLowerCase();
-}
-
 /**
  * The line an entry's short gloss comes from: the first common line that is not a
  * surname, then the first common line, then the first that is not a surname, then the
@@ -313,18 +309,9 @@ function isSurnameEntry(entry: DictionaryEntry): boolean {
 }
 
 /**
- * Definitions that are tags rather than senses (decided in the Candidate detail data model):
- * surname, variant of / old variant of / erhua variant of, abbr. for, also written, and
- * also pr. / Taiwan pr.
- */
-const TAG_DEFINITION = /^(surname\s|(old |erhua )?variant of\s|abbr\. for\s|also written\s|also pr\.|taiwan pr\.)/i;
-
-/** A `CL:` definition, which lists measure words rather than a sense. */
-const MEASURE_WORD_DEFINITION = /^CL:/i;
-
-/**
- * An entry's senses: definitions from its common lines first, then from its proper-noun
- * lines, each in file order, with exact duplicates, tags and measure words left out.
+ * An entry's senses, as its Candidate detail lists them: definitions from its common lines
+ * first, then from its proper-noun lines, each in file order, with exact duplicates, tags
+ * and measure words left out (see `build-detail.ts`).
  */
 export function entrySenses(entry: DictionaryEntry): string[] {
   const ordered = [...entry.lines.filter(isCommonLine), ...entry.lines.filter((l) => !isCommonLine(l))];
@@ -332,15 +319,15 @@ export function entrySenses(entry: DictionaryEntry): string[] {
   for (const line of ordered) {
     for (const raw of line.definitions) {
       const definition = raw.trim();
-      if (!definition || TAG_DEFINITION.test(definition) || MEASURE_WORD_DEFINITION.test(definition)) continue;
-      if (!senses.includes(definition)) senses.push(definition);
+      if (!definition || senses.includes(definition)) continue;
+      if (classifyDefinition(definition).type === 'sense') senses.push(definition);
     }
   }
   return senses;
 }
 
 /** The short gloss of a single entry, from its gloss line. */
-function entryGloss(entry: DictionaryEntry): string {
+export function entryGloss(entry: DictionaryEntry): string {
   return formatGloss(glossLine(entry).definitions);
 }
 
