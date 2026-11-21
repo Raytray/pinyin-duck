@@ -253,6 +253,15 @@ export class ByteReader {
     return result >>> 0;
   }
 
+  /** The bytes up to the next zero byte, which is consumed too. */
+  bytesUntilZero(): Uint8Array {
+    const end = this.buffer.indexOf(0, this.position);
+    if (end < 0) throw new Error('B-tree page is truncated');
+    const bytes = this.buffer.subarray(this.position, end);
+    this.position = end + 1;
+    return bytes;
+  }
+
   string(): string {
     const length = this.varint();
     this.ensure(length);

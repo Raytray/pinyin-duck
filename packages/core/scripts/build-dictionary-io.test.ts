@@ -54,6 +54,7 @@ import { build, parseArgs, sha256, SOURCE_URLS, type BuildStats } from './build-
 import { SOURCES } from './sources';
 import { BTreeDictionary } from '../src/data/btree-dictionary';
 import { LazyPinyinSearchEngine } from '../src/index/lazy-search';
+import { DetailFile } from '../src/detail/detail-codec';
 
 const CACHE_DIR = path.resolve(__dirname, '../.cache');
 /** Where the mocked CC-CEDICT pin points: the committed copy, never downloaded. */
@@ -345,6 +346,32 @@ describe('build', () => {
     expect(dirStore.has('/tmp/pinyinduck-gzip-elsewhere/web')).toBe(true);
     expect(new Uint8Array(gunzipSync(readBytes(compressedOut)))).toEqual(readBytes(out));
     expect(fileStore.has(`${out}.gz`)).toBe(false);
+  });
+
+  it('writes the Candidate detail file next to the asset, with the same build id', async () => {
+    installFetch(defaultHandlers());
+    const out = '/tmp/pinyinduck-detail/dictionary.btree';
+
+    await build(out, false);
+
+    const dictionary = openAsset(out);
+    const detail = DetailFile.open(readBytes('/tmp/pinyinduck-detail/detail.bin'), dictionary.buildId);
+    expect(detail.entryCount).toBe(2);
+    const [china] = dictionary.lookupExact('zhongguo');
+    expect(detail.record(china.entryIds[0]).senses).toEqual([{ proper: true, text: ['China'] }]);
+    expect(logs.join('\n')).toContain('/tmp/pinyinduck-detail/detail.bin');
+  });
+
+  it("writes a gzip copy of the detail file next to the asset's gzip copy", async () => {
+    installFetch(defaultHandlers());
+    const out = '/tmp/pinyinduck-detail-gzip/dictionary.btree';
+    const compressedOut = '/tmp/pinyinduck-detail-gzip/web/dictionary.btree.gz';
+
+    await build(out, false, compressedOut);
+
+    const compressed = readBytes('/tmp/pinyinduck-detail-gzip/web/detail.bin.gz');
+    expect(compressed[9]).toBe(255);
+    expect(new Uint8Array(gunzipSync(compressed))).toEqual(readBytes('/tmp/pinyinduck-detail-gzip/detail.bin'));
   });
 
   it('round-trips both entries through the B-tree with their frequency and HSK level', async () => {

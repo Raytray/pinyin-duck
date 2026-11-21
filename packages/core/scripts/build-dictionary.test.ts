@@ -396,6 +396,14 @@ describe('joinCorpora', () => {
     expect(rows.find((row) => row[7] === 'simplified')?.[3]).toBe('trunk / dry');
   });
 
+  it('counts senses as the Candidate detail does, so a sense that only begins like a tag counts', () => {
+    // "also written as" is 亦作's meaning, not an also-written tag; 甲 has one sense too, and
+    // comes first in the file, so only counting 亦作's sense puts it first.
+    const lines = ['甲 作 [zuo4] /to do/', '亦作 作 [zuo4] /also written as/to make/'].join('\n');
+    const { rows } = joinCorpora(lines, '', '');
+    expect(rows.find((row) => row[7] === 'simplified')?.[3]).toBe('also written as / to do');
+  });
+
   it('keeps the joined gloss within the short gloss length limit', () => {
     const long = [`甲 甲 [jia3] /${'a'.repeat(40)}/`, `乙 甲 [jia3] /${'b'.repeat(40)}/`].join('\n');
     const { rows } = joinCorpora(long, '', '');
