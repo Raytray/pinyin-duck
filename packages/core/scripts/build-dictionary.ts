@@ -35,8 +35,9 @@ import { formatGloss } from '../src/dictionary/gloss.js';
 import { DictionaryRow } from '../src/data/dictionary-codec.js';
 import { buildBTree, sortStoredEntries, storedEntryFromRow } from '../src/data/btree-builder.js';
 import { BUILD_ID_OFFSET } from '../src/data/btree-codec.js';
+import { encodeDetailFile } from '../src/detail/detail-codec.js';
 import { SOURCES, type PinnedSource, type VendoredSource } from './sources.js';
-import { classifyDefinition, isCommonLine } from './build-detail.js';
+import { classifyDefinition, detailRecords, isCommonLine } from './build-detail.js';
 
 const PACKAGE_DIR = path.resolve(__dirname, '..');
 const CACHE_DIR = path.join(PACKAGE_DIR, '.cache');
@@ -47,6 +48,11 @@ const DEFAULT_OUT = path.join(OUT_DIR, 'dictionary.btree');
  * a content hash and a browser can cache it for good. Rime, the Android build and the
  * parity generator read the uncompressed asset at `DEFAULT_OUT`.
  */
+/**
+ * The Candidate detail file, written beside the asset and beside its gzip copy (ADR 0002).
+ * The web app fetches the gzip copy on first expand; Android bundles the uncompressed one.
+ */
+export const DETAIL_FILE_NAME = 'detail.bin';
 const DEFAULT_COMPRESSED_OUT = path.resolve(__dirname, '../../web/src/generated/dictionary.btree.gz');
 
 /** The two sources a build downloads. CC-CEDICT is committed rather than downloaded. */
@@ -509,6 +515,28 @@ export function encodeDictionary(rows: DictionaryRow[]): { bytes: Uint8Array; bu
   return { bytes, buildId };
 }
 
+/**
+ * Writes `bytes` to `outPath` and a gzip copy to `compressedOutPath`, returning each path
+ * with its size.
+ */
+function writeWithGzip(bytes: Uint8Array, outPath: string, compressedOutPath: string): [string, number][] {
+  const payload = Buffer.from(bytes);
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
+  fs.writeFileSync(outPath, payload);
+  // The web asset URL is a hash of these bytes, so the same rows must give the same bytes
+  // on every machine. Node writes a zero mtime into the gzip header, but zlib stamps the
+  // build OS into byte 9 (3 on Unix, 10 on Windows), so that is set to 255, "unknown".
+  // The header has no checksum of its own, so nothing else needs to change.
+  const compressed = zlib.gzipSync(payload, { level: 9 });
+  compressed[9] = 255;
+  fs.mkdirSync(path.dirname(compressedOutPath), { recursive: true });
+  fs.writeFileSync(compressedOutPath, compressed);
+  return [
+    [outPath, payload.length],
+    [compressedOutPath, compressed.length],
+  ];
+}
+
 async function build(
   outPath: string,
   useCache: boolean,
@@ -523,25 +551,21 @@ async function build(
     readPinned(SOURCES.hsk, useCache),
   ]);
 
-  const { rows, stats } = joinCorpora(cedictContent, frequencyContent, hskContent);
+  const { rows, entries, stats } = joinCorpora(cedictContent, frequencyContent, hskContent);
 
   console.log(
     `\n  corpus  ${parseFrequencyList(frequencyContent).size} frequency entries, ` +
       `${parseHskList(hskContent).size} HSK words`
   );
 
-  fs.mkdirSync(path.dirname(outPath), { recursive: true });
   const { bytes, buildId } = encodeDictionary(rows);
-  const payload = Buffer.from(bytes);
-  fs.writeFileSync(outPath, payload);
-  // The web asset URL is a hash of these bytes, so the same rows must give the same bytes
-  // on every machine. Node writes a zero mtime into the gzip header, but zlib stamps the
-  // build OS into byte 9 (3 on Unix, 10 on Windows), so that is set to 255, "unknown".
-  // The header has no checksum of its own, so nothing else needs to change.
-  const compressed = zlib.gzipSync(payload, { level: 9 });
-  compressed[9] = 255;
-  fs.mkdirSync(path.dirname(compressedOutPath), { recursive: true });
-  fs.writeFileSync(compressedOutPath, compressed);
+  const detail = encodeDetailFile(detailRecords(entries, entryGloss), buildId);
+  const detailOutPath = path.join(path.dirname(outPath), DETAIL_FILE_NAME);
+  const detailCompressedOutPath = path.join(path.dirname(compressedOutPath), `${DETAIL_FILE_NAME}.gz`);
+  const written = [
+    ...writeWithGzip(bytes, outPath, compressedOutPath),
+    ...writeWithGzip(detail, detailOutPath, detailCompressedOutPath),
+  ];
 
   console.log(`\n  parsed  ${stats.cedictLines} CC-CEDICT lines`);
   console.log(`  merged  ${stats.cedictLines} lines into ${stats.entries} entries`);
@@ -549,8 +573,9 @@ async function build(
   console.log(`  coverage ${stats.withFrequency} with frequency, ${stats.withHsk} on the HSK list`);
   console.log(`  coverage ${stats.singleChar} single characters`);
   console.log(`  build   id ${buildId.toString(16).padStart(8, '0')}`);
-  console.log(`  wrote   ${outPath} (${(payload.length / 1048576).toFixed(2)}MB)`);
-  console.log(`  wrote   ${compressedOutPath} (${(compressed.length / 1048576).toFixed(2)}MB)`);
+  for (const [file, size] of written) {
+    console.log(`  wrote   ${file} (${(size / 1048576).toFixed(2)}MB)`);
+  }
   console.log('         B+ tree: a client reads only the header and the pages it needs');
   console.log(`\nDone in ${((Date.now() - started) / 1000).toFixed(1)}s.`);
 
