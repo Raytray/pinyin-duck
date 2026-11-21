@@ -227,38 +227,123 @@ function readVendored(source: VendoredSource): string {
 }
 
 export interface BuildStats {
+  /** Valid CC-CEDICT lines read. */
   cedictLines: number;
+  /** Entries those lines formed, one per (traditional, simplified, caseless reading). */
+  entries: number;
+  /** Lines folded into an entry an earlier line had already started. */
+  merged: number;
+  /** B-tree rows written. */
   emitted: number;
   withFrequency: number;
   withHsk: number;
   singleChar: number;
-  dropped: number;
+}
+
+/**
+ * One headword with one reading: every CC-CEDICT line with the same traditional form,
+ * simplified form and pinyin ignoring case (ADR 0001). 書 [Shu1] and 書 [shu1] are one
+ * entry; 後 [hou4] and 后 [hou4] are two.
+ */
+export interface DictionaryEntry {
+  /**
+   * Stable within one build: entries are numbered from 0 in the file order of their first
+   * line, so the same CC-CEDICT edition always gives the same ids. Ids mean nothing across
+   * builds (ADR 0002).
+   */
+  id: number;
+  traditional: string;
+  simplified: string;
+  /** Lowercased, tone-numbered pinyin shared by every line of the entry. */
+  pinyinNumbers: string;
+  /** The entry's lines, in file order. */
+  lines: RawCedictLine[];
+}
+
+/** The key of the entry a line belongs to. */
+function entryKey(line: RawCedictLine): string {
+  return `${line.traditional}|${line.simplified}|${normalizePinyin(line.pinyin)}`;
+}
+
+/**
+ * Groups CC-CEDICT lines into entries, numbering them in the file order of their first line.
+ */
+export function collectEntries(cedictContent: string): DictionaryEntry[] {
+  const entries: DictionaryEntry[] = [];
+  const byKey = new Map<string, DictionaryEntry>();
+  for (const text of cedictContent.split('\n')) {
+    const line = parseCedictLine(text);
+    if (!line) continue;
+    const key = entryKey(line);
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.lines.push(line);
+      continue;
+    }
+    const entry: DictionaryEntry = {
+      id: entries.length,
+      traditional: line.traditional,
+      simplified: line.simplified,
+      pinyinNumbers: normalizePinyin(line.pinyin),
+      lines: [line],
+    };
+    byKey.set(key, entry);
+    entries.push(entry);
+  }
+  return entries;
+}
+
+/** A line whose senses include a surname ("surname Zhang"). */
+function isSurnameLine(line: RawCedictLine): boolean {
+  return line.definitions.some((def) => /^surname\s/i.test(def.trim()));
+}
+
+/** A line written with lowercase pinyin, which CC-CEDICT uses for common (not proper noun) senses. */
+function isCommonLine(line: RawCedictLine): boolean {
+  return line.pinyin === line.pinyin.toLowerCase();
+}
+
+/**
+ * The line an entry's short gloss comes from: the first common line that is not a
+ * surname, then the first common line, then the first that is not a surname, then the
+ * first. 书 [shu1] "book" therefore wins over 书 [Shu1] "abbr. for 书经".
+ */
+export function glossLine(entry: DictionaryEntry): RawCedictLine {
+  const { lines } = entry;
+  return (
+    lines.find((line) => isCommonLine(line) && !isSurnameLine(line)) ??
+    lines.find(isCommonLine) ??
+    lines.find((line) => !isSurnameLine(line)) ??
+    lines[0]
+  );
+}
+
+/**
+ * Whether an entry ranks as a surname: only when every one of its lines is a surname line.
+ *
+ * Surnames are very frequent in subtitle corpora because of person names, but someone
+ * typing pinyin usually wants the common word, so a surname-only entry has its frequency
+ * cut tenfold. An entry with any other sense keeps its full frequency, as the line-by-line
+ * dedup this replaced did by keeping the non-surname line.
+ */
+function isSurnameEntry(entry: DictionaryEntry): boolean {
+  return entry.lines.every(isSurnameLine);
 }
 
 /**
  * Joins the three corpora into wire rows.
  *
- * Split out from `build` so the dedup, join and validation logic can be tested
+ * Split out from `build` so the merging, join and validation logic can be tested
  * without touching the network or the filesystem.
  */
 export function joinCorpora(
   cedictContent: string,
   frequencyContent: string,
   hskContent: string
-): { rows: DictionaryRow[]; stats: BuildStats } {
+): { rows: DictionaryRow[]; entries: DictionaryEntry[]; stats: BuildStats } {
   const frequencies = parseFrequencyList(frequencyContent);
   const hskLevels = parseHskList(hskContent);
-
-  const rows: DictionaryRow[] = [];
-  // Whether each emitted row came from a surname entry, judged on its full definition
-  // list. A row only keeps the shortened gloss, so this cannot be recovered from the row.
-  const rowIsSurname: boolean[] = [];
-  const seen = new Map<string, number>();
-  let cedictLines = 0;
-  let withFrequency = 0;
-  let withHsk = 0;
-  let singleChar = 0;
-  let dropped = 0;
+  const entries = collectEntries(cedictContent);
 
   // Normalize against the busiest word in the corpus, not a hardcoded constant, so
   // the top of the scale is actually reached regardless of corpus size.
@@ -267,65 +352,23 @@ export function joinCorpora(
     if (count > corpusMax) corpusMax = count;
   }
 
-  for (const line of cedictContent.split('\n')) {
-    const parsed = parseCedictLine(line);
-    if (!parsed) continue;
-    cedictLines++;
+  const rows: DictionaryRow[] = [];
+  let cedictLines = 0;
+  let withFrequency = 0;
+  let withHsk = 0;
+  let singleChar = 0;
 
-    // The same word can appear with several readings; each reading is a distinct
-    // candidate, but an identical (word, reading) pair must not be repeated.
-    const pinyinNumbers = normalizePinyin(parsed.pinyin);
-    const key = `${parsed.simplified}|${pinyinNumbers}`;
+  for (const entry of entries) {
+    cedictLines += entry.lines.length;
+    const frequency = normalizeFrequency(frequencies.get(entry.simplified) ?? 0, corpusMax);
+    const hskLevel = hskLevels.get(entry.simplified) ?? 0;
+    const adjustedFrequency = isSurnameEntry(entry) ? Math.round(frequency * 0.1) : frequency;
 
-    const frequency = normalizeFrequency(frequencies.get(parsed.simplified) ?? 0, corpusMax);
-    const hskLevel = hskLevels.get(parsed.simplified) ?? 0;
-
-    // Detect surname entries (definitions starting with "surname ") and reduce
-    // their frequency so they don't dominate prefix searches. Surnames are extremely
-    // frequent in subtitle corpora due to person names, but in an IME context users
-    // typing partial pinyin usually want regular vocabulary words first.
-    const isSurname = parsed.definitions.some((def) => /^surname\s/i.test(def.trim()));
-    const adjustedFrequency = isSurname ? Math.round(frequency * 0.1) : frequency;
-
-    const existingIndex = seen.get(key);
-    if (existingIndex !== undefined) {
-      // Duplicate reading: prefer the non-surname entry, or the one with higher frequency.
-      // The existing entry is judged by the same rule as the new one (any definition
-      // starting "surname "), not by its shortened gloss, which may not start with it.
-      const existingIsSurname = rowIsSurname[existingIndex];
-      // Row format: [simplified, traditional, pinyinNumbers, shortGloss, frequency, hskLevel]
-      const existingFrequency = rows[existingIndex][4];
-
-      if (isSurname && !existingIsSurname) {
-        // New entry is surname, existing is not: keep existing, drop new
-        dropped++;
-        continue;
-      } else if (!isSurname && existingIsSurname) {
-        // New entry is not surname, existing is: replace existing with new
-        rows[existingIndex] = buildDictRow(parsed, adjustedFrequency, hskLevel);
-        rowIsSurname[existingIndex] = false;
-        dropped++;
-        continue;
-      } else if (adjustedFrequency > existingFrequency) {
-        // Neither or both are surnames: keep the higher frequency one
-        rows[existingIndex] = buildDictRow(parsed, adjustedFrequency, hskLevel);
-        dropped++;
-        continue;
-      } else {
-        // Keep existing, drop new
-        dropped++;
-        continue;
-      }
-    }
-
-    // First time seeing this key
-    seen.set(key, rows.length);
     if (frequency > 0) withFrequency++;
     if (hskLevel > 0) withHsk++;
-    if ([...parsed.simplified].length === 1) singleChar++;
+    if ([...entry.simplified].length === 1) singleChar++;
 
-    rows.push(buildDictRow(parsed, adjustedFrequency, hskLevel));
-    rowIsSurname.push(isSurname);
+    rows.push(buildDictRow(glossLine(entry), adjustedFrequency, hskLevel));
   }
 
   // Sanity check: the B-tree key and the displayed tone marks derive from these columns,
@@ -338,7 +381,16 @@ export function joinCorpora(
 
   return {
     rows,
-    stats: { cedictLines, emitted: rows.length, withFrequency, withHsk, singleChar, dropped },
+    entries,
+    stats: {
+      cedictLines,
+      entries: entries.length,
+      merged: cedictLines - entries.length,
+      emitted: rows.length,
+      withFrequency,
+      withHsk,
+      singleChar,
+    },
   };
 }
 
@@ -376,7 +428,8 @@ async function build(
   fs.writeFileSync(compressedOutPath, compressed);
 
   console.log(`\n  parsed  ${stats.cedictLines} CC-CEDICT lines`);
-  console.log(`  emitted ${stats.emitted} rows (${stats.dropped} duplicate readings dropped)`);
+  console.log(`  merged  ${stats.cedictLines} lines into ${stats.entries} entries`);
+  console.log(`  emitted ${stats.emitted} rows`);
   console.log(`  coverage ${stats.withFrequency} with frequency, ${stats.withHsk} on the HSK list`);
   console.log(`  coverage ${stats.singleChar} single characters`);
   console.log(`  wrote   ${outPath} (${(payload.length / 1048576).toFixed(2)}MB)`);

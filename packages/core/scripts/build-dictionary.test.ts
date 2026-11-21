@@ -238,20 +238,20 @@ describe('joinCorpora', () => {
     );
     const { rows, stats } = joinCorpora(multi, '', '');
     expect(rows.map((r) => r[2])).toEqual(['hang2', 'xing2']);
-    expect(stats.dropped).toBe(1);
+    expect(stats.merged).toBe(1);
   });
 
-  it('deduplicates an identical word and reading even when the definitions differ', () => {
+  it('merges lines with an identical headword and reading into one entry', () => {
     const dupe = ['行 行 [hang2] /to walk/', '行 行 [hang2] /to stroll/'].join('\n');
     const { rows, stats } = joinCorpora(dupe, '', '');
     expect(rows).toHaveLength(1);
-    expect(stats.dropped).toBe(1);
+    expect(stats.merged).toBe(1);
   });
 
   it('treats a differently-cased pinyin column as the same reading', () => {
     const dupe = ['中 中 [zhong1] /middle/', '中 中 [Zhong1] /middle/'].join('\n');
     const { stats } = joinCorpora(dupe, '', '');
-    expect(stats.dropped).toBe(1);
+    expect(stats.merged).toBe(1);
   });
 
   it('reduces frequency by 10x for surname entries', () => {
@@ -261,22 +261,22 @@ describe('joinCorpora', () => {
     expect(rows[0][4]).toBe(10000);
   });
 
-  it('keeps the non-surname entry when a duplicate entry is a surname', () => {
+  it('glosses a merged entry from its non-surname line when the surname line comes second', () => {
     const dupe = ['能 能 [neng2] /to be able to/', '能 能 [neng2] /surname Neng/'].join('\n');
     const { rows, stats } = joinCorpora(dupe, '', '');
     expect(rows).toHaveLength(1);
     expect(rows[0][3]).toBe('to be able to');
-    expect(stats.dropped).toBe(1);
+    expect(stats.merged).toBe(1);
   });
 
-  it('replaces a surname entry when a duplicate non-surname entry appears', () => {
+  it('glosses a merged entry from its non-surname line when the surname line comes first', () => {
     const dupe = ['能 能 [neng2] /surname Neng/', '能 能 [neng2] /to be able to/'].join('\n');
     const { rows } = joinCorpora(dupe, '', '');
     expect(rows).toHaveLength(1);
     expect(rows[0][3]).toBe('to be able to');
   });
 
-  it('replaces an existing entry when a duplicate entry has higher frequency', () => {
+  it('keeps full frequency for an entry that has any non-surname line', () => {
     const dupe = ['单 单 [dan1] /mountain/surname Shan/', '单 单 [dan1] /bill/list/'].join('\n');
     const frequency = '单 1000\n';
     const { rows } = joinCorpora(dupe, frequency, '');
@@ -285,7 +285,7 @@ describe('joinCorpora', () => {
     expect(rows[0][4]).toBe(100000);
   });
 
-  it('recognizes an existing surname entry whose surname sense is not listed first', () => {
+  it('treats a line as a surname line even when its surname sense is not listed first', () => {
     // With no frequency data both readings score 0, so only the surname rule can decide.
     // The shortened gloss "mountain / surname Shan" does not start with "surname ", and
     // judging the existing row by its gloss used to keep it.
@@ -295,28 +295,49 @@ describe('joinCorpora', () => {
     expect(rows[0][3]).toBe('bill / list');
   });
 
-  it('accounts for every CC-CEDICT line as emitted or dropped', () => {
+  it('accounts for every CC-CEDICT line as starting an entry or merged into one', () => {
     const dupes = [
       '能 能 [neng2] /surname Neng/',
-      '能 能 [neng2] /to be able to/', // replaces the surname row
-      '能 能 [neng2] /surname Neng/', // dropped in favour of the regular row
+      '能 能 [neng2] /to be able to/', // merged into the entry the first line started
+      '能 能 [neng2] /surname Neng/', // merged too
       '中 中 [zhong1] /middle/',
     ].join('\n');
     const { rows, stats } = joinCorpora(dupes, '', '');
     expect(rows).toHaveLength(2);
-    expect(stats.dropped).toBe(2);
-    expect(stats.emitted + stats.dropped).toBe(stats.cedictLines);
+    expect(stats.merged).toBe(2);
+    expect(stats.entries + stats.merged).toBe(stats.cedictLines);
   });
 
   it('returns no rows for an empty corpus', () => {
     const { rows, stats } = joinCorpora('', '', '');
     expect(rows).toEqual([]);
-    expect(stats).toMatchObject({ cedictLines: 0, emitted: 0, dropped: 0 });
+    expect(stats).toMatchObject({ cedictLines: 0, emitted: 0, merged: 0 });
   });
 
   it('refuses to emit a row whose pinyin column cannot be parsed', () => {
     const broken = '中 中 [1] /middle/';
     expect(() => joinCorpora(broken, '', '')).toThrow(/unparsable pinyin/);
+  });
+
+  it('merges a capitalised proper-noun line into the common entry with the same headword', () => {
+    const shu = [
+      '書 书 [Shu1] /abbr. for 書經|书经[Shu1 jing1]/',
+      '書 书 [shu1] /book/letter/document/CL:本[ben3],冊|册[ce4],部[bu4]/to write/',
+    ].join('\n');
+    const { rows, entries } = joinCorpora(shu, '', '');
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ traditional: '書', simplified: '书', pinyinNumbers: 'shu1' });
+    expect(entries[0].lines.map((line) => line.pinyin)).toEqual(['Shu1', 'shu1']);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('takes the short gloss from the common line, not an earlier proper-noun line', () => {
+    const shu = [
+      '書 书 [Shu1] /abbr. for 書經|书经[Shu1 jing1]/',
+      '書 书 [shu1] /book/letter/document/CL:本[ben3],冊|册[ce4],部[bu4]/to write/',
+    ].join('\n');
+    const { rows } = joinCorpora(shu, '', '');
+    expect(rows[0][3]).toBe('book / letter / document');
   });
 
   it('round-trips its rows through the B-tree, each reachable by its toneless key', () => {
