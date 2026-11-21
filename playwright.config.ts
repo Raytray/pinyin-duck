@@ -9,6 +9,9 @@ const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`;
 // Pass `--headed` (or `npm run test:e2e:headed`) to watch the browser while debugging.
 export default defineConfig({
   testDir: './e2e',
+  // Locally a dev server already on the port is reused; this stops the run if that
+  // server belongs to another checkout, rather than testing its code.
+  globalSetup: './e2e/checkout-guard.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
