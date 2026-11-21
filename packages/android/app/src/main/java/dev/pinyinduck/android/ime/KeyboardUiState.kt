@@ -28,7 +28,17 @@ data class KeyboardUiState(
     val layout: KeyLayout = KeyLayout.LETTERS,
     /** Whether the full candidate list is showing instead of the strip. */
     val expanded: Boolean = false,
+    /**
+     * The candidate whose Candidate detail bubble is open, or null while it is closed.
+     *
+     * The bubble is still a stub (#16): it shows fixed placeholder content, and this index only
+     * records that it is open. The detail itself arrives with the bubble slice.
+     */
+    val detailIndex: Int? = null,
 ) {
+    /** Whether the Candidate detail bubble is open. */
+    val detailOpen: Boolean get() = detailIndex != null
+
     /** How many candidates were actually ranked, which the scan budget may cap. */
     val fetched: Int get() = candidates.size
 }

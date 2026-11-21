@@ -2,6 +2,7 @@ package dev.pinyinduck.android.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -52,6 +53,10 @@ data class KeyboardCallbacks(
     val onToggleScript: () -> Unit,
     val onToggleExpanded: () -> Unit,
     val onClear: () -> Unit,
+    /** A long press on a strip candidate: open the Candidate detail bubble for it. */
+    val onShowDetail: (Int) -> Unit = {},
+    /** Close the Candidate detail bubble, e.g. after a tap on the app area. */
+    val onCloseDetail: () -> Unit = {},
 )
 
 /**
@@ -75,6 +80,7 @@ data class KeyboardCallbacks(
 fun PinyinDuckKeyboard(
     state: KeyboardUiState,
     callbacks: KeyboardCallbacks,
+    modifier: Modifier = Modifier,
 ) {
     // The globe/hide icons are drawn over the keyboard rather than reserving space, and
     // their touch targets are taller than the gesture navigation bar inset reports, so
@@ -87,7 +93,7 @@ fun PinyinDuckKeyboard(
 
     Column(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 // The background is drawn before the padding, so the keyboard colour reaches
                 // into the strip below the keys rather than leaving the window background there.
@@ -251,6 +257,7 @@ private fun CandidateStrip(
                                 candidate = candidate,
                                 selected = index == state.selectedIndex,
                                 onClick = { callbacks.onSelectCandidate(index) },
+                                onLongClick = { callbacks.onShowDetail(index) },
                             )
                         }
                 }
@@ -280,6 +287,7 @@ private fun RowScope.StripCandidate(
     candidate: Candidate,
     selected: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
 ) {
     Row(
         modifier =
@@ -287,7 +295,9 @@ private fun RowScope.StripCandidate(
                 .weight(1f)
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (selected) DuckColors.Accent.copy(alpha = 0.18f) else Color.Transparent)
-                .clickable(onClick = onClick)
+                // Long press opens the Candidate detail; the label is what TalkBack offers in
+                // place of a timed press.
+                .combinedClickable(onLongClickLabel = "Show details", onLongClick = onLongClick, onClick = onClick)
                 .padding(horizontal = 5.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

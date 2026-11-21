@@ -47,6 +47,7 @@ val gatedClasses =
         "dev.pinyinduck.android.engine.RankingKt",
         "dev.pinyinduck.android.engine.MappedPageSource",
         "dev.pinyinduck.android.ime.PinyinDuckSession",
+        "dev.pinyinduck.android.ime.ImeInsets",
         "dev.pinyinduck.android.ui.KeysKt",
     )
 
