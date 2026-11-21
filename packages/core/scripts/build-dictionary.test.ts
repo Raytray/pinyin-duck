@@ -6,6 +6,7 @@ import {
   normalizeFrequency,
   joinCorpora,
   encodeDictionary,
+  orderHeadwords,
   type RawCedictLine,
 } from './build-dictionary';
 import { normalizePinyin } from '../src/parser/pinyin.js';
@@ -384,6 +385,15 @@ describe('joinCorpora', () => {
     const variants = ['甲 丙 [bing3] /variant of 丙[bing3]/', '乙 丙 [bing3] /old variant of 丙[bing3]/'].join('\n');
     const { rows } = joinCorpora(variants, '', '');
     expect(rows.find((row) => row[7] === 'simplified')?.[3]).toBe('variant of 丙');
+  });
+
+  it('breaks a sense-count tie by file order, not by entry id', () => {
+    // Entry ids follow storage order, where 乾 sorts before 幹; the file lists 幹 first.
+    const tied = ['幹 干 [gan1] /trunk/', '乾 干 [gan1] /dry/'].join('\n');
+    const { rows, entries } = joinCorpora(tied, '', '');
+    expect(entries.map((entry) => entry.traditional)).toEqual(['乾', '幹']);
+    expect(orderHeadwords(entries).map((entry) => entry.traditional)).toEqual(['幹', '乾']);
+    expect(rows.find((row) => row[7] === 'simplified')?.[3]).toBe('trunk / dry');
   });
 
   it('keeps the joined gloss within the short gloss length limit', () => {

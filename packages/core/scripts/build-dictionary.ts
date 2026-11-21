@@ -231,6 +231,8 @@ export interface DictionaryEntry {
    * same ids; ids mean nothing across builds (ADR 0002).
    */
   id: number;
+  /** Where the entry's first line falls among the entries in CC-CEDICT, from 0. */
+  fileOrder: number;
   traditional: string;
   simplified: string;
   /** Lowercased, tone-numbered pinyin shared by every line of the entry. */
@@ -261,6 +263,7 @@ export function collectEntries(cedictContent: string): DictionaryEntry[] {
     }
     const entry: DictionaryEntry = {
       id: entries.length,
+      fileOrder: entries.length,
       traditional: line.traditional,
       simplified: line.simplified,
       pinyinNumbers: normalizePinyin(line.pinyin),
@@ -347,7 +350,7 @@ function entryGloss(entry: DictionaryEntry): string {
  */
 export function orderHeadwords(entries: DictionaryEntry[]): DictionaryEntry[] {
   const counts = new Map(entries.map((entry) => [entry, entrySenses(entry).length]));
-  return [...entries].sort((a, b) => counts.get(b)! - counts.get(a)! || a.id - b.id);
+  return [...entries].sort((a, b) => counts.get(b)! - counts.get(a)! || a.fileOrder - b.fileOrder);
 }
 
 /**
