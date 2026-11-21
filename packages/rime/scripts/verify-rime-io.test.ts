@@ -476,9 +476,12 @@ describe('verifyRime end to end, against a stub harness', () => {
     const saved = { TMPDIR: process.env.TMPDIR, TMP: process.env.TMP, TEMP: process.env.TEMP };
     process.env.TMPDIR = process.env.TMP = process.env.TEMP = tmpRoot;
     try {
-      // Without this the check below passes whether or not anything is cleaned up.
+      // Without these the check below passes whether or not anything is cleaned up: the
+      // run has to stage into tmpRoot, and a skipped run stages nothing at all.
       expect(os.tmpdir()).toBe(tmpRoot);
-      expect(run(harness).ok).toBe(true);
+      const result = run(harness);
+      expect(result.ok).toBe(true);
+      expect(result.skipped).toBe(false);
     } finally {
       for (const [k, v] of Object.entries(saved)) {
         if (v === undefined) delete process.env[k];
