@@ -62,6 +62,8 @@ export const BTREE_MAGIC = 'PDBT';
  */
 export const BTREE_FORMAT_VERSION = 2;
 export const HEADER_SIZE = 28;
+/** Where the header holds the build id. */
+export const BUILD_ID_OFFSET = 24;
 
 export const INTERNAL_KIND = 0;
 export const LEAF_KIND = 1;

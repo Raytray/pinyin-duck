@@ -5,6 +5,7 @@ import {
   parseHskList,
   normalizeFrequency,
   joinCorpora,
+  encodeDictionary,
   type RawCedictLine,
 } from './build-dictionary';
 import { normalizePinyin } from '../src/parser/pinyin.js';
@@ -390,5 +391,22 @@ describe('joinCorpora', () => {
       const found = dictionary.lookupExact(key);
       expect(found.map((e) => e.simplified), key).toEqual([simplified]);
     }
+  });
+});
+
+describe('encodeDictionary', () => {
+  const rows = joinCorpora('你 你 [ni3] /you/\n好 好 [hao3] /good/', '', '').rows;
+
+  it('stamps the asset with a build id derived from its contents', () => {
+    const { bytes, buildId } = encodeDictionary(rows);
+    const dictionary = BTreeDictionary.open(bytes);
+    expect(dictionary.buildId).toBe(buildId);
+    expect(buildId).not.toBe(0);
+    expect(encodeDictionary(rows).buildId).toBe(buildId);
+  });
+
+  it('gives a different build id when the entry ids change', () => {
+    const renumbered = rows.map((row): typeof row => [...row.slice(0, 6), [9]] as typeof row);
+    expect(encodeDictionary(renumbered).buildId).not.toBe(encodeDictionary(rows).buildId);
   });
 });

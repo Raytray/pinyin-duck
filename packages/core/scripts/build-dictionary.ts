@@ -34,6 +34,7 @@ import { pinyinNumbersToMarks, cleanPinyin, normalizePinyin } from '../src/parse
 import { formatGloss } from '../src/dictionary/gloss.js';
 import { DictionaryRow } from '../src/data/dictionary-codec.js';
 import { buildBTree } from '../src/data/btree-builder.js';
+import { BUILD_ID_OFFSET } from '../src/data/btree-codec.js';
 import { SOURCES, type PinnedSource, type VendoredSource } from './sources.js';
 
 const PACKAGE_DIR = path.resolve(__dirname, '..');
@@ -470,6 +471,26 @@ export function joinCorpora(
   };
 }
 
+/**
+ * Encodes the rows as the B+ tree asset, stamped with a build id.
+ *
+ * The id is a hash of the asset written with a zero id, so it changes whenever any row or
+ * entry id does and stays the same when nothing did. The Candidate detail file built from
+ * the same entries carries the same id, and a reader refuses a pair that differ (ADR 0002).
+ */
+export function encodeDictionary(rows: DictionaryRow[]): { bytes: Uint8Array; buildId: number } {
+  const bytes = buildBTree(rows, { buildId: 0 });
+  const digest = createHash('sha256').update(bytes).digest();
+  // Zero is what an unstamped tree carries, so it is never a real build's id.
+  const buildId = digest.readUInt32LE(0) || 1;
+  new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).setUint32(
+    BUILD_ID_OFFSET,
+    buildId,
+    true
+  );
+  return { bytes, buildId };
+}
+
 async function build(
   outPath: string,
   useCache: boolean,
@@ -492,7 +513,8 @@ async function build(
   );
 
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  const payload = Buffer.from(buildBTree(rows));
+  const { bytes, buildId } = encodeDictionary(rows);
+  const payload = Buffer.from(bytes);
   fs.writeFileSync(outPath, payload);
   // The web asset URL is a hash of these bytes, so the same rows must give the same bytes
   // on every machine. Node writes a zero mtime into the gzip header, but zlib stamps the
@@ -508,6 +530,7 @@ async function build(
   console.log(`  emitted ${stats.emitted} rows`);
   console.log(`  coverage ${stats.withFrequency} with frequency, ${stats.withHsk} on the HSK list`);
   console.log(`  coverage ${stats.singleChar} single characters`);
+  console.log(`  build   id ${buildId.toString(16).padStart(8, '0')}`);
   console.log(`  wrote   ${outPath} (${(payload.length / 1048576).toFixed(2)}MB)`);
   console.log(`  wrote   ${compressedOutPath} (${(compressed.length / 1048576).toFixed(2)}MB)`);
   console.log('         B+ tree: a client reads only the header and the pages it needs');
