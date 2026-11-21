@@ -9,7 +9,17 @@
  *
  * Layout:
  *
- *   header (24 bytes) | page directory (pageCount * 8 bytes) | pages
+ *   header (28 bytes) | page directory (pageCount * 8 bytes) | pages
+ *
+ * Header:
+ *   0  4 bytes  magic "PDBT"
+ *   4  u8       format version
+ *   5  u8, u16  reserved (0)
+ *   8  u32      entryCount
+ *  12  u32      pageCount
+ *  16  u32      rootPageId
+ *  20  u32      directoryOffset
+ *  24  u32      buildId, which the Candidate detail file built alongside must match
  *
  * Each directory entry is a byte offset and length, so a page can be sliced out of the
  * asset in memory (the web app) or read from a mapped file (Android). Pages are stored in ascending page id
@@ -23,6 +33,14 @@
  *   3  u32  nextLeaf (NO_PAGE when last)
  *   7  ...  records
  *
+ * Leaf record:
+ *   string key, string simplified, string traditional, string pinyinNumbers,
+ *   string shortGloss, varint frequency, u8 hskLevel,
+ *   varint entryIdCount, entryIdCount * varint entryId,
+ *   u8 script (0 both, 1 simplified only, 2 traditional only)
+ *
+ * Strings are a varint byte length followed by UTF-8.
+ *
  * Internal page:
  *   0  u8   kind (0)
  *   1  u16  childCount
@@ -35,15 +53,26 @@
  * *after* the first one, silently dropping the higher-ranked entries.
  */
 
+import type { ScriptType } from '../types.js';
+
 export const BTREE_MAGIC = 'PDBT';
-export const BTREE_FORMAT_VERSION = 1;
-export const HEADER_SIZE = 24;
+/**
+ * Format 2 keys entries by headword and caseless reading (ADR 0001), so rows gained the
+ * entry ids they stand for, a script marker and the header's build id (ADR 0002).
+ */
+export const BTREE_FORMAT_VERSION = 2;
+export const HEADER_SIZE = 28;
 
 export const INTERNAL_KIND = 0;
 export const LEAF_KIND = 1;
 
 /** Sentinel page id meaning "no page" (used by the last leaf's `nextLeaf`). */
 export const NO_PAGE = 0xffffffff;
+
+/** The script marker of a leaf record. */
+const SCRIPT_BOTH = 0;
+const SCRIPT_SIMPLIFIED = 1;
+const SCRIPT_TRADITIONAL = 2;
 
 /** A dictionary row as stored in a leaf, before tone marks are derived. */
 export interface StoredEntry {
@@ -55,6 +84,13 @@ export interface StoredEntry {
   shortGloss: string;
   frequency: number;
   hskLevel: number;
+  /**
+   * The entries this row stands for, in headword order. One for most rows; a simplified
+   * candidate standing for several headwords (后 hòu for 後 and 后) lists each of them.
+   */
+  entryIds: number[];
+  /** The only script this row is a candidate in, or absent when it is one in both. */
+  onlyIn?: ScriptType;
 }
 
 export interface LeafPage {
@@ -78,6 +114,8 @@ export interface BTreeHeader {
   pageCount: number;
   rootPageId: number;
   directoryOffset: number;
+  /** Identifies the build, so a Candidate detail file from another build is refused. */
+  buildId: number;
 }
 
 export interface PageLocation {
@@ -232,11 +270,20 @@ export function writeStoredEntry(writer: ByteWriter, entry: StoredEntry): void {
   writer.string(entry.shortGloss);
   writer.varint(entry.frequency);
   writer.u8(entry.hskLevel);
+  writer.varint(entry.entryIds.length);
+  for (const id of entry.entryIds) writer.varint(id);
+  writer.u8(
+    entry.onlyIn === 'simplified'
+      ? SCRIPT_SIMPLIFIED
+      : entry.onlyIn === 'traditional'
+        ? SCRIPT_TRADITIONAL
+        : SCRIPT_BOTH
+  );
 }
 
 /** Reads one leaf record from the reader. */
 export function readStoredEntry(reader: ByteReader): StoredEntry {
-  return {
+  const entry: StoredEntry = {
     key: reader.string(),
     simplified: reader.string(),
     traditional: reader.string(),
@@ -244,7 +291,15 @@ export function readStoredEntry(reader: ByteReader): StoredEntry {
     shortGloss: reader.string(),
     frequency: reader.varint(),
     hskLevel: reader.u8(),
+    entryIds: [],
   };
+  const idCount = reader.varint();
+  for (let i = 0; i < idCount; i++) entry.entryIds.push(reader.varint());
+  const script = reader.u8();
+  if (script === SCRIPT_SIMPLIFIED) entry.onlyIn = 'simplified';
+  else if (script === SCRIPT_TRADITIONAL) entry.onlyIn = 'traditional';
+  else if (script !== SCRIPT_BOTH) throw new Error(`Unknown script marker ${script} on a B-tree record`);
+  return entry;
 }
 
 export function encodeLeafPage(entries: StoredEntry[], nextLeaf: number): Uint8Array {
@@ -307,6 +362,7 @@ export function encodeHeader(header: BTreeHeader): Uint8Array {
   writer.u32(header.pageCount);
   writer.u32(header.rootPageId);
   writer.u32(header.directoryOffset);
+  writer.u32(header.buildId);
   return writer.toUint8Array();
 }
 
@@ -333,6 +389,7 @@ export function decodeHeader(bytes: Uint8Array): BTreeHeader {
     pageCount: reader.u32(),
     rootPageId: reader.u32(),
     directoryOffset: reader.u32(),
+    buildId: reader.u32(),
   };
 }
 

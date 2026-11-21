@@ -253,6 +253,7 @@ describe('storedEntry projection', () => {
     shortGloss: 'you',
     frequency: 100,
     hskLevel: 1,
+    entryIds: [5],
   };
 
   it('exposes the key as the clean pinyin the scorer expects', () => {

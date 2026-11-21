@@ -31,6 +31,8 @@ export interface BuildBTreeOptions {
   maxLeafBytes?: number;
   /** Children per internal page. */
   maxFanout?: number;
+  /** Written into the header, for the Candidate detail file built alongside to match. */
+  buildId?: number;
 }
 
 const DEFAULTS = {
@@ -41,8 +43,9 @@ const DEFAULTS = {
 
 /** Converts a wire row into the leaf record the B-tree stores. */
 export function storedEntryFromRow(row: DictionaryRow): StoredEntry {
-  const [simplified, traditional, pinyinNumbers, shortGloss, frequency, hskLevel] = row;
-  return {
+  const [simplified, traditional, pinyinNumbers, shortGloss, frequency, hskLevel, entryIds, onlyIn] =
+    row;
+  const entry: StoredEntry = {
     key: cleanPinyin(pinyinNumbers),
     simplified,
     traditional: traditional || simplified,
@@ -50,7 +53,10 @@ export function storedEntryFromRow(row: DictionaryRow): StoredEntry {
     shortGloss,
     frequency,
     hskLevel,
+    entryIds: entryIds ?? [],
   };
+  if (onlyIn) entry.onlyIn = onlyIn;
+  return entry;
 }
 
 /**
@@ -66,8 +72,14 @@ export function sortStoredEntries(entries: StoredEntry[]): StoredEntry[] {
     if (a.hskLevel !== b.hskLevel) return a.hskLevel - b.hskLevel;
     if (a.simplified !== b.simplified) return a.simplified < b.simplified ? -1 : 1;
     if (a.pinyinNumbers !== b.pinyinNumbers) return a.pinyinNumbers < b.pinyinNumbers ? -1 : 1;
-    return 0;
+    if (a.traditional !== b.traditional) return a.traditional < b.traditional ? -1 : 1;
+    return scriptOrder(a) - scriptOrder(b);
   });
+}
+
+/** Both scripts, then simplified only, then traditional only. */
+function scriptOrder(entry: StoredEntry): number {
+  return entry.onlyIn === 'simplified' ? 1 : entry.onlyIn === 'traditional' ? 2 : 0;
 }
 
 function encodedEntrySize(entry: StoredEntry): number {
@@ -167,7 +179,7 @@ export function buildBTree(rows: DictionaryRow[], options: BuildBTreeOptions = {
     cursor += pages[id].byteLength;
   }
   if (cursor > 0xffffffff) {
-    throw new Error('The dictionary exceeds the 4GB offset limit of B-tree format 1');
+    throw new Error('The dictionary exceeds the 4GB offset limit of the B-tree format');
   }
 
   const header: BTreeHeader = {
@@ -175,6 +187,7 @@ export function buildBTree(rows: DictionaryRow[], options: BuildBTreeOptions = {
     pageCount,
     rootPageId,
     directoryOffset,
+    buildId: options.buildId ?? 0,
   };
 
   const output = new Uint8Array(cursor);
