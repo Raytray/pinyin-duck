@@ -20,7 +20,8 @@ export default defineConfig({
     ...(process.env.CI
       ? ([['github'], ['html', { open: 'never' }]] as const)
       : ([['list'], ['html', { open: 'never' }]] as const)),
-    // The web package has no unit tests, so this is where its coverage comes from.
+    // The web package's few unit tests cover no components, so this is where most of its
+    // coverage comes from.
     ['./e2e/web-coverage-reporter.ts', {}],
   ],
   timeout: 30_000,

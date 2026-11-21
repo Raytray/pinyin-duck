@@ -46,6 +46,13 @@ const ASSETS = [
     why: 'the app downloads it at startup, and every e2e test waits for it',
   },
   {
+    dir: join(ROOT, 'packages', 'web', 'src', 'generated'),
+    paths: ['detail.bin.gz'],
+    label: 'the Candidate detail file',
+    build: 'npm run build:dict',
+    why: 'the app imports its URL, so the dev server cannot start without it',
+  },
+  {
     dir: join(ROOT, 'packages', 'windows', 'rime'),
     paths: ['pinyinduck.dict.yaml', 'pinyinduck_trad.dict.yaml'],
     label: 'the Rime dictionaries',
