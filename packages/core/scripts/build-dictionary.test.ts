@@ -4,7 +4,6 @@ import {
   parseFrequencyList,
   parseHskList,
   normalizeFrequency,
-  buildDictRow,
   joinCorpora,
   type RawCedictLine,
 } from './build-dictionary';
@@ -158,36 +157,6 @@ describe('normalizeFrequency', () => {
   });
 });
 
-describe('buildDictRow', () => {
-  it('emits a row in the documented column order', () => {
-    expect(buildDictRow(cctv, 0, 0)).toEqual([
-      '中国中央电视台',
-      '中國中央電視台',
-      'zhong1 guo2 zhong1 yang2 dian4 shi4 tai2',
-      'China Central Television (CCTV) / PRC state TV network',
-      0,
-      0,
-    ]);
-  });
-
-  it('carries the normalized frequency and HSK level through', () => {
-    const row = buildDictRow(cctv, 58468, 1);
-    expect(row[4]).toBe(58468);
-    expect(row[5]).toBe(1);
-  });
-
-  it('defaults frequency and HSK level to 0 when the word is not in either corpus', () => {
-    const row = buildDictRow(cctv);
-    expect(row[4]).toBe(0);
-    expect(row[5]).toBe(0);
-  });
-
-  it('normalizes the pinyin column', () => {
-    const row = buildDictRow(cctv, 0, 0);
-    expect(row[2]).toBe('zhong1 guo2 zhong1 yang2 dian4 shi4 tai2');
-  });
-});
-
 describe('joinCorpora', () => {
   const cedict = [
     '# CC-CEDICT comment line',
@@ -338,6 +307,69 @@ describe('joinCorpora', () => {
     ].join('\n');
     const { rows } = joinCorpora(shu, '', '');
     expect(rows[0][3]).toBe('book / letter / document');
+  });
+
+  it('gives a single-headword entry one row, for both scripts, carrying its entry id', () => {
+    const { rows, entries } = joinCorpora('你 你 [ni3] /you/\n好 好 [hao3] /good/', '', '');
+    expect(entries.map((entry) => entry.id)).toEqual([0, 1]);
+    expect(rows.map((row) => [row[0], row[6], row[7]])).toEqual([
+      ['你', [0], undefined],
+      ['好', [1], undefined],
+    ]);
+  });
+
+  describe('headwords sharing a simplified form', () => {
+  const hou = [
+    '后 后 [Hou4] /surname Hou/',
+    '后 后 [hou4] /empress/queen/',
+    '後 后 [hou4] /behind/back/rear/',
+  ].join('\n');
+
+  it('keeps 後 hòu and 后 hòu as separate entries', () => {
+    const { entries } = joinCorpora(hou, '', '');
+    expect(entries.map((entry) => [entry.id, entry.traditional, entry.lines.length])).toEqual([
+      [0, '后', 2],
+      [1, '後', 1],
+    ]);
+  });
+
+  it('writes one simplified-only row standing for both, glossed with the first sense of each', () => {
+    // 後 has three senses and 后 two (its surname line is a tag, not a sense), so 後 leads.
+    const { rows } = joinCorpora(hou, '', '');
+    const simplified = rows.filter((row) => row[7] === 'simplified');
+    expect(simplified).toEqual([['后', '後', 'hou4', 'behind / empress', 0, 0, [1, 0], 'simplified']]);
+  });
+
+  it('writes one traditional-only row per headword, each with its own gloss', () => {
+    const { rows } = joinCorpora(hou, '', '');
+    const traditional = rows.filter((row) => row[7] === 'traditional');
+    expect(traditional.map((row) => [row[1], row[3], row[6]])).toEqual([
+      ['后', 'empress / queen', [0]],
+      ['後', 'behind / back / rear', [1]],
+    ]);
+    expect(rows).toHaveLength(3);
+  });
+
+  it('orders headwords with as many senses as each other by file order', () => {
+    const tied = ['乾 干 [gan1] /dry/', '幹 干 [gan1] /trunk/'].join('\n');
+    const { rows } = joinCorpora(tied, '', '');
+    expect(rows.find((row) => row[7] === 'simplified')?.[3]).toBe('dry / trunk');
+  });
+
+  it('keeps the joined gloss within the short gloss length limit', () => {
+    const long = [`甲 甲 [jia3] /${'a'.repeat(40)}/`, `乙 甲 [jia3] /${'b'.repeat(40)}/`].join('\n');
+    const { rows } = joinCorpora(long, '', '');
+    const gloss = rows.find((row) => row[7] === 'simplified')![3];
+    expect(gloss).toHaveLength(65);
+    expect(gloss.endsWith('…')).toBe(true);
+  });
+
+  it('ranks the merged row as the old single row did: the surname cut only when every line is a surname', () => {
+    const { rows } = joinCorpora(hou, '后 1000\n', '');
+    expect(rows.map((row) => row[4])).toEqual([100000, 100000, 100000]);
+    const surnames = joinCorpora('张 张 [Zhang1] /surname Zhang/\n張 张 [Zhang1] /surname Zhang/', '张 1000\n', '');
+    expect(surnames.rows.map((row) => row[4])).toEqual([10000, 10000, 10000]);
+  });
   });
 
   it('round-trips its rows through the B-tree, each reachable by its toneless key', () => {

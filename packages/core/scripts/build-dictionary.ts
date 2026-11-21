@@ -94,29 +94,6 @@ export function normalizeFrequency(count: number, corpusMax: number): number {
   return Math.min(100000, Math.max(0, Math.round(100000 * ratio)));
 }
 
-/**
- * Builds a compact wire row from a parsed CC-CEDICT line.
- * Derived fields (clean pinyin as the B-tree key, tone marks at search time) are
- * recomputed from the pinyin column, so the asset only ever stores the source data.
- */
-export function buildDictRow(
-  raw: RawCedictLine,
-  frequency: number = 0,
-  hskLevel: number = 0
-): DictionaryRow {
-  const pinyinNumbers = normalizePinyin(raw.pinyin);
-  const shortGloss = formatGloss(raw.definitions);
-
-  return [
-    raw.simplified,
-    raw.traditional,
-    pinyinNumbers,
-    shortGloss,
-    frequency,
-    hskLevel,
-  ];
-}
-
 /** Parses the "word count" frequency list into a lookup map. */
 export function parseFrequencyList(content: string): Map<string, number> {
   const frequencies = new Map<string, number>();
@@ -331,7 +308,67 @@ function isSurnameEntry(entry: DictionaryEntry): boolean {
 }
 
 /**
+ * Definitions that are tags rather than senses (decided in the Candidate detail data model):
+ * surname, variant of / old variant of / erhua variant of, abbr. for, also written, and
+ * also pr. / Taiwan pr.
+ */
+const TAG_DEFINITION = /^(surname\s|(old |erhua )?variant of\s|abbr\. for\s|also written\s|also pr\.|taiwan pr\.)/i;
+
+/** A `CL:` definition, which lists measure words rather than a sense. */
+const MEASURE_WORD_DEFINITION = /^CL:/i;
+
+/**
+ * An entry's senses: definitions from its common lines first, then from its proper-noun
+ * lines, each in file order, with exact duplicates, tags and measure words left out.
+ */
+export function entrySenses(entry: DictionaryEntry): string[] {
+  const ordered = [...entry.lines.filter(isCommonLine), ...entry.lines.filter((l) => !isCommonLine(l))];
+  const senses: string[] = [];
+  for (const line of ordered) {
+    for (const raw of line.definitions) {
+      const definition = raw.trim();
+      if (!definition || TAG_DEFINITION.test(definition) || MEASURE_WORD_DEFINITION.test(definition)) continue;
+      if (!senses.includes(definition)) senses.push(definition);
+    }
+  }
+  return senses;
+}
+
+/** The short gloss of a single entry, from its gloss line. */
+function entryGloss(entry: DictionaryEntry): string {
+  return formatGloss(glossLine(entry).definitions);
+}
+
+/**
+ * Orders the headwords one simplified candidate stands for: most senses first, ties in
+ * file order. The candidate's short gloss and its Candidate detail groups both use this.
+ */
+export function orderHeadwords(entries: DictionaryEntry[]): DictionaryEntry[] {
+  const counts = new Map(entries.map((entry) => [entry, entrySenses(entry).length]));
+  return [...entries].sort((a, b) => counts.get(b)! - counts.get(a)! || a.id - b.id);
+}
+
+/**
+ * The short gloss of a candidate standing for several headwords: the first sense of each,
+ * in headword order, within the usual length limit ("behind / empress"). A headword with
+ * no sense of its own (only tags) contributes its own short gloss instead.
+ */
+export function joinedGloss(ordered: DictionaryEntry[]): string {
+  const parts = ordered.map((entry) => {
+    const [first] = entrySenses(entry);
+    return first === undefined ? entryGloss(entry) : formatGloss([first], Infinity);
+  });
+  return formatGloss(parts.length > 0 ? [parts.join(' / ')] : []);
+}
+
+/**
  * Joins the three corpora into wire rows.
+ *
+ * Every entry with a simplified form of its own gets one row for both scripts. When
+ * several headwords share a simplified form and reading (後 and 后, both hòu), simplified
+ * script shows them as one candidate and traditional script as one each, so the group gets
+ * a simplified-only row standing for all of them plus a traditional-only row per headword.
+ * Every row lists the entry ids it stands for.
  *
  * Split out from `build` so the merging, join and validation logic can be tested
  * without touching the network or the filesystem.
@@ -352,23 +389,61 @@ export function joinCorpora(
     if (count > corpusMax) corpusMax = count;
   }
 
+  // Headwords that one simplified candidate stands for, in the file order of their first entry.
+  const groups = new Map<string, DictionaryEntry[]>();
+  for (const entry of entries) {
+    const key = `${entry.simplified}|${entry.pinyinNumbers}`;
+    const group = groups.get(key);
+    if (group) group.push(entry);
+    else groups.set(key, [entry]);
+  }
+
   const rows: DictionaryRow[] = [];
-  let cedictLines = 0;
   let withFrequency = 0;
   let withHsk = 0;
   let singleChar = 0;
 
-  for (const entry of entries) {
-    cedictLines += entry.lines.length;
-    const frequency = normalizeFrequency(frequencies.get(entry.simplified) ?? 0, corpusMax);
-    const hskLevel = hskLevels.get(entry.simplified) ?? 0;
-    const adjustedFrequency = isSurnameEntry(entry) ? Math.round(frequency * 0.1) : frequency;
+  for (const group of groups.values()) {
+    const { simplified, pinyinNumbers } = group[0];
+    // Frequency and HSK level are keyed by simplified form, so a group shares them.
+    const frequency = normalizeFrequency(frequencies.get(simplified) ?? 0, corpusMax);
+    const hskLevel = hskLevels.get(simplified) ?? 0;
+    const ranked = (members: DictionaryEntry[]) =>
+      members.every(isSurnameEntry) ? Math.round(frequency * 0.1) : frequency;
 
     if (frequency > 0) withFrequency++;
     if (hskLevel > 0) withHsk++;
-    if ([...entry.simplified].length === 1) singleChar++;
+    if ([...simplified].length === 1) singleChar++;
 
-    rows.push(buildDictRow(glossLine(entry), adjustedFrequency, hskLevel));
+    if (group.length === 1) {
+      const [entry] = group;
+      rows.push([simplified, entry.traditional, pinyinNumbers, entryGloss(entry), ranked(group), hskLevel, [entry.id]]);
+      continue;
+    }
+
+    const ordered = orderHeadwords(group);
+    rows.push([
+      simplified,
+      ordered[0].traditional,
+      pinyinNumbers,
+      joinedGloss(ordered),
+      ranked(group),
+      hskLevel,
+      ordered.map((entry) => entry.id),
+      'simplified',
+    ]);
+    for (const entry of group) {
+      rows.push([
+        simplified,
+        entry.traditional,
+        pinyinNumbers,
+        entryGloss(entry),
+        ranked([entry]),
+        hskLevel,
+        [entry.id],
+        'traditional',
+      ]);
+    }
   }
 
   // Sanity check: the B-tree key and the displayed tone marks derive from these columns,
@@ -379,6 +454,7 @@ export function joinCorpora(
     }
   }
 
+  const cedictLines = entries.reduce((total, entry) => total + entry.lines.length, 0);
   return {
     rows,
     entries,
