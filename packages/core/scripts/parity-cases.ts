@@ -64,6 +64,16 @@ export const EXTRA_QUERIES: readonly string[] = [
   'hang',
   'jianguo',
   'fanguo',
+  // 書 Shū and 書 shū are one entry, glossed from the common line.
+  'shu1',
+];
+
+/**
+ * Single queries pinned in both scripts, because the scripts are meant to differ on them.
+ */
+export const BOTH_SCRIPT_QUERIES: readonly string[] = [
+  // 後 and 后 share 后 hòu: one candidate in simplified script, one each in traditional.
+  'hou4',
 ];
 
 const SCRIPTS: readonly ScriptType[] = ['simplified', 'traditional'];
@@ -132,5 +142,8 @@ export function buildParityCases(
     }
   }
   for (const query of extras) add(query, 'simplified');
+  for (const query of BOTH_SCRIPT_QUERIES) {
+    for (const script of SCRIPTS) add(query, script);
+  }
   return cases;
 }
