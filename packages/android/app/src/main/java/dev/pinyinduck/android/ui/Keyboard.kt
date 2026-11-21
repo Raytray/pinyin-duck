@@ -52,6 +52,10 @@ data class KeyboardCallbacks(
     val onToggleScript: () -> Unit,
     val onToggleExpanded: () -> Unit,
     val onClear: () -> Unit,
+    /** A long press on a strip candidate: open the Candidate detail bubble for it. */
+    val onShowDetail: (Int) -> Unit = {},
+    /** Close the Candidate detail bubble, e.g. after a tap on the app area. */
+    val onCloseDetail: () -> Unit = {},
 )
 
 /**

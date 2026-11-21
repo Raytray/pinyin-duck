@@ -1,7 +1,15 @@
 package dev.pinyinduck.android.ime
 
+import android.graphics.Color
+import android.graphics.Rect
+import android.inputmethodservice.InputMethodService
+import android.view.ContextThemeWrapper
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import dev.pinyinduck.android.R
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -52,4 +60,119 @@ class ImeWindowTest {
     fun theKeyboardIsNeverFullscreenInPortrait() {
         assertFalse(service.onEvaluateFullscreenMode())
     }
+
+    // --- the window ---------------------------------------------------------------
+
+    @Test
+    fun theWindowTheInputAreaAndTheInputViewAllFillTheScreen() {
+        val view = service.onCreateInputView()
+        service.setInputView(view)
+
+        assertFullHeight(view)
+    }
+
+    @Test
+    fun aFullscreenModeUpdateDoesNotShrinkTheWindowBackToTheKeyboard() {
+        // The framework resets the window to WRAP_CONTENT whenever it re-evaluates fullscreen
+        // mode, which it does on every configuration change and input start.
+        val view = service.onCreateInputView()
+        service.setInputView(view)
+
+        service.updateFullscreenMode()
+
+        assertFullHeight(view)
+    }
+
+    @Test
+    fun theWindowBackgroundIsTransparent() {
+        // The window now covers the app, so any background colour would paint over it; the
+        // keyboard draws its own.
+        val themed = ContextThemeWrapper(service, R.style.Theme_PinyinDuck_Ime)
+        val attrs = themed.obtainStyledAttributes(intArrayOf(android.R.attr.windowBackground))
+        try {
+            assertEquals(Color.TRANSPARENT, attrs.getColor(0, Color.RED))
+        } finally {
+            attrs.recycle()
+        }
+    }
+
+    private fun assertFullHeight(view: android.view.View) {
+        val window = checkNotNull(service.window.window)
+        assertEquals("window height", MATCH_PARENT, window.attributes.height)
+        val inputArea = window.findViewById<android.view.View>(android.R.id.inputArea)
+        assertEquals("inputArea height", MATCH_PARENT, inputArea.layoutParams.height)
+        assertEquals("input view height", MATCH_PARENT, view.layoutParams.height)
+    }
+
+    // --- insets -----------------------------------------------------------------
+
+    @Test
+    fun beforeTheFirstLayoutTheInsetsCoverNothing() {
+        service.setInputView(service.onCreateInputView())
+
+        val insets = computeInsets()
+
+        val displayHeight = service.resources.displayMetrics.heightPixels
+        assertTrue("content top ${insets.contentTopInsets} is above the display bottom", insets.contentTopInsets >= displayHeight)
+        assertTrue("visible top ${insets.visibleTopInsets} is above the display bottom", insets.visibleTopInsets >= displayHeight)
+        assertEquals(InputMethodService.Insets.TOUCHABLE_INSETS_REGION, insets.touchableInsets)
+        assertTrue("something is touchable before layout", insets.touchableRegion.isEmpty)
+    }
+
+    @Test
+    fun onceLaidOutTheInsetsStopAtTheKeyboardTop() {
+        layOut(width = 1080, height = 2200, keyboardTop = 1400)
+
+        val insets = computeInsets()
+
+        assertEquals(1400, insets.contentTopInsets)
+        assertEquals(1400, insets.visibleTopInsets)
+        assertEquals(InputMethodService.Insets.TOUCHABLE_INSETS_REGION, insets.touchableInsets)
+        assertEquals(Rect(0, 1400, 1080, 2200), insets.touchableRegion.bounds)
+    }
+
+    @Test
+    fun whileTheDetailIsOpenTheWholeWindowIsTouchableAndTheInsetsStayPut() {
+        layOut(width = 1080, height = 2200, keyboardTop = 1400)
+
+        service.callbacks().onShowDetail(0)
+        val insets = computeInsets()
+
+        assertEquals(1400, insets.contentTopInsets)
+        assertEquals(1400, insets.visibleTopInsets)
+        assertEquals(Rect(0, 0, 1080, 2200), insets.touchableRegion.bounds)
+    }
+
+    @Test
+    fun closingTheDetailHandsTheAppAreaBackToTheApp() {
+        layOut(width = 1080, height = 2200, keyboardTop = 1400)
+
+        service.callbacks().onShowDetail(0)
+        service.callbacks().onCloseDetail()
+
+        assertEquals(Rect(0, 1400, 1080, 2200), computeInsets().touchableRegion.bounds)
+    }
+
+    /**
+     * Gives the input view a known frame, and reports where the keyboard landed.
+     *
+     * Robolectric never attaches the input view to a real window, and a `ComposeView` refuses
+     * to measure without one, so the frame is set directly and the Compose layout that reports
+     * the keyboard's top on device is stood in for by a direct report.
+     */
+    private fun layOut(
+        width: Int,
+        height: Int,
+        keyboardTop: Int,
+    ) {
+        val view = service.onCreateInputView()
+        service.setInputView(view)
+        view.left = 0
+        view.top = 0
+        view.right = width
+        view.bottom = height
+        service.onKeyboardTop(keyboardTop)
+    }
+
+    private fun computeInsets() = InputMethodService.Insets().also { service.onComputeInsets(it) }
 }

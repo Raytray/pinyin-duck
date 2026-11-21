@@ -2,9 +2,13 @@ package dev.pinyinduck.android.ime
 
 import android.content.res.AssetManager
 import android.inputmethodservice.InputMethodService
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.widget.FrameLayout
+import android.widget.LinearLayout
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -190,7 +194,119 @@ class PinyinDuckImeService :
                 PinyinDuckKeyboard(uiState, callbacks())
             }
         }
+        // A new input view has not been laid out, so whatever the old one reported is stale.
+        keyboardTop = null
+        inputRoot = view
         return view
+    }
+
+    override fun setInputView(view: View) {
+        super.setInputView(view)
+        applyFullHeightLayout()
+    }
+
+    /**
+     * Re-applies the full-height window after the framework has reset it.
+     *
+     * `InputMethodService.onConfigureWindow` puts the window back to `WRAP_CONTENT` every time
+     * fullscreen mode is re-evaluated, which happens on configuration changes and input
+     * starts, so setting the height once at startup does not stick. LatinIME overrides this
+     * method for the same reason.
+     */
+    override fun updateFullscreenMode() {
+        super.updateFullscreenMode()
+        applyFullHeightLayout()
+    }
+
+    /**
+     * Makes the IME window, the framework's `inputArea` frame and the input view fill the screen.
+     *
+     * The Candidate detail bubble is an ordinary composable drawn above the keyboard in this
+     * same window, so the window has to be tall enough to hold it. The part above the keyboard
+     * is transparent (the theme) and passes touches to the app ([onComputeInsets]), and the
+     * keyboard is bottom-aligned inside it, so to the user nothing changes until the bubble
+     * opens. `inputArea` and the input view are bottom-aligned as well, so if anything ever
+     * measures them shorter than the window the keyboard still sits on the bottom edge.
+     */
+    private fun applyFullHeightLayout() {
+        val window = window?.window ?: return
+        window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        window.findViewById<View>(android.R.id.inputArea)?.let(::fillHeightAtBottom)
+        inputRoot?.let(::fillHeightAtBottom)
+    }
+
+    /**
+     * Sets a view's height to `MATCH_PARENT` and its gravity to the bottom.
+     *
+     * The framework parents `inputArea` in a `LinearLayout` and the input view in a
+     * `FrameLayout`, and the two spell gravity on different `LayoutParams` classes.
+     */
+    private fun fillHeightAtBottom(view: View) {
+        val params = view.layoutParams ?: return
+        params.height = ViewGroup.LayoutParams.MATCH_PARENT
+        when (params) {
+            is LinearLayout.LayoutParams -> params.gravity = Gravity.BOTTOM
+            is FrameLayout.LayoutParams -> params.gravity = Gravity.BOTTOM
+        }
+        view.layoutParams = params
+    }
+
+    /**
+     * The input view, which fills the whole IME window (see [applyFullHeightLayout]).
+     *
+     * Its size is the window frame [onComputeInsets] reports against.
+     */
+    private var inputRoot: View? = null
+
+    /**
+     * The keyboard's top edge in window pixels, or null before the keyboard has been laid out.
+     *
+     * Reported from the composition through [onKeyboardTop]. A plain field rather than Compose
+     * state: it feeds the insets, which the window recomputes on its own on every traversal, and
+     * nothing in the composition should recompose because it moved.
+     */
+    private var keyboardTop: Int? = null
+
+    /**
+     * Records where the keyboard's top landed, in window pixels.
+     *
+     * `internal` so the composition can report it and the test can stand in for a layout
+     * Robolectric never performs.
+     */
+    internal fun onKeyboardTop(top: Int) {
+        keyboardTop = top
+    }
+
+    /**
+     * Tells the window manager the keyboard covers only itself, not the full-height window.
+     *
+     * The rules are in [ImeInsets]; this only measures the window and copies the result into
+     * the framework's [Insets]. The framework calls this on every traversal and pushes it to
+     * the window manager only when it changed, so opening or closing the bubble, which changes
+     * the layout, is enough to move the touchable region.
+     */
+    override fun onComputeInsets(outInsets: Insets) {
+        super.onComputeInsets(outInsets)
+        val root = inputRoot
+        val bottom =
+            if (root == null || root.height == 0) {
+                0
+            } else {
+                val location = IntArray(2)
+                root.getLocationInWindow(location)
+                location[1] + root.height
+            }
+        val frame =
+            ImeWindowFrame(
+                width = root?.width ?: 0,
+                bottom = bottom,
+                fallbackBottom = resources.displayMetrics.heightPixels,
+            )
+        val spec = ImeInsets.compute(frame, keyboardTop, bubbleOpen = uiState.detailOpen)
+        outInsets.contentTopInsets = spec.contentTop
+        outInsets.visibleTopInsets = spec.visibleTop
+        outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_REGION
+        with(spec.touchable) { outInsets.touchableRegion.set(left, top, right, bottom) }
     }
 
     /**
@@ -340,7 +456,14 @@ class PinyinDuckImeService :
             onToggleScript = { session?.toggleScript() },
             onToggleExpanded = { uiState = uiState.copy(expanded = !uiState.expanded) },
             onClear = { session?.cancelComposition() },
+            onShowDetail = { uiState = uiState.copy(detailIndex = it) },
+            onCloseDetail = ::closeDetail,
         )
+
+    /** Closes the Candidate detail bubble; a no-op when it is already closed. */
+    private fun closeDetail() {
+        if (uiState.detailOpen) uiState = uiState.copy(detailIndex = null)
+    }
 
     private fun handleKey(action: KeyAction) {
         val session = session ?: return
