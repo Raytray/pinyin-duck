@@ -110,7 +110,7 @@ val hasReleaseKeystore =
 
 android {
     namespace = "dev.pinyinduck.android"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "dev.pinyinduck.android"
