@@ -311,11 +311,24 @@ describe('joinCorpora', () => {
   });
 
   it('gives a single-headword entry one row, for both scripts, carrying its entry id', () => {
-    const { rows, entries } = joinCorpora('你 你 [ni3] /you/\n好 好 [hao3] /good/', '', '');
-    expect(entries.map((entry) => entry.id)).toEqual([0, 1]);
+    const { rows } = joinCorpora('好 好 [hao3] /good/\n你 你 [ni3] /you/', '', '');
     expect(rows.map((row) => [row[0], row[6], row[7]])).toEqual([
-      ['你', [0], undefined],
-      ['好', [1], undefined],
+      ['好', [0], undefined],
+      ['你', [1], undefined],
+    ]);
+  });
+
+  it('numbers entries in the order the B+ tree stores their rows, and lists them by id', () => {
+    // Storage order is by toneless pinyin, so 好 hǎo comes before 你 nǐ whatever the file says.
+    // Neighbouring rows then have neighbouring ids, which is what keeps the asset small.
+    const { rows, entries } = joinCorpora('你 你 [ni3] /you/\n好 好 [hao3] /good/', '', '');
+    expect(entries.map((entry) => [entry.id, entry.simplified])).toEqual([
+      [0, '好'],
+      [1, '你'],
+    ]);
+    expect(rows.map((row) => [row[0], row[6]])).toEqual([
+      ['你', [1]],
+      ['好', [0]],
     ]);
   });
 
@@ -355,6 +368,22 @@ describe('joinCorpora', () => {
     const tied = ['乾 干 [gan1] /dry/', '幹 干 [gan1] /trunk/'].join('\n');
     const { rows } = joinCorpora(tied, '', '');
     expect(rows.find((row) => row[7] === 'simplified')?.[3]).toBe('dry / trunk');
+  });
+
+  it('leaves out a headword with no senses of its own, such as a variant-only one', () => {
+    // 昰 is only "variant of 是", so 是 shì keeps the gloss it has on its own.
+    const shi = [
+      '是 是 [shi4] /to be/correct; right; true/very well/',
+      '昰 是 [shi4] /variant of 是[shi4]/',
+    ].join('\n');
+    const { rows } = joinCorpora(shi, '', '');
+    expect(rows.find((row) => row[7] === 'simplified')?.[3]).toBe('to be / correct; right; true / very well');
+  });
+
+  it("falls back to the first headword's gloss when no headword has a sense", () => {
+    const variants = ['甲 丙 [bing3] /variant of 丙[bing3]/', '乙 丙 [bing3] /old variant of 丙[bing3]/'].join('\n');
+    const { rows } = joinCorpora(variants, '', '');
+    expect(rows.find((row) => row[7] === 'simplified')?.[3]).toBe('variant of 丙');
   });
 
   it('keeps the joined gloss within the short gloss length limit', () => {

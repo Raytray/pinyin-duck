@@ -33,7 +33,7 @@ import * as zlib from 'zlib';
 import { pinyinNumbersToMarks, cleanPinyin, normalizePinyin } from '../src/parser/pinyin.js';
 import { formatGloss } from '../src/dictionary/gloss.js';
 import { DictionaryRow } from '../src/data/dictionary-codec.js';
-import { buildBTree } from '../src/data/btree-builder.js';
+import { buildBTree, sortStoredEntries, storedEntryFromRow } from '../src/data/btree-builder.js';
 import { BUILD_ID_OFFSET } from '../src/data/btree-codec.js';
 import { SOURCES, type PinnedSource, type VendoredSource } from './sources.js';
 
@@ -225,9 +225,10 @@ export interface BuildStats {
  */
 export interface DictionaryEntry {
   /**
-   * Stable within one build: entries are numbered from 0 in the file order of their first
-   * line, so the same CC-CEDICT edition always gives the same ids. Ids mean nothing across
-   * builds (ADR 0002).
+   * The entry id: `collectEntries` numbers entries in the file order of their first line,
+   * and `joinCorpora` renumbers them in the order the B+ tree stores their rows, which is
+   * the id the asset and the Candidate detail file use. The same sources always give the
+   * same ids; ids mean nothing across builds (ADR 0002).
    */
   id: number;
   traditional: string;
@@ -351,15 +352,20 @@ export function orderHeadwords(entries: DictionaryEntry[]): DictionaryEntry[] {
 
 /**
  * The short gloss of a candidate standing for several headwords: the first sense of each,
- * in headword order, within the usual length limit ("behind / empress"). A headword with
- * no sense of its own (only tags) contributes its own short gloss instead.
+ * in headword order, within the usual length limit ("back / empress").
+ *
+ * A headword with no sense of its own (a variant-only one, say) has no first sense to give,
+ * so it is left out: 是 shì is not glossed "to be / variant of 是" because of 昰. When only
+ * one headword is left, the candidate takes that headword's own short gloss, as it would if
+ * it stood alone; when none is, the first headword's.
  */
 export function joinedGloss(ordered: DictionaryEntry[]): string {
-  const parts = ordered.map((entry) => {
-    const [first] = entrySenses(entry);
-    return first === undefined ? entryGloss(entry) : formatGloss([first], Infinity);
-  });
-  return formatGloss(parts.length > 0 ? [parts.join(' / ')] : []);
+  const withSenses = ordered
+    .map((entry) => ({ entry, first: entrySenses(entry)[0] }))
+    .filter((item): item is { entry: DictionaryEntry; first: string } => item.first !== undefined);
+  if (withSenses.length === 0) return entryGloss(ordered[0]);
+  if (withSenses.length === 1) return entryGloss(withSenses[0].entry);
+  return formatGloss([withSenses.map((item) => formatGloss([item.first], Infinity)).join(' / ')]);
 }
 
 /**
@@ -447,6 +453,8 @@ export function joinCorpora(
     }
   }
 
+  renumberInStorageOrder(rows, entries);
+
   // Sanity check: the B-tree key and the displayed tone marks derive from these columns,
   // so a bad pinyin column here would silently corrupt every downstream candidate.
   for (const row of rows) {
@@ -469,6 +477,26 @@ export function joinCorpora(
       singleChar,
     },
   };
+}
+
+/**
+ * Renumbers entries in the order the B+ tree stores the rows that stand for them, and sorts
+ * `entries` by the new id.
+ *
+ * The tree stores each id as a delta from the one before it in the same leaf, so ids that
+ * follow storage order are almost all one byte. Numbered in file order they would be random
+ * from row to row and cost about 0.3 MB more in the gzipped web download.
+ */
+function renumberInStorageOrder(rows: DictionaryRow[], entries: DictionaryEntry[]): void {
+  const renumbered = new Map<number, number>();
+  for (const stored of sortStoredEntries(rows.map(storedEntryFromRow))) {
+    for (const id of stored.entryIds) {
+      if (!renumbered.has(id)) renumbered.set(id, renumbered.size);
+    }
+  }
+  for (const row of rows) row[6] = row[6]!.map((id) => renumbered.get(id)!);
+  for (const entry of entries) entry.id = renumbered.get(entry.id)!;
+  entries.sort((a, b) => a.id - b.id);
 }
 
 /**
