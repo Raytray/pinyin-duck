@@ -113,3 +113,83 @@ test('a commit after moving the caret back lands at the new caret', async ({ pag
   await expect(editor(page)).toHaveValue('好abcdefghij你');
   expect(await caret(page)).toBe(1);
 });
+
+// Composing over a selection replaces it in place: the commit lands where the selection
+// was, whichever way it is committed. Each case selects "bc" in "abcd" from the keyboard,
+// as a user would, so the selection reaches the editor through its own event handlers.
+type Page = import('@playwright/test').Page;
+
+async function selectForward(page: Page) {
+  await editor(page).press('Home');
+  await editor(page).press('ArrowRight');
+  await editor(page).press('Shift+ArrowRight');
+  await editor(page).press('Shift+ArrowRight');
+}
+
+// The anchor is on the right, so the selection runs backwards from the caret.
+async function selectBackward(page: Page) {
+  await editor(page).press('End');
+  await editor(page).press('ArrowLeft');
+  await editor(page).press('Shift+ArrowLeft');
+  await editor(page).press('Shift+ArrowLeft');
+}
+
+const commits: {
+  name: string;
+  commit: (page: Page) => Promise<void>;
+  expected: string;
+  caretAfter: number;
+}[] = [
+  { name: 'Space', commit: (page) => editor(page).press(' '), expected: 'a你d', caretAfter: 2 },
+  { name: 'a digit', commit: (page) => editor(page).press('1'), expected: 'a你d', caretAfter: 2 },
+  {
+    name: 'punctuation',
+    commit: (page) => editor(page).press(','),
+    expected: 'a你，d',
+    caretAfter: 3,
+  },
+  // Enter commits the pinyin as typed.
+  {
+    name: 'Enter',
+    commit: (page) => editor(page).press('Enter'),
+    expected: 'anid',
+    caretAfter: 3,
+  },
+  {
+    name: 'a candidate click',
+    commit: (page) => candidateItems(page).first().click(),
+    expected: 'a你d',
+    caretAfter: 2,
+  },
+];
+
+const cases = [
+  ...commits.map((c) => ({ ...c, direction: 'a forward', select: selectForward })),
+  { ...commits[0], direction: 'a backward', select: selectBackward },
+];
+
+for (const { name, commit, expected, caretAfter, direction, select } of cases) {
+  test(`composing over ${direction} selection replaces it when ${name} commits`, async ({
+    page,
+  }) => {
+    await select(page);
+    const selection = await editor(page).evaluate((el: HTMLTextAreaElement) => [
+      el.selectionStart,
+      el.selectionEnd,
+    ]);
+    expect(selection).toEqual([1, 3]);
+
+    await editor(page).pressSequentially('ni');
+    await expectBuffer(page, 'ni');
+    await expect(candidateList(page)).toBeVisible();
+    // The selection is gone as soon as the composition starts, and the caret sits
+    // where it began rather than at the end of the text.
+    await expect(editor(page)).toHaveValue('ad');
+    expect(await caret(page)).toBe(1);
+
+    await commit(page);
+
+    await expect(editor(page)).toHaveValue(expected);
+    expect(await caret(page)).toBe(caretAfter);
+  });
+}
