@@ -44,6 +44,7 @@ function entry(overrides: Partial<StoredEntry> = {}): StoredEntry {
     shortGloss: 'hello / how are you',
     frequency: 0,
     hskLevel: 0,
+    entryIds: [],
     ...overrides,
   };
 }
@@ -427,6 +428,27 @@ describe('RimeDictWriter', () => {
       entry({ simplified: '五', frequency: 90000, pinyinNumbers: 'wu3' }),
     ]);
     expect(rows.map((row) => row.text)).toEqual(['五', '坱']);
+  });
+
+  it('writes only the rows meant for its script, so 後 hòu reaches the traditional dictionary', () => {
+    // What the core build writes for 後 hòu and 后 hòu: one simplified-only row standing for
+    // both, and one traditional-only row each.
+    const hou = { key: 'hou', simplified: '后', pinyinNumbers: 'hou4', frequency: 70000 };
+    const entries = [
+      entry({ ...hou, traditional: '後', shortGloss: 'back / empress', onlyIn: 'simplified' }),
+      entry({ ...hou, traditional: '后', shortGloss: 'empress / queen', onlyIn: 'traditional' }),
+      entry({ ...hou, traditional: '後', shortGloss: 'back / behind / rear', onlyIn: 'traditional' }),
+    ];
+
+    const simplified = collect(entries, 'simplified');
+    expect(simplified.rows.map((row) => [row.text, row.comment])).toEqual([['后', 'hòu · back / empress']]);
+    expect(simplified.writer.duplicateCount).toBe(0);
+
+    const traditional = collect(entries, 'traditional');
+    expect(traditional.rows.map((row) => [row.text, row.comment])).toEqual([
+      ['后', 'hòu · empress / queen'],
+      ['後', 'hòu · back / behind / rear'],
+    ]);
   });
 
   it('writes the traditional form when asked for it', () => {
