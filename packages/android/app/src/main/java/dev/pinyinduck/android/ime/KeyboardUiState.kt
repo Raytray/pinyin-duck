@@ -1,6 +1,7 @@
 package dev.pinyinduck.android.ime
 
 import dev.pinyinduck.android.engine.Candidate
+import dev.pinyinduck.android.engine.DetailView
 import dev.pinyinduck.android.engine.ScriptType
 import dev.pinyinduck.android.ui.KeyLayout
 
@@ -28,17 +29,29 @@ data class KeyboardUiState(
     val layout: KeyLayout = KeyLayout.LETTERS,
     /** Whether the full candidate list is showing instead of the strip. */
     val expanded: Boolean = false,
-    /**
-     * The candidate whose Candidate detail bubble is open, or null while it is closed.
-     *
-     * The bubble is still a stub (#16): it shows fixed placeholder content, and this index only
-     * records that it is open. The detail itself arrives with the bubble slice.
-     */
-    val detailIndex: Int? = null,
+    /** The open Candidate detail bubble, or null while it is closed. */
+    val detail: OpenDetail? = null,
 ) {
     /** Whether the Candidate detail bubble is open. */
-    val detailOpen: Boolean get() = detailIndex != null
+    val detailOpen: Boolean get() = detail != null
+
+    /** The candidate whose detail is open, or null while it is closed. */
+    val detailIndex: Int? get() = detail?.index
 
     /** How many candidates were actually ranked, which the scan budget may cap. */
     val fetched: Int get() = candidates.size
 }
+
+/**
+ * The Candidate detail the bubble is showing.
+ *
+ * It carries the [candidate] as well as its [index], so the bubble draws the candidate it was
+ * opened for even in the instant between the composition changing and the bubble closing.
+ */
+data class OpenDetail(
+    /** Where [candidate] sits in [KeyboardUiState.candidates]; what the bubble is anchored to. */
+    val index: Int,
+    val candidate: Candidate,
+    /** What the detail says, or null when it could not be read. */
+    val view: DetailView?,
+)
