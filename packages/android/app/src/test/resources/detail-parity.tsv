@@ -71,14 +71,6 @@ tag	Variant of 涎 xián: saliva
 group
 tag	Variant of 涎 xián: saliva
 
->㻬	㻬	tu2	simplified	1
-group
-sense	1	a kind of jade
-
->㻬	㻬	tu2	traditional	1
-group
-sense	1	a kind of jade
-
 >䕭	䕭	xian2	simplified	1
 group
 pos	noun
@@ -214,6 +206,132 @@ counterpart	中国产
 group
 proper	1	made in China
 proper	2	home-grown (talent)
+
+>中国人	中國人	zhong1 guo2 ren2	simplified	1
+counterpart	中國人
+group
+pos	noun
+proper	1	Chinese person
+
+>中国人	中國人	zhong1 guo2 ren2	traditional	1
+counterpart	中国人
+group
+pos	noun
+proper	1	Chinese person
+
+>中国人大	中國人大	zhong1 guo2 ren2 da4	simplified	1
+counterpart	中國人大
+group
+pos	noun
+proper	1	China National People's Congress
+
+>中国人大	中國人大	zhong1 guo2 ren2 da4	traditional	1
+counterpart	中国人大
+group
+pos	noun
+proper	1	China National People's Congress
+
+>中国人权民运信息中心	中國人權民運信息中心	zhong1 guo2 ren2 quan2 min2 yun4 xin4 xi1 zhong1 xin1	simplified	1
+counterpart	中國人權民運信息中心
+group
+proper	1	Information Center for Human Rights and Democracy, Hong Kong
+
+>中国人权民运信息中心	中國人權民運信息中心	zhong1 guo2 ren2 quan2 min2 yun4 xin4 xi1 zhong1 xin1	traditional	1
+counterpart	中国人权民运信息中心
+group
+proper	1	Information Center for Human Rights and Democracy, Hong Kong
+
+>中国人民大学	中國人民大學	zhong1 guo2 ren2 min2 da4 xue2	simplified	1
+counterpart	中國人民大學
+group
+proper	1	Renmin University of China
+
+>中国人民大学	中國人民大學	zhong1 guo2 ren2 min2 da4 xue2	traditional	1
+counterpart	中国人民大学
+group
+proper	1	Renmin University of China
+
+>中国人民对外友好协会	中國人民對外友好協會	zhong1 guo2 ren2 min2 dui4 wai4 you3 hao3 xie2 hui4	simplified	1
+counterpart	中國人民對外友好協會
+group
+proper	1	Chinese People's Association for Friendship with Foreign Countries (CPAFFC)
+
+>中国人民对外友好协会	中國人民對外友好協會	zhong1 guo2 ren2 min2 dui4 wai4 you3 hao3 xie2 hui4	traditional	1
+counterpart	中国人民对外友好协会
+group
+proper	1	Chinese People's Association for Friendship with Foreign Countries (CPAFFC)
+
+>中国人民志愿军	中國人民志願軍	zhong1 guo2 ren2 min2 zhi4 yuan4 jun1	simplified	1
+counterpart	中國人民志願軍
+group
+proper	1	the Chinese People's Volunteer Army deployed by China to aid North Korea in 1950
+
+>中国人民志愿军	中國人民志願軍	zhong1 guo2 ren2 min2 zhi4 yuan4 jun1	traditional	1
+counterpart	中国人民志愿军
+group
+proper	1	the Chinese People's Volunteer Army deployed by China to aid North Korea in 1950
+
+>中国人民政治协商会议	中國人民政治協商會議	zhong1 guo2 ren2 min2 zheng4 zhi4 xie2 shang1 hui4 yi4	simplified	1
+counterpart	中國人民政治協商會議
+group
+proper	1	CPPCC (Chinese People's Political Consultative Conference)
+
+>中国人民政治协商会议	中國人民政治協商會議	zhong1 guo2 ren2 min2 zheng4 zhi4 xie2 shang1 hui4 yi4	traditional	1
+counterpart	中国人民政治协商会议
+group
+proper	1	CPPCC (Chinese People's Political Consultative Conference)
+
+>中国人民武装警察部队	中國人民武裝警察部隊	zhong1 guo2 ren2 min2 wu3 zhuang1 jing3 cha2 bu4 dui4	simplified	1
+counterpart	中國人民武裝警察部隊
+group
+proper	1	Chinese People's Armed Police Force (PAP, aka CAPF)
+
+>中国人民武装警察部队	中國人民武裝警察部隊	zhong1 guo2 ren2 min2 wu3 zhuang1 jing3 cha2 bu4 dui4	traditional	1
+counterpart	中国人民武装警察部队
+group
+proper	1	Chinese People's Armed Police Force (PAP, aka CAPF)
+
+>中国人民解放军	中國人民解放軍	zhong1 guo2 ren2 min2 jie3 fang4 jun1	simplified	1
+counterpart	中國人民解放軍
+group
+pos	noun
+proper	1	People's Liberation Army (PLA), the unified armed forces of the People's Republic of China
+
+>中国人民解放军	中國人民解放軍	zhong1 guo2 ren2 min2 jie3 fang4 jun1	traditional	1
+counterpart	中国人民解放军
+group
+pos	noun
+proper	1	People's Liberation Army (PLA), the unified armed forces of the People's Republic of China
+
+>中国人民解放军海军	中國人民解放軍海軍	zhong1 guo2 ren2 min2 jie3 fang4 jun1 hai3 jun1	simplified	1
+counterpart	中國人民解放軍海軍
+group
+proper	1	Chinese People's Liberation Army Navy (PLAN)
+
+>中国人民解放军海军	中國人民解放軍海軍	zhong1 guo2 ren2 min2 jie3 fang4 jun1 hai3 jun1	traditional	1
+counterpart	中国人民解放军海军
+group
+proper	1	Chinese People's Liberation Army Navy (PLAN)
+
+>中国人民解放军空军	中國人民解放軍空軍	zhong1 guo2 ren2 min2 jie3 fang4 jun1 kong1 jun1	simplified	1
+counterpart	中國人民解放軍空軍
+group
+proper	1	People's Liberation Army Air Force (PLAAF)
+
+>中国人民解放军空军	中國人民解放軍空軍	zhong1 guo2 ren2 min2 jie3 fang4 jun1 kong1 jun1	traditional	1
+counterpart	中国人民解放军空军
+group
+proper	1	People's Liberation Army Air Force (PLAAF)
+
+>中国人民银行	中國人民銀行	zhong1 guo2 ren2 min2 yin2 hang2	simplified	1
+counterpart	中國人民銀行
+group
+proper	1	People's Bank of China
+
+>中国人民银行	中國人民銀行	zhong1 guo2 ren2 min2 yin2 hang2	traditional	1
+counterpart	中国人民银行
+group
+proper	1	People's Bank of China
 
 >中国保险监督管理委员会	中國保險監督管理委員會	zhong1 guo2 bao3 xian3 jian1 du1 guan3 li3 wei3 yuan2 hui4	simplified	1
 counterpart	中國保險監督管理委員會
@@ -1269,44 +1387,6 @@ counterpart	几
 group
 sense	1	(literary) almost
 
->剑	劍	jian4	simplified	1
-counterpart	劍
-group
-pos	noun
-sense	1	double-edged sword
-sense	2	classifier for blows of a sword
-mw	口 kǒu
-mw	把 bǎ
-
->剑	劍	jian4	simplified	2
-group	劍
-pos	noun
-sense	1	double-edged sword
-sense	2	classifier for blows of a sword
-mw	口 kǒu
-mw	把 bǎ
-group	劒
-tag	Variant of 剑 jiàn: double-edged sword / classifier for blows of a sword
-
->剑	劍	jian4	traditional	1
-counterpart	剑
-group
-pos	noun
-sense	1	double-edged sword
-sense	2	classifier for blows of a sword
-mw	口 kǒu
-mw	把 bǎ
-
->剑	劒	jian4	simplified	1
-counterpart	劒
-group
-tag	Variant of 剑 jiàn: double-edged sword / classifier for blows of a sword
-
->剑	劒	jian4	traditional	1
-counterpart	剑
-group
-tag	Variant of 劍 jiàn: double-edged sword / classifier for blows of a sword
-
 >匴	匴	suan3	simplified	1
 group
 pos	noun
@@ -1374,6 +1454,34 @@ group
 pos	noun · verb
 sense	1	to lie
 sense	2	to crouch
+
+>卧室	臥室	wo4 shi4	simplified	1
+counterpart	臥室
+group
+pos	noun
+sense	1	bedroom
+mw	间 jiān
+
+>卧室	臥室	wo4 shi4	traditional	1
+counterpart	卧室
+group
+pos	noun
+sense	1	bedroom
+mw	間 jiān
+
+>卧式	臥式	wo4 shi4	simplified	1
+counterpart	臥式
+group
+pos	adjective
+sense	1	(of an object or device) horizontal in design; intended to lie flat or operate in a lying position
+sense	2	(of an action) performed lying down
+
+>卧式	臥式	wo4 shi4	traditional	1
+counterpart	卧式
+group
+pos	adjective
+sense	1	(of an object or device) horizontal in design; intended to lie flat or operate in a lying position
+sense	2	(of an action) performed lying down
 
 >厚	厚	hou4	simplified	1
 group
@@ -1851,6 +1959,18 @@ group
 pos	noun
 sense	1	country; nation; state
 
+>国家代码	國家代碼	guo2 jia1 dai4 ma3	simplified	1
+counterpart	國家代碼
+group
+pos	noun
+sense	1	country code
+
+>国家代码	國家代碼	guo2 jia1 dai4 ma3	traditional	1
+counterpart	国家代码
+group
+pos	noun
+sense	1	country code
+
 >国家安全	國家安全	guo2 jia1 an1 quan2	simplified	1
 counterpart	國家安全
 group
@@ -2233,16 +2353,6 @@ pos	adjective
 sense	1	elegant
 sense	2	refined
 sense	3	to be skilled at
-
->婐	婐	wo3	simplified	1
-group
-pos	noun
-sense	1	(archaic) maid
-
->婐	婐	wo3	traditional	1
-group
-pos	noun
-sense	1	(archaic) maid
 
 >媳	媳	xi2	simplified	1
 group
@@ -2655,6 +2765,16 @@ counterpart	工作人员
 group
 pos	noun
 sense	1	staff member
+
+>工作单位	工作單位	gong1 zuo4 dan1 wei4	simplified	1
+counterpart	工作單位
+group
+sense	1	work unit
+
+>工作单位	工作單位	gong1 zuo4 dan1 wei4	traditional	1
+counterpart	工作单位
+group
+sense	1	work unit
 
 >工作室	工作室	gong1 zuo4 shi4	simplified	1
 group
@@ -3700,14 +3820,6 @@ group
 pos	adjective · noun
 sense	1	dark
 
->朙	朙	ming2	simplified	1
-group
-tag	Old variant of 明 míng: bright / opposite: dark 暗 / (of meaning) clear
-
->朙	朙	ming2	traditional	1
-group
-tag	Old variant of 明 míng: bright / opposite: dark 暗 / (of meaning) clear
-
 >杭	杭	hang2	simplified	1
 group
 pos	noun
@@ -4056,6 +4168,20 @@ sense	1	clay doll
 group
 sense	1	clay doll
 
+>泥石流	泥石流	ni2 shi2 liu2	simplified	1
+group
+pos	noun
+sense	1	landslide
+sense	2	torrent of mud and stones
+sense	3	mudslide
+
+>泥石流	泥石流	ni2 shi2 liu2	traditional	1
+group
+pos	noun
+sense	1	landslide
+sense	2	torrent of mud and stones
+sense	3	mudslide
+
 >洗	洗	xian3	simplified	1
 group
 pos	verb
@@ -4208,22 +4334,6 @@ group
 pos	noun
 tag	Variant of 溪 xī: creek / rivulet
 
->溺	溺	ni4	simplified	1
-group
-pos	verb
-sense	1	to drown
-sense	2	to indulge
-sense	3	addicted to
-sense	4	to spoil (a child)
-
->溺	溺	ni4	traditional	1
-group
-pos	verb
-sense	1	to drown
-sense	2	to indulge
-sense	3	addicted to
-sense	4	to spoil (a child)
-
 >滤	濾	lü4	simplified	1
 counterpart	濾
 group
@@ -4327,18 +4437,6 @@ sense	4	criminal
 sense	5	crime
 sense	6	to make a mistake
 sense	7	recurrence (of mistake or sth bad)
-
->狝	獮	xian3	simplified	1
-counterpart	獮
-group
-pos	verb
-sense	1	to hunt in autumn (archaic)
-
->狝	獮	xian3	traditional	1
-counterpart	狝
-group
-pos	verb
-sense	1	to hunt in autumn (archaic)
 
 >狻	狻	suan1	simplified	1
 group
@@ -4529,6 +4627,16 @@ sense	1	to look askance at
 group
 pos	verb
 sense	1	to look askance at
+
+>睨视	睨視	ni4 shi4	simplified	1
+counterpart	睨視
+group
+sense	1	to look askance
+
+>睨视	睨視	ni4 shi4	traditional	1
+counterpart	睨视
+group
+sense	1	to look askance
 
 >碥	碥	bian3	simplified	1
 group
@@ -4837,16 +4945,6 @@ sense	2	string of musical instrument
 sense	3	watch spring
 sense	4	chord (straight line joining two points on a curve)
 sense	5	hypotenuse
-
->红	紅	gong1	simplified	1
-counterpart	紅
-group
-sense	1	used in 女红 nǚgōng
-
->红	紅	gong1	traditional	1
-counterpart	红
-group
-sense	1	used in 女紅 nǚgōng
 
 >线	綫	xian4	simplified	1
 counterpart	綫
@@ -5218,20 +5316,6 @@ group
 pos	noun
 sense	1	(scheduled) flight; (scheduled) sailing
 
->良	良	liang2	simplified	1
-group
-pos	adjective
-sense	1	good
-sense	2	very
-sense	3	very much
-
->良	良	liang2	traditional	1
-group
-pos	adjective
-sense	1	good
-sense	2	very
-sense	3	very much
-
 >茜	茜	xi1	simplified	1
 group
 sense	1	used in the transliteration of people's names
@@ -5360,18 +5444,6 @@ pos	noun
 sense	1	boring insect
 sense	2	snout moth's larva (Aphomia gullaris or Plodia interpuncuella or Heliothus armigera etc), major agricultural pest
 
->螽	螽	zhong1	simplified	1
-group
-pos	noun
-sense	1	(grasshopper)
-sense	2	Gompsocleis mikado
-
->螽	螽	zhong1	traditional	1
-group
-pos	noun
-sense	1	(grasshopper)
-sense	2	Gompsocleis mikado
-
 >血型	血型	xue4 xing2	simplified	1
 group
 pos	noun
@@ -5405,6 +5477,18 @@ group
 pos	verb · noun
 sense	1	to carry out a bloodbath in (a place)
 sense	2	(fig.) to wreak havoc on
+
+>血细胞	血細胞	xue4 xi4 bao1	simplified	1
+counterpart	血細胞
+group
+pos	noun
+sense	1	blood cell
+
+>血细胞	血細胞	xue4 xi4 bao1	traditional	1
+counterpart	血细胞
+group
+pos	noun
+sense	1	blood cell
 
 >血腥	血腥	xue4 xing1	simplified	1
 group
@@ -5721,6 +5805,18 @@ counterpart	觋
 group
 pos	noun
 sense	1	wizard
+
+>解	解	xie4	simplified	1
+group
+tag	Surname Xie
+tag	Variant of 懈 xiè and 邂 xiè (old)
+sense	1	acrobatic display (esp. on horseback) (old)
+
+>解	解	xie4	traditional	1
+group
+tag	Surname Xie
+tag	Variant of 懈 xiè and 邂 xiè (old)
+sense	1	acrobatic display (esp. on horseback) (old)
 
 >誓	誓	shi4	simplified	1
 group
@@ -6062,32 +6158,6 @@ sense	2	(bound form) to transport
 sense	3	(literary) to donate; to contribute
 sense	4	(coll.) to enter (a password)
 
->过	過	guo4	simplified	1
-counterpart	過
-group
-pos	noun · verb · adverb
-sense	1	to cross
-sense	2	to go over
-sense	3	to pass (time)
-sense	4	to celebrate (a holiday)
-sense	5	to live
-sense	6	to get along
-sense	7	excessively
-sense	8	too-
-
->过	過	guo4	traditional	1
-counterpart	过
-group
-pos	noun · verb · adverb
-sense	1	to cross
-sense	2	to go over
-sense	3	to pass (time)
-sense	4	to celebrate (a holiday)
-sense	5	to live
-sense	6	to get along
-sense	7	excessively
-sense	8	too-
-
 >过奖	過獎	guo4 jiang3	simplified	1
 counterpart	過獎
 group
@@ -6187,6 +6257,30 @@ sense	4	to go against
 sense	5	to oppose
 sense	6	to betray
 sense	7	to rebel
+
+>逆势	逆勢	ni4 shi4	simplified	1
+counterpart	逆勢
+group
+pos	noun
+sense	1	to go against the trend
+
+>逆势	逆勢	ni4 shi4	traditional	1
+counterpart	逆势
+group
+pos	noun
+sense	1	to go against the trend
+
+>逆时针	逆時針	ni4 shi2 zhen1	simplified	1
+counterpart	逆時針
+group
+pos	adjective
+sense	1	counterclockwise
+
+>逆时针	逆時針	ni4 shi2 zhen1	traditional	1
+counterpart	逆时针
+group
+pos	adjective
+sense	1	counterclockwise
 
 >途	途	tu2	simplified	1
 group
@@ -6635,22 +6729,6 @@ tag	Surname Xi
 sense	1	low
 sense	2	marshy land
 
->雪	雪	xue3	simplified	1
-group
-pos	noun · verb
-tag	Surname Xue
-sense	1	snow
-sense	2	(literary) to wipe away (a humiliation etc)
-mw	场 cháng
-
->雪	雪	xue3	traditional	1
-group
-pos	noun · verb
-tag	Surname Xue
-sense	1	snow
-sense	2	(literary) to wipe away (a humiliation etc)
-mw	場 cháng
-
 >雪线	雪線	xue3 xian4	simplified	1
 counterpart	雪線
 group
@@ -6749,28 +6827,6 @@ counterpart	颃
 group
 pos	verb
 sense	1	fly down
-
->饭	飯	fan4	simplified	1
-counterpart	飯
-group
-pos	noun
-sense	1	cooked rice
-sense	2	meal
-sense	3	(loanword) fan
-sense	4	devotee
-mw	碗 wǎn
-mw	顿 dùn
-
->饭	飯	fan4	traditional	1
-counterpart	饭
-group
-pos	noun
-sense	1	cooked rice
-sense	2	meal
-sense	3	(loanword) fan
-sense	4	devotee
-mw	碗 wǎn
-mw	頓 dùn
 
 >饰	飾	shi4	simplified	1
 counterpart	飾
@@ -6912,20 +6968,6 @@ counterpart	鲜
 group
 tag	Old variant of 鮮 xiān
 sense	1	fish
-
->鳛	鰼	xi2	simplified	1
-counterpart	鰼
-group
-pos	noun
-sense	1	loach
-sense	2	mudfish
-
->鳛	鰼	xi2	traditional	1
-counterpart	鳛
-group
-pos	noun
-sense	1	loach
-sense	2	mudfish
 
 >鵵	鵵	tu4	simplified	1
 group

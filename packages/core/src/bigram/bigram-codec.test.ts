@@ -24,6 +24,26 @@ describe('BigramTable', () => {
   });
 });
 
+describe('BigramTable word ids', () => {
+  const table = BigramTable.open(encodeBigramFile(PAIRS));
+
+  it('scores a pair by word ids as it does by forms', () => {
+    const want = table.wordId('想')!;
+    const drink = table.wordId('喝')!;
+    expect(table.scoreById(want, drink)).toBe(88000);
+    expect(table.scoreById(drink, want)).toBeUndefined();
+  });
+
+  it('knows the best score any word reaches after a given one', () => {
+    expect(table.maxScoreAfter(table.wordId('想')!)).toBe(88000);
+    expect(table.maxScoreAfter(table.wordId('咖啡')!)).toBeUndefined();
+  });
+
+  it('has no id for a word no pair uses', () => {
+    expect(table.wordId('茶')).toBeUndefined();
+  });
+});
+
 describe('BigramTable misses', () => {
   const table = BigramTable.open(encodeBigramFile(PAIRS));
 

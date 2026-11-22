@@ -298,6 +298,40 @@ export class BigramTable {
     const a = this.ids.get(first);
     const b = this.ids.get(second);
     if (a === undefined || b === undefined) return undefined;
+    return this.scoreById(a, b);
+  }
+
+  /**
+   * The id of a simplified form in this table, or undefined when no pair uses it. A caller
+   * scoring many pairs (the Sentence candidate search) resolves each word once and then
+   * looks pairs up with `scoreById`.
+   */
+  wordId(word: string): number | undefined {
+    return this.ids.get(word);
+  }
+
+  /** Per first word, the best score after it, or -1 until first asked (-2: no pairs). */
+  private maxAfter: Int32Array | null = null;
+
+  /**
+   * The best score any word reaches right after word `id`, or undefined when no pair starts
+   * with it. Worked out the first time each word is asked about and kept, so a search can
+   * bound what a predecessor might still add without looking every pair up.
+   */
+  maxScoreAfter(id: number): number | undefined {
+    this.maxAfter ??= new Int32Array(this.words.length).fill(-1);
+    let best = this.maxAfter[id];
+    if (best === -1) {
+      best = -2;
+      const end = this.pairStarts.getUint32(id * 4 + 4, true);
+      for (let i = this.pairStarts.getUint32(id * 4, true); i < end; i++) best = Math.max(best, this.storedScore(i));
+      this.maxAfter[id] = best;
+    }
+    return best === -2 ? undefined : best;
+  }
+
+  /** `score` for two ids from `wordId`. */
+  scoreById(a: number, b: number): number | undefined {
     let low = this.pairStarts.getUint32(a * 4, true);
     let high = this.pairStarts.getUint32(a * 4 + 4, true) - 1;
     while (low <= high) {

@@ -18,6 +18,12 @@ export interface Candidate {
    * its form (后 hòu for 後 and 后), in the order the detail groups them.
    */
   entryIds: number[];
+  /**
+   * Set only on a Sentence candidate: its words in order, each a candidate with its own
+   * Hanzi, reading, gloss and `entryIds`. The sentence's own `entryIds` is empty, and its
+   * Hanzi and reading are the words' joined.
+   */
+  words?: Candidate[];
 }
 
 export interface SearchOptions {
