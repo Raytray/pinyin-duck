@@ -208,7 +208,7 @@ function parseEntry(entry: DictionaryEntry, partsOfSpeech: PartOfSpeech[]): Deta
  *
  * `shortGloss` is the short gloss the dictionary gives an entry, which a variant-only
  * entry's variant tags carry for their target ("Variant of 念 niàn: to read aloud").
- * `partsOfSpeech` gives an entry's part-of-speech labels (see `partOfSpeechLookup`).
+ * `partsOfSpeech` gives an entry's part-of-speech labels (see `partOfSpeechSources`).
  */
 export function detailRecords(
   entries: DictionaryEntry[],

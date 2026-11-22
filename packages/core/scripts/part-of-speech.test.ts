@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { partOfSpeechLookup } from './part-of-speech';
+import { partOfSpeechSources } from './part-of-speech';
+
+/** The labels `partOfSpeechSources` chooses for each entry, [] when none. */
+function partOfSpeechLookup(wiktionary: string, handeDict: string) {
+  const sources = partOfSpeechSources(wiktionary, handeDict);
+  return (subject: ReturnType<typeof entry>) => sources(subject)?.labels ?? [];
+}
 
 /** An entry as the lookup sees it: headword and tone-numbered reading. */
 function entry(traditional: string, simplified: string, pinyinNumbers: string) {
@@ -8,7 +14,7 @@ function entry(traditional: string, simplified: string, pinyinNumbers: string) {
 
 const HANDEDICT_HEADER = '﻿# HanDeDict\n# Lizenz: CC-BY-SA 3.0\n\n';
 
-describe('partOfSpeechLookup from HanDeDict', () => {
+describe('partOfSpeechSources from HanDeDict', () => {
   it('maps the word-class tag of each sense, in source order without duplicates', () => {
     const lookup = partOfSpeechLookup(
       '',
@@ -63,7 +69,7 @@ function wiktionary(...rows: string[]): string {
   return ['# Part of speech of Chinese entries in the English Wiktionary', '# sha256 00', ...rows, ''].join('\n');
 }
 
-describe('partOfSpeechLookup from Wiktionary', () => {
+describe('partOfSpeechSources from Wiktionary', () => {
   it('maps the part-of-speech headers of the entry, in page order without duplicates', () => {
     const lookup = partOfSpeechLookup(
       wiktionary(
@@ -123,7 +129,7 @@ describe('partOfSpeechLookup from Wiktionary', () => {
   });
 });
 
-describe('partOfSpeechLookup with both sources', () => {
+describe('partOfSpeechSources with both sources', () => {
   it('takes every label from Wiktionary when it has any for the entry, else from HanDeDict, never merged', () => {
     const lookup = partOfSpeechLookup(
       wiktionary('學生\t学生\txuésheng\tnoun', '中國\t中国\tZhōngguó\tname'),

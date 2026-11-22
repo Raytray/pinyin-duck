@@ -162,12 +162,3 @@ export function partOfSpeechSources(
     return handeDictLabels && { source: 'HanDeDict', labels: handeDictLabels };
   };
 }
-
-/** The part-of-speech labels of an entry, as `partOfSpeechSources` chooses them; [] when none. */
-export function partOfSpeechLookup(
-  wiktionary: string,
-  handeDict: string
-): (entry: PartOfSpeechSubject) => PartOfSpeech[] {
-  const sources = partOfSpeechSources(wiktionary, handeDict);
-  return (entry) => sources(entry)?.labels ?? [];
-}
