@@ -26,6 +26,11 @@ object TestDictionary {
 
     val engine: PinyinDuckEngine get() = opened.engine
 
+    val dictionary: BTreeDictionary get() = opened.dictionary
+
+    /** The real `detail.bin` built alongside the dictionary, opened from beside it. */
+    val detail: DetailFile get() = opened.detail
+
     val entryCount: Int get() = opened.entryCount
 
     val pageCount: Int get() = opened.pageCount
