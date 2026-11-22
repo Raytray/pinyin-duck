@@ -44,9 +44,9 @@ import { formatGloss } from '../src/dictionary/gloss.js';
 import { DictionaryRow } from '../src/data/dictionary-codec.js';
 import { buildBTree, sortStoredEntries, storedEntryFromRow } from '../src/data/btree-builder.js';
 import { BUILD_ID_OFFSET } from '../src/data/btree-codec.js';
-import { encodeDetailFile } from '../src/detail/detail-codec.js';
+import { encodeDetailFile, formatBuildId } from '../src/detail/detail-codec.js';
 import { SOURCES, type PinnedSource, type VendoredSource } from './sources.js';
-import { classifyDefinition, detailRecords, isCommonLine } from './build-detail.js';
+import { detailRecords, entrySenseDefinitions, isCommonLine } from './build-detail.js';
 import { partOfSpeechSources } from './part-of-speech.js';
 
 const PACKAGE_DIR = path.resolve(__dirname, '..');
@@ -58,12 +58,13 @@ const DEFAULT_OUT = path.join(OUT_DIR, 'dictionary.btree');
  * a content hash and a browser can cache it for good. Rime, the Android build and the
  * parity generator read the uncompressed asset at `DEFAULT_OUT`.
  */
+const DEFAULT_COMPRESSED_OUT = path.resolve(__dirname, '../../web/src/generated/dictionary.btree.gz');
 /**
  * The Candidate detail file, written beside the asset and beside its gzip copy (ADR 0002).
- * The web app fetches the gzip copy on first expand; Android bundles the uncompressed one.
+ * The web app fetches the gzip copy the first time a Candidate detail is opened; Android
+ * bundles the uncompressed one.
  */
 export const DETAIL_FILE_NAME = 'detail.bin';
-const DEFAULT_COMPRESSED_OUT = path.resolve(__dirname, '../../web/src/generated/dictionary.btree.gz');
 
 /** The sources a build downloads. CC-CEDICT and the Wiktionary rows are committed instead. */
 export const SOURCE_URLS = {
@@ -325,22 +326,9 @@ function isSurnameEntry(entry: DictionaryEntry): boolean {
   return entry.lines.every(isSurnameLine);
 }
 
-/**
- * An entry's senses, as its Candidate detail lists them: definitions from its common lines
- * first, then from its proper-noun lines, each in file order, with exact duplicates, tags
- * and measure words left out (see `build-detail.ts`).
- */
+/** An entry's senses, as its Candidate detail lists them (see `entrySenseDefinitions`). */
 export function entrySenses(entry: DictionaryEntry): string[] {
-  const ordered = [...entry.lines.filter(isCommonLine), ...entry.lines.filter((l) => !isCommonLine(l))];
-  const senses: string[] = [];
-  for (const line of ordered) {
-    for (const raw of line.definitions) {
-      const definition = raw.trim();
-      if (!definition || senses.includes(definition)) continue;
-      if (classifyDefinition(definition).type === 'sense') senses.push(definition);
-    }
-  }
-  return senses;
+  return entrySenseDefinitions(entry).map((sense) => sense.definition);
 }
 
 /** The short gloss of a single entry, from its gloss line. */
@@ -572,13 +560,13 @@ async function build(
   );
 
   const { bytes, buildId } = encodeDictionary(rows);
-  const posSources = partOfSpeechSources(wiktionaryContent, handeDictContent);
-  const posCounts = { Wiktionary: 0, HanDeDict: 0 };
+  const partOfSpeechOf = partOfSpeechSources(wiktionaryContent, handeDictContent);
+  const partOfSpeechCounts = { Wiktionary: 0, HanDeDict: 0 };
   const records = detailRecords(entries, entryGloss, (entry) => {
-    const tagged = posSources(entry);
-    if (!tagged) return [];
-    posCounts[tagged.source]++;
-    return tagged.labels;
+    const found = partOfSpeechOf(entry);
+    if (!found) return [];
+    partOfSpeechCounts[found.source]++;
+    return found.labels;
   });
   const detail = encodeDetailFile(records, buildId);
   const detailOutPath = path.join(path.dirname(outPath), DETAIL_FILE_NAME);
@@ -594,10 +582,10 @@ async function build(
   console.log(`  coverage ${stats.withFrequency} with frequency, ${stats.withHsk} on the HSK list`);
   console.log(`  coverage ${stats.singleChar} single characters`);
   console.log(
-    `  part of speech ${posCounts.Wiktionary + posCounts.HanDeDict} of ${entries.length} entries ` +
-      `(${posCounts.Wiktionary} Wiktionary, ${posCounts.HanDeDict} HanDeDict)`
+    `  part of speech ${partOfSpeechCounts.Wiktionary + partOfSpeechCounts.HanDeDict} of ${entries.length} entries ` +
+      `(${partOfSpeechCounts.Wiktionary} Wiktionary, ${partOfSpeechCounts.HanDeDict} HanDeDict)`
   );
-  console.log(`  build   id ${buildId.toString(16).padStart(8, '0')}`);
+  console.log(`  build   id ${formatBuildId(buildId)}`);
   for (const [file, size] of written) {
     console.log(`  wrote   ${file} (${(size / 1048576).toFixed(2)}MB)`);
   }
