@@ -29,9 +29,13 @@ export const HANDEDICT_LABELS: Readonly<Record<string, PartOfSpeech>> = {
   Pron: 'pronoun',
   Num: 'numeral',
   Zähl: 'measure word',
+  Präp: 'preposition',
   Konj: 'conjunction',
   Partikel: 'particle',
   Int: 'interjection',
+  Sprichw: 'idiom',
+  Redew: 'idiom',
+  Phrase: 'idiom',
 };
 
 /**

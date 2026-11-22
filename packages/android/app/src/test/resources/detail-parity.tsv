@@ -1448,7 +1448,7 @@ sense	12	instead
 >反过来	反過來	fan3 guo5 lai2	simplified	1
 counterpart	反過來
 group
-pos	adverb
+pos	adverb · idiom
 sense	1	conversely
 sense	2	in reverse order
 sense	3	in an opposite direction
@@ -1456,7 +1456,7 @@ sense	3	in an opposite direction
 >反过来	反過來	fan3 guo5 lai2	traditional	1
 counterpart	反过来
 group
-pos	adverb
+pos	adverb · idiom
 sense	1	conversely
 sense	2	in reverse order
 sense	3	in an opposite direction
@@ -2450,7 +2450,7 @@ tag	Old variant of 叔 shū: uncle / father's younger brother / husband's younge
 
 >就	就	jiu4	simplified	1
 group
-pos	verb · adverb · adjective · conjunction
+pos	verb · adverb · idiom · adjective · conjunction
 sense	1	(after a suppositional clause) in that case; then
 sense	2	(after a clause of action) as soon as; immediately after
 sense	3	(same as 就是 jiùshì) merely; nothing else but; simply; just; precisely; exactly
@@ -2467,7 +2467,7 @@ sense	13	(pattern: 不 bù ... 就 jiù ...) if not ... then must be ...
 
 >就	就	jiu4	traditional	1
 group
-pos	verb · adverb · adjective · conjunction
+pos	verb · adverb · idiom · adjective · conjunction
 sense	1	(after a suppositional clause) in that case; then
 sense	2	(after a clause of action) as soon as; immediately after
 sense	3	(same as 就是 jiùshì) merely; nothing else but; simply; just; precisely; exactly
@@ -4040,12 +4040,12 @@ sense	4	pulp
 
 >泥	泥	ni4	simplified	1
 group
-pos	adjective
+pos	idiom · adjective
 sense	1	restrained
 
 >泥	泥	ni4	traditional	1
 group
-pos	adjective
+pos	idiom · adjective
 sense	1	restrained
 
 >泥孩	泥孩	ni2 hai2	simplified	1

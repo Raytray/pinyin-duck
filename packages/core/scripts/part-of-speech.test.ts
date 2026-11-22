@@ -39,6 +39,22 @@ describe('partOfSpeechSources from HanDeDict', () => {
     expect(lookup(entry('上', '上', 'shang4'))).toEqual([]);
   });
 
+  it('maps Präp to preposition and proverbs, sayings and phrases to idiom', () => {
+    const lookup = partOfSpeechLookup(
+      '',
+      HANDEDICT_HEADER +
+        '在 在 [zai4] /in, an (Präp)/\n' +
+        '畫蛇添足 画蛇添足 [hua4 she2 tian1 zu2] /des Guten zuviel tun (Sprichw)/\n' +
+        '馬馬虎虎 马马虎虎 [ma3 ma3 hu1 hu1] /so lala (Redew)/\n' +
+        '你好 你好 [ni3 hao3] /Guten Tag (Phrase)/\n'
+    );
+
+    expect(lookup(entry('在', '在', 'zai4'))).toEqual(['preposition']);
+    expect(lookup(entry('畫蛇添足', '画蛇添足', 'hua4 she2 tian1 zu2'))).toEqual(['idiom']);
+    expect(lookup(entry('馬馬虎虎', '马马虎虎', 'ma3 ma3 hu1 hu1'))).toEqual(['idiom']);
+    expect(lookup(entry('你好', '你好', 'ni3 hao3'))).toEqual(['idiom']);
+  });
+
   it('joins on headword and reading, ignoring capitals and the neutral tone', () => {
     const lookup = partOfSpeechLookup(
       '',
