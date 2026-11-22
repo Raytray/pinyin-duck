@@ -16,6 +16,9 @@
  *   to a newer dump; the file's header names the dump's date and SHA-256.
  * - The three GitHub sources are downloaded from a commit rather than `master`, and cached
  *   in `packages/core/.cache/`.
+ * - The OpenSubtitles text the bigram table is counted from (`build-bigrams.ts`) is a 173 MB
+ *   gzip file from OPUS, which serves it under a versioned path. It is cached compressed, and
+ *   its pin is the SHA-256 of the gzip bytes rather than of the text.
  *
  * Bumping a source is deliberate:
  *   1. CC-CEDICT: `curl -sL https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz
@@ -50,6 +53,19 @@ export interface DownloadedSource {
 
 export type PinnedSource = VendoredSource | DownloadedSource;
 
+/**
+ * A gzip file downloaded and cached as served, without decompressing it. Unlike a
+ * `DownloadedSource`, its SHA-256 is of the downloaded bytes.
+ */
+export interface DownloadedArchive {
+  url: string;
+  /** The file under `packages/core/.cache/` holding the downloaded bytes. */
+  cacheName: string;
+  /** SHA-256 of the downloaded bytes, lowercase hex. */
+  sha256: string;
+  archive: 'gzip';
+}
+
 export const SOURCES = {
   cedict: {
     // CC-CEDICT edition dated 2026-11-06T08:10:12Z, 125369 entries.
@@ -81,4 +97,12 @@ export const SOURCES = {
     cacheName: 'handedict.u8',
     sha256: 'a2bae4eb936d3bb8f6488851c49c9249219abd5d003ae5e7907cd56f20533bfc',
   },
-} as const satisfies Record<string, PinnedSource>;
+  opensubtitles: {
+    // OPUS OpenSubtitles v2018, monolingual zh_cn, 16,316,804 lines (last modified 2018-11-17).
+    // Read only by build-bigrams.ts, for the bigram table.
+    url: 'https://object.pouta.csc.fi/OPUS-OpenSubtitles/v2018/mono/zh_cn.txt.gz',
+    cacheName: 'opensubtitles-zh_cn.txt.gz',
+    sha256: '6714021a39b65d44b616d7eb1aba0b2f5127fe0ce4891ba908357c890ff0784e',
+    archive: 'gzip',
+  },
+} as const satisfies Record<string, PinnedSource | DownloadedArchive>;

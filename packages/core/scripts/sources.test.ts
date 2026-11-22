@@ -30,6 +30,11 @@ describe('SOURCES', () => {
     expect(SOURCES.handedict.url).toMatch(/\/gugray\/HanDeDict\/[0-9a-f]{40}\//);
   });
 
+  it('pins the OpenSubtitles text to a versioned OPUS path, checked as gzip bytes', () => {
+    expect(SOURCES.opensubtitles.url).toMatch(/\/OPUS-OpenSubtitles\/v2018\/mono\/zh_cn\.txt\.gz$/);
+    expect(SOURCES.opensubtitles.archive).toBe('gzip');
+  });
+
   it('caches every downloaded source under its own name', () => {
     const names = downloaded.map(([, s]) => s.cacheName);
     expect(new Set(names).size).toBe(names.length);

@@ -16,6 +16,7 @@
     "test:coverage": "vitest run --coverage",
     "ci": "npm run lint && npm run typecheck && npm run test:coverage",
     "build:dict": "tsx scripts/build-dictionary.ts",
+    "build:bigrams": "tsx scripts/build-bigrams.ts",
     "build:parity": "tsx scripts/generate-android-parity.ts",
     "reduce:wiktionary": "tsx scripts/reduce-wiktionary.ts"
   },
