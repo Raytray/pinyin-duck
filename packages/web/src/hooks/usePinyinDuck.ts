@@ -1,6 +1,9 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, useSyncExternalStore } from 'react';
 import {
   LazyPinyinSearchEngine,
+  candidateDetail,
+  type Candidate,
+  type DetailView,
   loadDictionary,
   type BTreeDictionary,
   type DownloadProgress,
@@ -8,6 +11,8 @@ import {
   type ScriptType,
 } from '@pinyinduck/core';
 import { DICTIONARY_URL } from '../dictionary-asset';
+import { DETAIL_URL } from '../detail-asset';
+import { createDetailLoader, type DetailLoadState } from '../detail/detail-loader';
 
 export type DictionaryStatus = 'loading' | 'ready' | 'error';
 
@@ -15,7 +20,23 @@ export interface UsePinyinDuckOptions {
   pageSize?: number;
   initialScript?: ScriptType;
   dictionaryUrl?: string;
+  detailUrl?: string;
 }
+
+/**
+ * The open Candidate detail: the highlighted candidate, and its detail view once the detail
+ * file is in. Until then `status` says whether it is on its way or failed to load.
+ */
+export interface OpenCandidateDetail {
+  candidate: Candidate;
+  /** The candidate's index on the current page. */
+  index: number;
+  status: 'loading' | 'ready' | 'failed';
+  view?: DetailView;
+}
+
+const IDLE: DetailLoadState = { status: 'idle' };
+const NO_SUBSCRIPTION = () => () => {};
 
 const PUNCTUATION_MAP: Record<string, string> = {
   ',': '，',
@@ -42,7 +63,12 @@ const EMPTY_RESULT: SearchResult = { query: '', segments: [], candidates: [], to
 const CANDIDATE_LIMIT = 50;
 
 export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
-  const { pageSize = 5, initialScript = 'simplified', dictionaryUrl = DICTIONARY_URL } = options;
+  const {
+    pageSize = 5,
+    initialScript = 'simplified',
+    dictionaryUrl = DICTIONARY_URL,
+    detailUrl = DETAIL_URL,
+  } = options;
 
   const [dictionary, setDictionary] = useState<BTreeDictionary | null>(null);
   const [dictionaryStatus, setDictionaryStatus] = useState<DictionaryStatus>('loading');
@@ -56,6 +82,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   const [insertPos, setInsertPos] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(0);
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
+  const [detailRequested, setDetailRequested] = useState(false);
 
   // Target cursor position to restore on next render
   const cursorToRestoreRef = useRef<number | null>(null);
@@ -70,6 +97,9 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   /** Sets the composition buffer and goes back to the first candidate on page one. */
   const setBuffer = useCallback((buffer: string) => {
     setCompositionBuffer(buffer);
+    // The detail belongs to a composition: it stays open while the user types on, and
+    // goes when the composition ends.
+    if (buffer === '') setDetailRequested(false);
     setCurrentPage(0);
     setSelectedIndex(0);
   }, []);
@@ -148,6 +178,53 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     return allCandidates.slice(start, start + pageSize);
   }, [allCandidates, currentPage, pageSize]);
 
+  // One loader per dictionary, because the detail file must come from the same build. It
+  // fetches nothing until the first expand.
+  const detailLoader = useMemo(
+    () => (dictionary ? createDetailLoader({ url: detailUrl, buildId: dictionary.buildId }) : null),
+    [dictionary, detailUrl]
+  );
+  const detailLoad = useSyncExternalStore(
+    detailLoader?.subscribe ?? NO_SUBSCRIPTION,
+    () => detailLoader?.state ?? IDLE
+  );
+
+  // Open only while there is a highlighted candidate to show, so a query with no match
+  // hides the detail rather than leaving an invisible one for Esc to close.
+  const detailCandidate = detailRequested ? pageCandidates[selectedIndex] : undefined;
+  const detail = useMemo((): OpenCandidateDetail | null => {
+    if (!detailCandidate) return null;
+    const base = { candidate: detailCandidate, index: selectedIndex };
+    if (detailLoad.status === 'ready') {
+      try {
+        return { ...base, status: 'ready', view: candidateDetail(detailCandidate, script, detailLoad.file) };
+      } catch {
+        // An entry id the file does not hold: the file is broken, which reads as a failed load.
+        return { ...base, status: 'failed' };
+      }
+    }
+    return { ...base, status: detailLoad.status === 'failed' ? 'failed' : 'loading' };
+  }, [detailCandidate, selectedIndex, detailLoad, script]);
+  const detailOpen = detail !== null;
+
+  /**
+   * Opens or closes the detail. Given a row, opens that row's detail instead, unless it is
+   * already the one open. Every opening asks for the detail file, so after a failed load the
+   * next expand tries again; moving the highlight while it is open does not.
+   */
+  const toggleDetail = useCallback(
+    (indexOnPage: number = selectedIndex) => {
+      if (!pageCandidates[indexOnPage]) return;
+      const closing = detailOpen && indexOnPage === selectedIndex;
+      setSelectedIndex(indexOnPage);
+      setDetailRequested(!closing);
+      if (!closing) detailLoader?.request();
+    },
+    [selectedIndex, pageCandidates, detailOpen, detailLoader]
+  );
+
+  const closeDetail = useCallback(() => setDetailRequested(false), []);
+
   /** Replaces committed text `[from, to)` with `insert`, leaving the caret after it. */
   const replaceText = useCallback(
     (from: number, to: number, insert: string) =>
@@ -167,6 +244,8 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       const candidate = pageCandidates[indexOnPage];
       if (!candidate) return;
       insertCommitted(candidate.hanzi);
+      // Committing closes the detail, even when pinyin is left over to compose next.
+      setDetailRequested(false);
       // A partial match leaves the pinyin it did not consume to compose next; a full
       // match leaves nothing.
       setBuffer(candidate.remainingPinyin);
@@ -272,11 +351,22 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
         return;
       }
 
-      // Handle Escape: cancel composition
+      // Handle Escape: close the Candidate detail first, then cancel composition
       if (e.key === 'Escape') {
         if (isComposing) {
           e.preventDefault();
-          cancelComposition();
+          if (detailOpen) closeDetail();
+          else cancelComposition();
+        }
+        return;
+      }
+
+      // Tab toggles the Candidate detail of the highlighted candidate. While composing it
+      // never moves focus out of the editor, even when there is nothing to show.
+      if (e.key === 'Tab') {
+        if (isComposing) {
+          e.preventDefault();
+          toggleDetail();
         }
         return;
       }
@@ -419,6 +509,9 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       selectCandidate,
       commitRaw,
       cancelComposition,
+      detailOpen,
+      closeDetail,
+      toggleDetail,
       nextPage,
       prevPage,
       moveSelection,
@@ -469,6 +562,8 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     selectCandidate,
     commitRaw,
     cancelComposition,
+    detail,
+    toggleDetail,
     nextPage,
     prevPage,
     handleKeyDown,
