@@ -8,7 +8,8 @@
  *    `compareScored` chain on frequency, as the word list picks a reading for a Hanzi).
  *    Words rarer than `MIN_SENTENCE_WORD_FREQUENCY` are dropped, and so is any edge a typed
  *    tone rules out. The last word alone may also be a prefix completion that runs past the
- *    end of the query (`kafe` → 咖啡), found with one `scanPrefix` from each node.
+ *    end of the query (`kafe` → 咖啡), found with one `scanPrefix` from each node whose
+ *    tail holds a vowel (a bare initial such as `z` is not completed; see below).
  * 2. **Score.** A path scores the first word's stored frequency, plus for each later word its
  *    bigram score after the word before it, or on a miss its stored frequency minus
  *    `BIGRAM_BACKOFF_PENALTY`, minus `wordCost` per word. All integers. With no bigram table
@@ -73,6 +74,9 @@ export const BIGRAM_BACKOFF_PENALTY = 12000;
  * 59,813 (咖啡); higher ones would start dropping everyday words for no case that needs it.
  */
 export const MIN_SENTENCE_WORD_FREQUENCY = 1;
+
+/** A toneless tail with a vowel in it, the point where completing the last word starts. */
+const HAS_VOWEL = /[aeiouü]/;
 
 /** One word of a Sentence candidate. */
 export interface SentenceWord {
@@ -230,9 +234,14 @@ export function findSentence(
       if (!nodes[j]) continue;
       addEdges(i, collapse(dictionary.lookupExact(toneless.slice(i, j)), script, i, toneFilter), j);
     }
-    if (!options.exactOnly && i > 0) {
+    const tail = toneless.slice(i);
+    // Amendment to #29's completion rule: a tail that is only a consonant initial so far
+    // (`z`, `zh`, `j`, a lone `w`) is not completed. It says little about the word, and
+    // scanning it walks every key under that letter (2,138 Hanzi for `z`), which made those
+    // keystrokes the slowest. Completion starts once the tail holds a vowel, so `kaf` still
+    // gives 咖啡; the bare initial stays to compose, after a partial sentence if there is one.
+    if (!options.exactOnly && i > 0 && HAS_VOWEL.test(tail)) {
       // A completion of the last word: a key that starts with the rest of the query and runs past it.
-      const tail = toneless.slice(i);
       const found: StoredEntry[] = [];
       let scanned = 0;
       dictionary.scanPrefix(tail, (entry) => {

@@ -117,6 +117,15 @@ describe('Sentence candidates', () => {
     expect(exact?.remainingPinyin).toBe('kaf');
   });
 
+  it('does not complete a last word that is only a consonant initial so far', () => {
+    // "h" could start 和 or 喝, but a bare initial says too little, so it is left to compose.
+    const sentence = sentenceOf(search('woxiangh'));
+    expect(wordsOf(sentence)).toEqual(['我', '想']);
+    expect(sentence?.remainingPinyin).toBe('h');
+    // Once the tail holds a vowel, completion starts: "kaf" still gives 咖啡.
+    expect(wordsOf(search('woxianghekaf')[0])).toEqual(['我', '想', '喝', '咖啡']);
+  });
+
   it('offers the best path to the furthest node as a partial sentence above shorter prefix words', () => {
     const candidates = search('woxianghekafeiqqq');
     expect(wordsOf(candidates[0])).toEqual(['我', '想', '喝', '咖啡']);
