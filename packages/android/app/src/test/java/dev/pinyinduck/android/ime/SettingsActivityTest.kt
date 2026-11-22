@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -114,12 +115,23 @@ class SettingsActivityTest {
         // screen is the only place in the app a user can see it.
         compose.onNodeWithText("Credits").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("licensed under CC BY-SA 4.0", substring = true).assertExists()
-        for (source in listOf("CC-CEDICT", "FrequencyWords (OpenSubtitles 2018)", "HSK 2012 word list")) {
+        for (source in listOf(
+            "CC-CEDICT",
+            "FrequencyWords (OpenSubtitles 2018)",
+            "HSK 2012 word list",
+            "English Wiktionary",
+            "HanDeDict",
+        )) {
             compose.onNodeWithText(source).performScrollTo().assertIsDisplayed()
         }
-        for (author in listOf("By MDBG", "By Hermit Dave", "gigacool")) {
+        for (author in listOf("By MDBG", "By Hermit Dave", "gigacool", "By Wiktionary contributors", "By HanDeDict contributors")) {
             compose.onNodeWithText(author, substring = true).assertExists()
         }
+        // Part of speech: the dump date and commit they were taken from, and what was taken.
+        compose.onNodeWithText("dump 2026-10-01", substring = true).assertExists()
+        compose.onNodeWithText("commit 0760a107", substring = true).assertExists()
+        compose.onNodeWithText("CC BY-SA 2.0 DE / 3.0, adapted under 4.0", substring = true).assertExists()
+        compose.onAllNodesWithText("word-class tags only, mapped", substring = true).assertCountEquals(2)
     }
 
     @Test

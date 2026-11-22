@@ -27,6 +27,10 @@
     <string name="settings_credit_frequency_detail">By Hermit Dave · CC BY-SA 4.0\ngithub.com/hermitdave/FrequencyWords</string>
     <string name="settings_credit_hsk_name">HSK 2012 word list</string>
     <string name="settings_credit_hsk_detail">© 2018 gigacool · MIT\ngithub.com/gigacool/hanyu-shuiping-kaoshi</string>
+    <string name="settings_credit_wiktionary_name">English Wiktionary</string>
+    <string name="settings_credit_wiktionary_detail">By Wiktionary contributors · CC BY-SA 4.0 · dump 2026-10-01 via kaikki.org (wiktextract) · word-class tags only, mapped\nen.wiktionary.org</string>
+    <string name="settings_credit_handedict_name">HanDeDict</string>
+    <string name="settings_credit_handedict_detail">By HanDeDict contributors, published by Gábor L Ugray · CC BY-SA 2.0 DE / 3.0, adapted under 4.0 · commit 0760a107 · word-class tags only, mapped\ngithub.com/gugray/HanDeDict</string>
 
     <string name="settings_enable_hint">Choose PinyinDuck under Settings → System → Languages &amp; input → On-screen keyboard.</string>
 
