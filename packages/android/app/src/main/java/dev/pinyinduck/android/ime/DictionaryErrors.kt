@@ -1,7 +1,9 @@
 package dev.pinyinduck.android.ime
 
+import dev.pinyinduck.android.data.BIGRAM_ASSET
 import dev.pinyinduck.android.data.DETAIL_ASSET
 import dev.pinyinduck.android.data.DICTIONARY_ASSET
+import dev.pinyinduck.android.engine.BigramFormatException
 import dev.pinyinduck.android.engine.DetailBuildMismatchException
 import dev.pinyinduck.android.engine.DictionaryFormatException
 import java.io.FileNotFoundException
@@ -35,6 +37,11 @@ object DictionaryErrors {
             error is DetailBuildMismatchException ->
                 "$DICTIONARY_ASSET and $DETAIL_ASSET come from different builds " +
                     "(${error.message}). Run \"npm run build:dict\" at the repository root and rebuild."
+
+            // Also a format failure, but of the bigram table, which has its own build step.
+            error is BigramFormatException ->
+                "$BIGRAM_ASSET is unreadable (${error.message}). " +
+                    "Run \"npm run build:bigrams\" at the repository root and rebuild."
 
             error is DictionaryFormatException ->
                 "The dictionary is unreadable (${error.message}). " +

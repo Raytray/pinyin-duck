@@ -1,5 +1,6 @@
 package dev.pinyinduck.android.ime
 
+import dev.pinyinduck.android.engine.BigramFormatException
 import dev.pinyinduck.android.engine.DetailBuildMismatchException
 import dev.pinyinduck.android.engine.DictionaryFormatException
 import org.junit.Assert.assertTrue
@@ -46,6 +47,18 @@ class DictionaryErrorsTest {
         assertTrue(message, message.contains("unreadable"))
         assertTrue(message, message.contains("not a PinyinDuck B-tree"))
         assertTrue(message, message.contains("build:dict"))
+    }
+
+    @Test
+    fun aBrokenBigramTableIsNamedWithTheCommandThatRebuildsIt() {
+        // bigrams.bin has its own build step, so pointing at build:dict would not fix it.
+        val message =
+            DictionaryErrors.describe(
+                BigramFormatException("The bigram file was built with format 2, but this reader expects 1."),
+            )
+        assertTrue(message, message.contains("bigrams.bin is unreadable"))
+        assertTrue(message, message.contains("built with format 2"))
+        assertTrue(message, message.contains("build:bigrams"))
     }
 
     @Test

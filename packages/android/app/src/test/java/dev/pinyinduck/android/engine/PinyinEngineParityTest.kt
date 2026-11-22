@@ -2,7 +2,6 @@ package dev.pinyinduck.android.engine
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Ignore
 import org.junit.Test
 
 /**
@@ -25,12 +24,10 @@ class PinyinEngineParityTest {
         val hanzi: List<String>,
         val pinyinMarks: List<String>,
         val glosses: List<String>,
+        /** Per candidate, a Sentence candidate's words as hanzi, tone marks and gloss; empty for a word. */
+        val words: List<List<List<String>>>,
     )
 
-    @Ignore(
-        "The golden now pins Sentence candidates, which the Kotlin engine does not build yet: " +
-            "https://git.tail68c66a.ts.net/raytray25/pinyin-duck/issues/41",
-    )
     @Test
     fun matchesTheTypeScriptEngineExactly() {
         val cases = parseGolden()
@@ -59,7 +56,61 @@ class PinyinEngineParityTest {
             assertEquals("ranked characters for $label", case.hanzi, actual.candidates.map { it.hanzi })
             assertEquals("tone marks for $label", case.pinyinMarks, actual.candidates.map { it.pinyinMarks })
             assertEquals("glosses for $label", case.glosses, actual.candidates.map { it.shortGloss })
+            assertEquals(
+                "Sentence candidate words for $label",
+                case.words,
+                actual.candidates.map { candidate ->
+                    candidate.words.orEmpty().map { listOf(it.hanzi, it.pinyinMarks, it.shortGloss) }
+                },
+            )
         }
+    }
+
+    @Test
+    fun theGoldenPinsTheHandPickedSentenceCases() {
+        // The nine cases of #40, which `parity-cases.ts` adds to the generated queries. Each
+        // must lead with the expected candidate, a Sentence candidate where it is one.
+        val firsts = parseGolden().filter { it.script == ScriptType.SIMPLIFIED }.associate { it.query to it }
+        val expected =
+            mapOf(
+                "nihao" to "你好",
+                "zhongwen" to "中文",
+                "woshi" to "我是",
+                "nishi" to "你是",
+                "woxianghekafei" to "我想喝咖啡",
+                "xiexieni" to "谢谢你",
+                "zhongguoren" to "中国人",
+                "woxianghekafe" to "我想喝咖啡",
+                "woxianghekafeiqqq" to "我想喝咖啡",
+            )
+        for ((query, hanzi) in expected) {
+            val case = checkNotNull(firsts[query]) { "the golden does not pin $query" }
+            assertEquals("first candidate for $query", hanzi, case.hanzi.first())
+        }
+        assertEquals(
+            listOf("我", "想", "喝", "咖啡"),
+            firsts
+                .getValue("woxianghekafe")
+                .words
+                .first()
+                .map { it[0] },
+        )
+        assertEquals(
+            listOf("谢谢", "你"),
+            firsts
+                .getValue("xiexieni")
+                .words
+                .first()
+                .map { it[0] },
+        )
+        assertTrue(
+            "中国人 is the entry, not 中国 + 人",
+            firsts
+                .getValue("zhongguoren")
+                .words
+                .first()
+                .isEmpty(),
+        )
     }
 
     @Test
@@ -68,6 +119,8 @@ class PinyinEngineParityTest {
         // above while proving nothing, so pin that the real asset was actually opened.
         assertTrue("expected the full CC-CEDICT corpus, found ${TestDictionary.entryCount}", TestDictionary.entryCount > 100_000)
         assertTrue("expected a paged asset, found ${TestDictionary.pageCount} pages", TestDictionary.pageCount > 100)
+        // The golden is generated with the bigram table loaded, so it must be here too.
+        assertTrue("bigrams.bin is missing. Run \"npm run build:bigrams\".", TestDictionary.bigrams != null)
     }
 
     private fun parseGolden(): List<GoldenCase> {
@@ -85,13 +138,15 @@ class PinyinEngineParityTest {
         val hanzi = mutableListOf<String>()
         val marks = mutableListOf<String>()
         val glosses = mutableListOf<String>()
+        val words = mutableListOf<List<List<String>>>()
 
         fun flush() {
             val started = query ?: return
-            cases.add(GoldenCase(started, script, total, segments, hanzi.toList(), marks.toList(), glosses.toList()))
+            cases.add(GoldenCase(started, script, total, segments, hanzi.toList(), marks.toList(), glosses.toList(), words.toList()))
             hanzi.clear()
             marks.clear()
             glosses.clear()
+            words.clear()
         }
 
         stream.bufferedReader().forEachLine { line ->
@@ -112,6 +167,8 @@ class PinyinEngineParityTest {
                     hanzi.add(fields[0])
                     marks.add(fields[1])
                     glosses.add(fields.getOrElse(2) { "" })
+                    // A Sentence candidate's words follow, three fields each.
+                    words.add(fields.drop(3).chunked(3) { it.toList() })
                 }
             }
         }

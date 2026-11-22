@@ -12,6 +12,12 @@ import java.util.PriorityQueue
  *  3. for a multi-syllable query whose last syllable is still incomplete, the first
  *     syllable is looked up too, so `nihao` can still offer `你`.
  *
+ * Alongside the words it offers at most one Sentence candidate ([findSentence]), placed by
+ * the rules of #30: words that leave nothing to compose come first; among them the sentence
+ * leads only when its path score beats every such word scored as a one-word path; a partial
+ * sentence ranks above words that cover less of the query; and a sentence showing the same
+ * Hanzi as a word candidate is dropped, the word winning.
+ *
  * The only difference from the TypeScript is that page reads are synchronous, because the
  * asset is mmap'd. That is what turns an async web search into a sub-millisecond call
  * that is safe to run directly inside `onKeyDown`, with no queue and no ordering hazard
@@ -20,6 +26,11 @@ import java.util.PriorityQueue
 class PinyinDuckEngine(
     private val dictionary: BTreeDictionary,
     private val maxMatches: Int = DEFAULT_MAX_MATCHES,
+    /**
+     * The bigram table Sentence candidates score word pairs with. Optional, as in TypeScript:
+     * without it every pair backs off to unigram with no penalty.
+     */
+    private val bigrams: BigramTable? = null,
 ) {
     /** Number of entries in the backing dictionary. */
     val entryCount: Int get() = dictionary.entryCount
@@ -51,7 +62,7 @@ class PinyinDuckEngine(
             val score = scoreEntry(entry.toScorable(), tonelessQuery, toneFilter)
             if (hasToneFilter && score <= 0) return
             val hanzi = if (options.script == ScriptType.TRADITIONAL) entry.traditional else entry.simplified
-            val candidate = ScoredEntry(entry, score)
+            val candidate = ScoredEntry(entry, score, coverage(entry.key, tonelessQuery))
             // Ties go through SCORED_ORDER rather than "first seen wins", so the reading that
             // represents a hanzi does not depend on page scan order.
             val previous = chosen[hanzi]
@@ -76,30 +87,76 @@ class PinyinDuckEngine(
             for (entry in dictionary.lookupExact(firstSyllable)) consider(entry)
         }
 
-        // `chosen` holds one entry per displayed hanzi, which for a broad prefix such as
-        // `s` is several thousand. Sorting all of them only to keep the first `limit` is
-        // wasted work on every keystroke, so rank the full set only when the caller
-        // actually needs all of it; otherwise keep a bounded heap of the top
-        // `offset + limit` entries. The total reported to the UI is the full unique
-        // count, which is independent of that ranking.
+        // Coverage first (#30): words that leave nothing to compose, then the rest by how much
+        // of the query they cover, each group in SCORED_ORDER.
+        //
+        // `chosen` holds one entry per displayed hanzi, which for a broad prefix such as `s` is
+        // several thousand. Sorting all of them only to keep the first page is wasted work on
+        // every keystroke, so rank the full set only when the caller needs all of it, and
+        // otherwise keep a bounded heap of the top `offset + limit`. The Sentence candidate's
+        // slot and its dedupe are worked out from counts over `chosen`, not the sorted list.
         val uniqueCount = chosen.size
         val needed = offset + limit
         val ranked =
             if (needed >= uniqueCount) {
-                chosen.values.sortedWith(SCORED_ORDER)
+                chosen.values.sortedWith(RANKED_ORDER)
             } else {
                 topK(chosen.values, needed)
             }
+
+        val sentence =
+            findSentence(dictionary, rawQuery, options.script, toneFilter, bigrams, options.exactOnly, budget)
+                ?.takeUnless { chosen.containsKey(it.hanzi(options.script)) }
+        val slots = ArrayList<Any>(ranked.size + 1)
+        slots.addAll(ranked)
+        if (sentence != null) {
+            val position = sentencePosition(sentence, chosen.values, tonelessQuery.length)
+            // A slot past the words kept for this page is past the page too.
+            if (position <= slots.size) slots.add(position, sentence)
+        }
+        val total = uniqueCount + if (sentence != null) 1 else 0
+
         val candidates =
-            if (offset < ranked.size) {
-                ranked
-                    .subList(offset, minOf(offset + limit, ranked.size))
-                    .map { it.entry.toCandidate(options.script, tonelessQuery) }
+            if (offset < slots.size) {
+                slots.subList(offset, minOf(offset + limit, slots.size)).map { slot ->
+                    when (slot) {
+                        is SentenceResult -> slot.toCandidate(options.script, tonelessQuery)
+                        else -> (slot as ScoredEntry).entry.toCandidate(options.script, tonelessQuery)
+                    }
+                }
             } else {
                 emptyList()
             }
 
-        return SearchResult(rawQuery, segments, candidates, uniqueCount)
+        return SearchResult(rawQuery, segments, candidates, total)
+    }
+
+    /**
+     * Where the Sentence candidate goes among the ranked words (#30).
+     *
+     * A full sentence leads when no word covers the whole query, or when its path score beats
+     * every word that does, scored as a one-word path; otherwise it goes right after those
+     * words (a tie goes to the word: the bias is toward fewer words). A partial sentence goes
+     * before the first word that covers less of the query than it does.
+     */
+    private fun sentencePosition(
+        sentence: SentenceResult,
+        words: Collection<ScoredEntry>,
+        queryLength: Int,
+    ): Int {
+        if (sentence.full) {
+            val cost = wordCost(dictionary)
+            var fullWords = 0
+            var bestWord = Int.MIN_VALUE
+            for (word in words) {
+                if (word.covers != queryLength) continue
+                fullWords++
+                bestWord = maxOf(bestWord, oneWordPathScore(word.entry.frequency, cost))
+            }
+            return if (fullWords == 0 || sentence.score > bestWord) 0 else fullWords
+        }
+        // Ranked by coverage first, so that is the count of words covering at least as much.
+        return words.count { it.covers >= sentence.covered }
     }
 
     /**
@@ -113,24 +170,26 @@ class PinyinDuckEngine(
         k: Int,
     ): List<ScoredEntry> {
         if (k <= 0) return emptyList()
-        val heap = PriorityQueue<ScoredEntry>(k, SCORED_ORDER.reversed())
+        val heap = PriorityQueue<ScoredEntry>(k, RANKED_ORDER.reversed())
         for (entry in entries) {
             if (heap.size < k) {
                 heap.add(entry)
             } else {
                 val worst = heap.peek()
-                if (worst != null && SCORED_ORDER.compare(entry, worst) < 0) {
+                if (worst != null && RANKED_ORDER.compare(entry, worst) < 0) {
                     heap.poll()
                     heap.add(entry)
                 }
             }
         }
-        return heap.toList().sortedWith(SCORED_ORDER)
+        return heap.toList().sortedWith(RANKED_ORDER)
     }
 
     private class ScoredEntry(
         val entry: StoredEntry,
         val score: Int,
+        /** How much of the query the word covers: all of it, its own key, or nothing. */
+        val covers: Int,
     )
 
     private companion object {
@@ -150,7 +209,54 @@ class PinyinDuckEngine(
                 // Headwords sharing a simplified form and reading (後 and 后, both hòu) are
                 // separate candidates in traditional script and tie on everything else.
                 .thenBy { it.entry.traditional }
+
+        /** Coverage first, then [SCORED_ORDER]: the order the word candidates are shown in. */
+        val RANKED_ORDER: Comparator<ScoredEntry> =
+            compareByDescending<ScoredEntry> { it.covers }.then(SCORED_ORDER)
+
+        /** How much of [tonelessQuery] a word keyed [key] covers, as `lazy-search.ts` counts it. */
+        fun coverage(
+            key: String,
+            tonelessQuery: String,
+        ): Int =
+            when {
+                key.startsWith(tonelessQuery) -> tonelessQuery.length
+                tonelessQuery.startsWith(key) -> key.length
+                else -> 0
+            }
     }
+}
+
+/** The sentence's Hanzi in [script], the form a word candidate repeating it would show. */
+private fun SentenceResult.hanzi(script: ScriptType): String =
+    words.joinToString("") { if (script == ScriptType.TRADITIONAL) it.entry.traditional else it.entry.simplified }
+
+/**
+ * Projects a Sentence candidate into a candidate: each word as its own candidate, and the
+ * outer fields joined from them. The outer `entryIds` is empty; the words carry theirs.
+ * `sentenceToCandidate` in `lazy-search.ts`.
+ */
+private fun SentenceResult.toCandidate(
+    script: ScriptType,
+    tonelessQuery: String,
+): Candidate {
+    val parts = words.map { it.entry.toCandidate(script, tonelessQuery.substring(it.start, it.end)) }
+    val simplified = parts.joinToString("") { it.simplified }
+    val pinyinNumbers = parts.joinToString(" ") { it.pinyinNumbers }
+    return Candidate(
+        id = "$simplified-$pinyinNumbers",
+        hanzi = parts.joinToString("") { it.hanzi },
+        simplified = simplified,
+        traditional = parts.joinToString("") { it.traditional },
+        pinyinMarks = parts.joinToString(" ") { it.pinyinMarks },
+        pinyinNumbers = pinyinNumbers,
+        shortGloss = parts.joinToString(" · ") { it.shortGloss },
+        frequency = 0,
+        matchedPinyin = parts.joinToString("") { it.matchedPinyin },
+        remainingPinyin = if (full) "" else tonelessQuery.substring(covered),
+        entryIds = emptyList(),
+        words = parts,
+    )
 }
 
 /** Projects a stored leaf entry into the fields scoring needs. */
