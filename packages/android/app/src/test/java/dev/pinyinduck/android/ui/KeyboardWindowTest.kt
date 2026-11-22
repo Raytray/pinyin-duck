@@ -120,6 +120,20 @@ class KeyboardWindowTest {
     }
 
     @Test
+    fun aStripCandidateOpensItsDetailAfterAboutHalfASecond() {
+        // #5: ~450 ms, whatever the platform's own timeout (400 or 500 ms by version).
+        val recorder = Recorder()
+        show(recorder, candidates = listOf(candidate("他"), candidate("她")))
+
+        hold("她", SHORT_OF_LONG_PRESS_MS)
+        assertEquals("a 420 ms press is still a tap", listOf(1), recorder.selected)
+        assertEquals(emptyList<Int>(), recorder.details)
+
+        hold("她", PAST_LONG_PRESS_MS)
+        assertEquals(listOf(1), recorder.details)
+    }
+
+    @Test
     fun aTapOnAStripCandidateStillCommitsIt() {
         val recorder = Recorder()
         show(recorder, candidates = listOf(candidate("他"), candidate("她")))
@@ -362,6 +376,19 @@ class KeyboardWindowTest {
     }
 
     @Test
+    fun aCardInTheExpandedListOpensItsDetailAfterAboutHalfASecond() {
+        val recorder = Recorder()
+        show(recorder, candidates = listOf(candidate("他"), candidate("她")), expanded = true)
+
+        hold("她", SHORT_OF_LONG_PRESS_MS)
+        assertEquals("a 420 ms press is still a tap", listOf(1), recorder.selected)
+        assertEquals(emptyList<Int>(), recorder.details)
+
+        hold("她", PAST_LONG_PRESS_MS)
+        assertEquals(listOf(1), recorder.details)
+    }
+
+    @Test
     fun aTapOnACardInTheExpandedListStillCommitsIt() {
         val recorder = Recorder()
         show(recorder, candidates = listOf(candidate("他"), candidate("她")), expanded = true)
@@ -465,6 +492,19 @@ class KeyboardWindowTest {
 
     // --- helpers ------------------------------------------------------------------
 
+    /** Presses the node showing [text] for [millis] and lets go. */
+    private fun hold(
+        text: String,
+        millis: Long,
+    ) {
+        compose.onNodeWithText(text).performTouchInput {
+            down(center)
+            advanceEventTime(millis)
+            up()
+        }
+        compose.waitForIdle()
+    }
+
     /** A node with [text] inside the bubble. */
     private fun inBubble(text: String) = within(DETAIL_BUBBLE_TAG, text)
 
@@ -515,6 +555,10 @@ class KeyboardWindowTest {
 
     private companion object {
         const val TALL_WINDOW_HEIGHT = 800
+
+        /** Either side of the bubble's 450 ms long press. */
+        const val SHORT_OF_LONG_PRESS_MS = 420L
+        const val PAST_LONG_PRESS_MS = 480L
 
         /**
          * Roughly a landscape phone: about 140 dp above a ~360 dp keyboard, inside the

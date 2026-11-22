@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +35,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
@@ -296,26 +299,14 @@ private fun RowScope.StripCandidate(
     selected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-) {
+) = DetailLongPressTimeout {
     Row(
         modifier =
             Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (selected) DuckColors.Accent.copy(alpha = 0.18f) else Color.Transparent)
-                // Long press opens the Candidate detail. TalkBack users get it as a named
-                // custom action as well (#11), since a timed press is not something they can
-                // discover; the long-click label names the same thing for the double-tap-hold.
-                .semantics {
-                    customActions =
-                        listOf(
-                            CustomAccessibilityAction("Show details") {
-                                onLongClick()
-                                true
-                            },
-                        )
-                }.detailAnchor(index)
-                .combinedClickable(onLongClickLabel = "Show details", onLongClick = onLongClick, onClick = onClick)
+                .opensCandidateDetail(index, onClick = onClick, onLongClick = onLongClick)
                 .padding(horizontal = 5.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -335,6 +326,51 @@ private fun RowScope.StripCandidate(
             modifier = Modifier.weight(1f, fill = false),
         )
     }
+}
+
+/**
+ * A candidate that commits on tap and opens its Candidate detail on long press: a strip
+ * candidate or a card in the Expanded candidate list.
+ *
+ * TalkBack users get the detail as a named custom action as well (#11), since a timed press is
+ * not something they can discover; the long-click label names the same thing for the
+ * double-tap-hold. It is also the bubble's [detailAnchor]. Call it inside
+ * [DetailLongPressTimeout] for the long press to take [DETAIL_LONG_PRESS_MILLIS].
+ */
+private fun Modifier.opensCandidateDetail(
+    index: Int,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+): Modifier =
+    semantics {
+        customActions =
+            listOf(
+                CustomAccessibilityAction("Show details") {
+                    onLongClick()
+                    true
+                },
+            )
+    }.detailAnchor(index)
+        .combinedClickable(onLongClickLabel = "Show details", onLongClick = onLongClick, onClick = onClick)
+
+/** How long a press on a candidate takes to open its Candidate detail (#5): about half a second. */
+internal const val DETAIL_LONG_PRESS_MILLIS = 450L
+
+/**
+ * Gives [content]'s long presses [DETAIL_LONG_PRESS_MILLIS] instead of the platform's timeout,
+ * which is 400 or 500 ms depending on the Android version. Scoped to one candidate so the keys
+ * keep the platform's.
+ */
+@Composable
+private fun DetailLongPressTimeout(content: @Composable () -> Unit) {
+    val platform = LocalViewConfiguration.current
+    val configuration =
+        remember(platform) {
+            object : ViewConfiguration by platform {
+                override val longPressTimeoutMillis = DETAIL_LONG_PRESS_MILLIS
+            }
+        }
+    CompositionLocalProvider(LocalViewConfiguration provides configuration, content = content)
 }
 
 /**
@@ -402,25 +438,14 @@ private fun CandidateCard(
     selected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-) {
+) = DetailLongPressTimeout {
     Column(
         modifier =
             Modifier
                 .padding(3.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(if (selected) DuckColors.Accent.copy(alpha = 0.16f) else DuckColors.Key)
-                // The same Candidate detail as the strip's, by long press or, for TalkBack, the
-                // named custom action (#11 addendum).
-                .semantics {
-                    customActions =
-                        listOf(
-                            CustomAccessibilityAction("Show details") {
-                                onLongClick()
-                                true
-                            },
-                        )
-                }.detailAnchor(index)
-                .combinedClickable(onLongClickLabel = "Show details", onLongClick = onLongClick, onClick = onClick)
+                .opensCandidateDetail(index, onClick = onClick, onLongClick = onLongClick)
                 .padding(horizontal = 10.dp, vertical = 7.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
