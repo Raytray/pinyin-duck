@@ -4,7 +4,7 @@ import { BTreeDictionary } from '../data/btree-dictionary';
 import { buildBTree } from '../data/btree-builder';
 import { BigramTable, encodeBigramFile, type BigramPair } from '../bigram/bigram-codec';
 import type { DictionaryRow } from '../data/dictionary-codec';
-import type { Candidate, SearchOptions } from '../types';
+import type { Candidate, FixedWord, SearchOptions } from '../types';
 
 /** The shipped corpus's base word cost, so the toy scores behave like the real ones. */
 const WORD_COST = 119936;
@@ -32,6 +32,13 @@ const rows: DictionaryRow[] = [
   ['人', '人', 'ren2', 'person', 83359, 1, [19]],
   ['中国人', '中國人', 'zhong1 guo2 ren2', 'Chinese person', 0, 0, [20]],
   ['霓虹灯', '霓虹燈', 'ni2 hong2 deng1', 'neon light', 200, 0, [21]],
+  // More words on `he`, for Fixed words and span alternatives.
+  ['和', '和', 'he4', 'to reply in verse', 83526, 0, [22]],
+  ['喝', '喝', 'he4', 'to shout', 65923, 0, [23]],
+  ['河', '河', 'he2', 'river', 47964, 0, [24]],
+  ['贺', '賀', 'he4', 'to congratulate', 44917, 0, [25]],
+  ['涸', '涸', 'he2', 'to dry up', 0, 0, [26]],
+  ['像', '像', 'xiang4', 'to resemble', 75964, 0, [27]],
 ];
 
 /** The pairs a bigram table holds, scored as `build-bigrams.ts` would. */
@@ -42,6 +49,8 @@ const pairs: BigramPair[] = [
   { first: '喝', second: '咖啡', score: 98368 },
   { first: '和', second: '咖啡', score: 67968 },
   { first: '我', second: '是', score: 98048 },
+  // Only a path through a fixed 河 can use this, so it shows a neighbour changing.
+  { first: '像', second: '河', score: 99008 },
 ];
 
 function engineWith(withBigrams: boolean) {
@@ -184,5 +193,132 @@ describe('Coverage first', () => {
     const hanzi = search('nihong').map((candidate) => candidate.hanzi);
     expect(hanzi.indexOf('霓虹灯')).toBeGreaterThanOrEqual(0);
     expect(hanzi.indexOf('霓虹灯')).toBeLessThan(hanzi.indexOf('你'));
+  });
+});
+
+/** The fixed word for `candidate` (as `alternativesForSpan` returns it) on the span [start, end). */
+const fix = (start: number, end: number, simplified: string, pinyinNumbers: string, traditional = simplified): FixedWord => ({
+  start,
+  end,
+  word: { simplified, traditional, pinyinNumbers },
+});
+
+describe('Fixed words', () => {
+  it('rebuilds the sentence around a fixed word and puts it first', () => {
+    // 贺 never wins on its own (和 and 喝 both outscore it), but the learner chose it.
+    const candidates = search('woxianghekafei', { fixedWords: [fix(7, 9, '贺', 'he4', '賀')] });
+    expect(wordsOf(candidates[0])).toEqual(['我', '想', '贺', '咖啡']);
+    expect(candidates[0].remainingPinyin).toBe('');
+  });
+
+  it('lets the neighbours of a fixed word change', () => {
+    // With 河 fixed, 像 → 河 is a bigram hit, so 像 takes the place of 想.
+    expect(wordsOf(search('woxianghekafei', { fixedWords: [fix(7, 9, '河', 'he2')] })[0])).toEqual(['我', '像', '河', '咖啡']);
+  });
+
+  it('holds several fixed words at once', () => {
+    const fixedWords = [fix(7, 9, '贺', 'he4', '賀'), fix(2, 7, '想', 'xiang3')];
+    expect(wordsOf(search('woxianghekafei', { fixedWords })[0])).toEqual(['我', '想', '贺', '咖啡']);
+    expect(search('woxianghekafei', { fixedWords, script: 'traditional' })[0].hanzi).toBe('我想賀咖啡');
+  });
+
+  it('uses a fixed word rarer than minSentenceWordFrequency', () => {
+    // 涸 has no frequency, so it is never inside a sentence on its own.
+    expect(wordsOf(search('woxianghekafei')[0])).not.toContain('涸');
+    expect(wordsOf(search('woxianghekafei', { fixedWords: [fix(7, 9, '涸', 'he2')] })[0])).toEqual(['我', '想', '涸', '咖啡']);
+  });
+
+  it('holds a fixed word inside a partial sentence', () => {
+    const [first] = search('woxianghekafeiqqq', { fixedWords: [fix(7, 9, '河', 'he2')] });
+    expect(wordsOf(first)).toEqual(['我', '像', '河', '咖啡']);
+    expect(first.remainingPinyin).toBe('qqq');
+  });
+
+  it('puts the edited sentence ahead of the words that cover the query', () => {
+    // 卧 + 是 scores below the word 卧室, but the learner chose 卧.
+    const hanzi = search('woshi', { fixedWords: [fix(0, 2, '卧', 'wo4', '臥')] }).map((candidate) => candidate.hanzi);
+    expect(hanzi[0]).toBe('卧是');
+    expect(hanzi).toContain('卧室');
+  });
+
+  it('drops the word, not the edited sentence, when both show the same Hanzi', () => {
+    const candidates = search('zhongguoren', { fixedWords: [fix(0, 8, '中国', 'zhong1 guo2', '中國')] });
+    expect(wordsOf(candidates[0])).toEqual(['中国', '人']);
+    expect(candidates.filter((candidate) => candidate.hanzi === '中国人')).toHaveLength(1);
+  });
+
+  it('ignores a fixed word the query cannot hold', () => {
+    const plain = wordsOf(search('woxianghekafei')[0]);
+    for (const fixed of [
+      fix(6, 9, '河', 'he2'), // not the word's span
+      fix(7, 9, '想', 'xiang3'), // not an entry under the span
+      fix(7, 9, '河', 'he4'), // not this entry's reading
+      fix(7, 30, '河', 'he2'), // past the end of the query
+    ]) {
+      expect(wordsOf(search('woxianghekafei', { fixedWords: [fixed] })[0])).toEqual(plain);
+    }
+    // A typed tone rules 河 (hé) out on "he4".
+    expect(wordsOf(search('woxianghe4kafei', { fixedWords: [fix(7, 9, '河', 'he2')] })[0])).not.toContain('河');
+    // An overlapping one: the first in the list wins.
+    const overlapping = [fix(7, 9, '河', 'he2'), fix(2, 9, '想', 'xiang3')];
+    expect(wordsOf(search('woxianghekafei', { fixedWords: overlapping })[0])).toEqual(['我', '像', '河', '咖啡']);
+  });
+
+  it('fixes a completed last word while its span ends the query', () => {
+    const fixedWords = [fix(9, 13, '咖啡', 'ka1 fei1'), fix(7, 9, '河', 'he2')];
+    expect(wordsOf(search('woxianghekafe', { fixedWords })[0])).toEqual(['我', '像', '河', '咖啡']);
+    expect(sentenceOf(search('woxianghekafe', { fixedWords, exactOnly: true }))?.words?.map((word) => word.hanzi)).toEqual([
+      '我',
+      '像',
+      '河',
+    ]);
+  });
+
+  it('gives each word its own span and matched pinyin, so the UI can commit through one word', () => {
+    const [sentence] = search('woxianghekafe');
+    expect(sentence.words?.map(({ hanzi, matchedPinyin, span }) => ({ hanzi, matchedPinyin, span }))).toEqual([
+      { hanzi: '我', matchedPinyin: 'wo', span: { start: 0, end: 2 } },
+      { hanzi: '想', matchedPinyin: 'xiang', span: { start: 2, end: 7 } },
+      { hanzi: '喝', matchedPinyin: 'he', span: { start: 7, end: 9 } },
+      // A completed last word matches its whole key; its span stops at the end of the query.
+      { hanzi: '咖啡', matchedPinyin: 'kafei', span: { start: 9, end: 13 } },
+    ]);
+  });
+});
+
+describe('Span alternatives', () => {
+  const alternatives = (query: string, start: number, end: number, options: SearchOptions = {}) =>
+    engineWith(true)
+      .alternativesForSpan(query, { start, end }, options)
+      .map((candidate) => `${candidate.hanzi} ${candidate.pinyinNumbers}`);
+
+  it('lists every entry for the span, one per Hanzi, rare words included, in word-candidate order', () => {
+    expect(alternatives('woxianghekafei', 7, 9)).toEqual(['和 he2', '喝 he1', '河 he2', '贺 he4', '涸 he2']);
+  });
+
+  it('keeps only the readings a tone typed in the span allows', () => {
+    expect(alternatives('woxiang he4 kafei', 7, 9)).toEqual(['和 he4', '喝 he4', '贺 he4']);
+    // A tone typed on the next word says nothing about this one.
+    expect(alternatives('woxianghe kafei1', 7, 9)).toEqual(['和 he2', '喝 he1', '河 he2', '贺 he4', '涸 he2']);
+  });
+
+  it('never changes word boundaries', () => {
+    // No entry is keyed "xianghe", so there is nothing to offer: 想 + 喝 stay two words.
+    expect(alternatives('woxianghekafei', 2, 9)).toEqual([]);
+  });
+
+  it('offers completions for a last word that runs past the end of the query', () => {
+    expect(alternatives('woxianghekafe', 9, 13)).toEqual(['咖啡 ka1 fei1']);
+    expect(alternatives('woxianghekafe', 9, 13, { exactOnly: true })).toEqual([]);
+  });
+
+  it('shows the active script and carries the span, ready to become a fixed word', () => {
+    const engine = engineWith(true);
+    const [first, ...rest] = engine.alternativesForSpan('woxianghekafei', { start: 7, end: 9 }, { script: 'traditional' });
+    expect(rest.map((candidate) => candidate.hanzi)).toContain('賀');
+    expect(first.span).toEqual({ start: 7, end: 9 });
+    const he = rest.find((candidate) => candidate.hanzi === '賀')!;
+    const fixedWords = [{ ...he.span!, word: he }];
+    expect(engine.search('woxianghekafei', { script: 'traditional', fixedWords }).candidates[0].hanzi).toBe('我想賀咖啡');
   });
 });

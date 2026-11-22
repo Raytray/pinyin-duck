@@ -128,11 +128,18 @@ export class LazyPinyinSearchEngine {
       bigrams: this.bigrams,
       exactOnly: options.exactOnly,
       maxMatches,
+      fixedWords: options.fixedWords,
     });
-    if (sentence) {
-      const hanzi = sentence.words
-        .map(({ entry }) => (script === 'traditional' ? entry.traditional : entry.simplified))
-        .join('');
+    if (sentence?.fixed) {
+      // The edited sentence (#37): the learner's own choice comes first, ahead of every word.
+      // A word showing the same Hanzi is the one dropped this time.
+      const hanzi = sentenceHanzi(sentence, script);
+      const kept = ordered.filter(
+        (slot) => !('item' in slot) || (script === 'traditional' ? slot.item.stored.traditional : slot.item.stored.simplified) !== hanzi
+      );
+      ordered.splice(0, ordered.length, { sentence }, ...kept);
+    } else if (sentence) {
+      const hanzi = sentenceHanzi(sentence, script);
       const repeatsAWord = ranked.some(
         ({ item }) => (script === 'traditional' ? item.stored.traditional : item.stored.simplified) === hanzi
       );
@@ -170,6 +177,70 @@ export class LazyPinyinSearchEngine {
       total,
     };
   }
+
+  /**
+   * The alternatives a word menu offers for one word of a Sentence candidate (#37): every
+   * entry whose key is exactly the span `[start, end)` of the toneless query, one per Hanzi
+   * in the active script, in word-candidate order (`scoreEntry` on the span, then
+   * `compareScored`). Rare words are included, since a word the learner picks becomes a
+   * fixed word and skips `MIN_SENTENCE_WORD_FREQUENCY`. A tone typed inside the span, or
+   * right after its last syllable, keeps only the readings with that tone. A tone typed on
+   * another word says nothing here.
+   *
+   * It never changes word boundaries: a longer or shorter span is a different question. The
+   * one exception is a span that ends the query, where the last word may have been a
+   * completion (`kafe` → 咖啡), so keys that start with the span are offered after the exact
+   * ones, unless `exactOnly`. Each candidate carries `span`, so it can be passed back as a
+   * `FixedWord` as is. An out-of-range span gives an empty list.
+   */
+  alternativesForSpan(
+    query: string,
+    span: { start: number; end: number },
+    options: Pick<SearchOptions, 'script' | 'exactOnly' | 'maxMatches'> = {}
+  ): Candidate[] {
+    const rawQuery = query.trim().toLowerCase();
+    const script: ScriptType = options.script || 'simplified';
+    const maxMatches = options.maxMatches ?? DEFAULT_MAX_MATCHES;
+    const toneless = cleanPinyin(rawQuery);
+    const { start, end } = span;
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start || end > toneless.length) {
+      return [];
+    }
+    const key = toneless.slice(start, end);
+    // The typed tones that fall on this span, as offsets into it.
+    const toneFilter = parseToneFilter(rawQuery)
+      .filter(({ offset }) => offset > start && offset <= end)
+      .map(({ offset, tone }) => ({ offset: offset - start, tone }));
+
+    const chosen = new Map<string, ScoredStoredEntry>();
+    const consider = (stored: StoredEntry): void => {
+      if (stored.onlyIn && stored.onlyIn !== script) return;
+      const entry = storedEntryToScorable(stored);
+      const score = scoreEntry(entry, key, toneFilter);
+      if (toneFilter.length > 0 && score <= 0) return;
+      const hanzi = script === 'traditional' ? stored.traditional : stored.simplified;
+      const candidate = { entry, score, stored };
+      const previous = chosen.get(hanzi);
+      if (!previous || compareScored(candidate, previous) < 0) chosen.set(hanzi, candidate);
+    };
+    for (const entry of this.dictionary.lookupExact(key)) consider(entry);
+    if (end === toneless.length && !options.exactOnly) {
+      let scanned = 0;
+      this.dictionary.scanPrefix(key, (entry) => {
+        if (entry.key.length > key.length) consider(entry);
+        scanned++;
+        return scanned < maxMatches;
+      });
+    }
+    return Array.from(chosen.values())
+      .sort(compareScored)
+      .map(({ stored }) => ({ ...storedEntryToCandidate(stored, script, key), span: { start, end } }));
+  }
+}
+
+/** A Sentence candidate's Hanzi in the active script. */
+function sentenceHanzi(sentence: SentenceResult, script: ScriptType): string {
+  return sentence.words.map(({ entry }) => (script === 'traditional' ? entry.traditional : entry.simplified)).join('');
 }
 
 /**
@@ -181,9 +252,10 @@ export function sentenceToCandidate(
   script: ScriptType,
   tonelessQuery: string
 ): Candidate {
-  const words = sentence.words.map(({ entry, start, end }) =>
-    storedEntryToCandidate(entry, script, tonelessQuery.slice(start, end))
-  );
+  const words = sentence.words.map(({ entry, start, end }) => ({
+    ...storedEntryToCandidate(entry, script, tonelessQuery.slice(start, end)),
+    span: { start, end },
+  }));
   const join = (field: (word: Candidate) => string, separator = '') => words.map(field).join(separator);
   const simplified = join((word) => word.simplified);
   const pinyinNumbers = join((word) => word.pinyinNumbers, ' ');
