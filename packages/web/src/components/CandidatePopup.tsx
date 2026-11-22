@@ -1,6 +1,8 @@
 import React from 'react';
 import { Candidate } from '@pinyinduck/core';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { CandidateDetail } from './CandidateDetail';
+import type { OpenCandidateDetail } from '../hooks/usePinyinDuck';
 
 interface CandidatePopupProps {
   candidates: Candidate[];
@@ -13,6 +15,9 @@ interface CandidatePopupProps {
   onNextPage: () => void;
   onPrevPage: () => void;
   onHoverIndex: (index: number) => void;
+  /** The open Candidate detail, drawn under its row, or null. */
+  detail: OpenCandidateDetail | null;
+  onToggleDetail: (index: number) => void;
 }
 
 export const CandidatePopup: React.FC<CandidatePopupProps> = ({
@@ -26,6 +31,8 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
   onNextPage,
   onPrevPage,
   onHoverIndex,
+  detail,
+  onToggleDetail,
 }) => {
   // An empty candidate list means "no match" only once the dictionary is loaded.
   // Before that the search has not run at all, so claiming no match would be a lie.
@@ -75,24 +82,46 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
           const isSelected = idx === selectedIndex;
           const displayNum = idx + 1;
 
+          const detailHere = detail?.index === idx;
+
           return (
-            <div
-              key={cand.id + idx}
-              role="option"
-              aria-selected={isSelected}
-              className={`candidate-item ${isSelected ? 'selected' : ''}`}
-              onClick={() => onSelectCandidate(idx)}
-              onMouseEnter={() => onHoverIndex(idx)}
-            >
-              <div className="candidate-left">
-                <span className="candidate-num">{displayNum}</span>
-                <span className="candidate-hanzi">{cand.hanzi}</span>
-                <span className="candidate-pinyin">{cand.pinyinMarks}</span>
+            <React.Fragment key={cand.id + idx}>
+              <div
+                role="option"
+                aria-selected={isSelected}
+                aria-expanded={detailHere}
+                className={`candidate-item ${isSelected ? 'selected' : ''}`}
+                onClick={() => onSelectCandidate(idx)}
+                // While a detail is open the highlight moves by keyboard or ⓘ only: following
+                // the pointer would move the detail, and the rows with it, under the pointer.
+                onMouseEnter={detail ? undefined : () => onHoverIndex(idx)}
+              >
+                <div className="candidate-left">
+                  <span className="candidate-num">{displayNum}</span>
+                  <span className="candidate-hanzi">{cand.hanzi}</span>
+                  <span className="candidate-pinyin">{cand.pinyinMarks}</span>
+                </div>
+                <div className="candidate-gloss" title={cand.shortGloss}>
+                  {cand.shortGloss}
+                </div>
+                <button
+                  type="button"
+                  className={`candidate-info ${detailHere ? 'on' : ''}`}
+                  aria-label={`Details for ${cand.hanzi}`}
+                  aria-pressed={detailHere}
+                  title="Details (Tab)"
+                  // Keeps focus, and so the composition, in the editor.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleDetail(idx);
+                  }}
+                >
+                  ⓘ
+                </button>
               </div>
-              <div className="candidate-gloss" title={cand.shortGloss}>
-                {cand.shortGloss}
-              </div>
-            </div>
+              {detailHere && <CandidateDetail detail={detail} onCommit={() => onSelectCandidate(idx)} />}
+            </React.Fragment>
           );
         })}
       </div>
@@ -108,6 +137,9 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
           </span>
           <span className="hint-pill">
             <kbd>Enter</kbd> Raw
+          </span>
+          <span className="hint-pill">
+            <kbd>Tab</kbd> Details
           </span>
         </div>
         <div className="candidate-pager">

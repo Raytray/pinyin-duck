@@ -1,5 +1,8 @@
 package dev.pinyinduck.android.ime
 
+import dev.pinyinduck.android.data.DETAIL_ASSET
+import dev.pinyinduck.android.data.DICTIONARY_ASSET
+import dev.pinyinduck.android.engine.DetailBuildMismatchException
 import dev.pinyinduck.android.engine.DictionaryFormatException
 import java.io.FileNotFoundException
 
@@ -20,9 +23,18 @@ object DictionaryErrors {
                 "The dictionary asset is compressed. It must ship uncompressed to be mmapped; " +
                     "check the noCompress setting in app/build.gradle.kts."
 
-            error is FileNotFoundException ->
-                "dictionary.btree is missing from the app. Run \"npm run build:dict\" at the " +
+            // `openFd` names the asset it could not find; anything else is the dictionary.
+            error is FileNotFoundException -> {
+                val asset = if (error.message?.contains(DETAIL_ASSET) == true) DETAIL_ASSET else DICTIONARY_ASSET
+                "$asset is missing from the app. Run \"npm run build:dict\" at the " +
                     "repository root and rebuild."
+            }
+
+            // Checked before the general format failure it extends: both files are fine, they
+            // just were not built together, so rebuilding both is the whole fix.
+            error is DetailBuildMismatchException ->
+                "$DICTIONARY_ASSET and $DETAIL_ASSET come from different builds " +
+                    "(${error.message}). Run \"npm run build:dict\" at the repository root and rebuild."
 
             error is DictionaryFormatException ->
                 "The dictionary is unreadable (${error.message}). " +

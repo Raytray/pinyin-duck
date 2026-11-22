@@ -439,6 +439,145 @@ body {
   max-width: 380px;
 }
 
+.candidate-info {
+  flex: none;
+  background: none;
+  border: none;
+  padding: 0 2px;
+  font-size: 1rem;
+  line-height: 1;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.candidate-info:hover,
+.candidate-info.on {
+  color: var(--color-primary-dark);
+}
+
+/* Candidate detail: the highlighted row's inline accordion. Senses are never capped, so it
+   has a max height and scrolls on its own rather than stretching the popup. */
+.candidate-detail {
+  max-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px 14px 12px 48px;
+  background: var(--color-card-selected);
+  border-left: 4px solid var(--color-primary);
+  border-bottom: 1px solid #f1f5f9;
+  cursor: default;
+  font-size: 0.88rem;
+  color: var(--color-text-main);
+}
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.detail-hanzi {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--font-hanzi);
+  font-size: 2.2rem;
+  line-height: 1.1;
+  color: var(--color-text-main);
+}
+
+.detail-hanzi:hover {
+  color: var(--color-primary-dark);
+}
+
+.detail-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detail-reading {
+  color: var(--color-pinyin);
+  font-weight: 600;
+}
+
+.detail-counterpart {
+  font-family: var(--font-hanzi);
+  color: var(--color-text-muted);
+}
+
+.detail-gloss,
+.detail-status,
+.detail-pos,
+.detail-mw {
+  margin: 6px 0;
+}
+
+.detail-status {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.detail-status.failed {
+  color: #b91c1c;
+}
+
+.detail-group + .detail-group {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.detail-heading {
+  margin: 4px 0;
+  font-family: var(--font-hanzi);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.detail-pos {
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
+.detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.detail-tag {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.detail-senses {
+  margin: 6px 0;
+  padding-left: 1.3em;
+  line-height: 1.45;
+}
+
+.detail-sense.proper {
+  color: #5b21b6;
+}
+
+.detail-mw-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin-right: 4px;
+}
+
 .candidate-footer {
   background: #f8fafc;
   border-top: 1px solid #e2e8f0;

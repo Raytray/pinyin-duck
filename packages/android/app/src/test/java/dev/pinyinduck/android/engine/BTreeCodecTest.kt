@@ -66,6 +66,22 @@ class BTreeCodecTest {
     }
 
     @Test
+    fun readsZeroTerminatedStrings() {
+        // The Candidate detail file's strings: UTF-8 ended by a zero byte, not length-prefixed.
+        val reader = ByteReader(bufferOf(0x61, 0x62, 0x00, 0x00, 0xe4, 0xb8, 0xaa, 0x00))
+        assertEquals("ab", reader.zeroTerminatedString())
+        assertEquals("", reader.zeroTerminatedString())
+        assertEquals("个", reader.zeroTerminatedString())
+        assertEquals(0, reader.remaining)
+    }
+
+    @Test
+    fun rejectsAZeroTerminatedStringWithNoEnd() {
+        val error = assertThrows(DictionaryFormatException::class.java) { ByteReader(bufferOf(0x61, 0x62)).zeroTerminatedString() }
+        assertTrue(error.message, error.message!!.contains("no end"))
+    }
+
+    @Test
     fun rejectsATruncatedString() {
         // Claims six bytes of string but supplies two.
         val truncated = byteArrayOf(0x06, 0xe4.toByte(), 0xbd.toByte()) // 你

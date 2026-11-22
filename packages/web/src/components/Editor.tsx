@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { CandidatePopup } from './CandidatePopup';
 import type { Candidate } from '@pinyinduck/core';
+import type { OpenCandidateDetail } from '../hooks/usePinyinDuck';
 
 interface EditorProps {
   committedText: string;
@@ -17,6 +18,8 @@ interface EditorProps {
   downloadProgress: string;
   entryCount: number;
   onSelectCandidate: (index: number) => void;
+  detail: OpenCandidateDetail | null;
+  onToggleDetail: (index: number) => void;
   onNextPage: () => void;
   onPrevPage: () => void;
   onSetSelectedIndex: (index: number) => void;
@@ -42,6 +45,8 @@ export const Editor: React.FC<EditorProps> = ({
   downloadProgress,
   entryCount,
   onSelectCandidate,
+  detail,
+  onToggleDetail,
   onNextPage,
   onPrevPage,
   onSetSelectedIndex,
@@ -149,6 +154,8 @@ export const Editor: React.FC<EditorProps> = ({
               onNextPage={onNextPage}
               onPrevPage={onPrevPage}
               onHoverIndex={onSetSelectedIndex}
+              detail={detail}
+              onToggleDetail={onToggleDetail}
             />
           </div>
         )}
