@@ -34,6 +34,8 @@ export interface BuildBTreeOptions {
   maxFanout?: number;
   /** Written into the header, for the Candidate detail file built alongside to match. */
   buildId?: number;
+  /** Written into the header: the scaled ln(corpus total) Sentence candidates charge per word. */
+  baseWordCost?: number;
 }
 
 const DEFAULTS = {
@@ -195,6 +197,7 @@ export function buildBTree(rows: DictionaryRow[], options: BuildBTreeOptions = {
     rootPageId,
     directoryOffset,
     buildId: options.buildId ?? 0,
+    baseWordCost: options.baseWordCost ?? 0,
   };
 
   const output = new Uint8Array(cursor);

@@ -5,6 +5,8 @@ import {
   type Candidate,
   type DetailView,
   loadDictionary,
+  loadBigramTable,
+  type BigramTable,
   type BTreeDictionary,
   type DownloadProgress,
   type SearchResult,
@@ -12,15 +14,24 @@ import {
 } from '@pinyinduck/core';
 import { DICTIONARY_URL } from '../dictionary-asset';
 import { DETAIL_URL } from '../detail-asset';
+import { BIGRAMS_URL } from '../bigram-asset';
 import { createDetailLoader, type DetailLoadState } from '../detail/detail-loader';
 
 export type DictionaryStatus = 'loading' | 'ready' | 'error';
+
+/**
+ * Where the bigram table is: not configured, waiting for the dictionary or downloading,
+ * loaded, or failed (search then scores Sentence candidates unigram only).
+ */
+export type BigramStatus = 'none' | 'loading' | 'ready' | 'failed';
 
 export interface UsePinyinDuckOptions {
   pageSize?: number;
   initialScript?: ScriptType;
   dictionaryUrl?: string;
   detailUrl?: string;
+  /** The bigram table Sentence candidates score with; none means unigram only. */
+  bigramsUrl?: string | null;
 }
 
 /**
@@ -68,9 +79,12 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     initialScript = 'simplified',
     dictionaryUrl = DICTIONARY_URL,
     detailUrl = DETAIL_URL,
+    bigramsUrl = BIGRAMS_URL ?? null,
   } = options;
 
   const [dictionary, setDictionary] = useState<BTreeDictionary | null>(null);
+  const [bigrams, setBigrams] = useState<BigramTable | null>(null);
+  const [bigramFailed, setBigramFailed] = useState(false);
   const [dictionaryStatus, setDictionaryStatus] = useState<DictionaryStatus>('loading');
   const [dictionaryError, setDictionaryError] = useState<string | null>(null);
   // The label rather than the byte counts, so the hundreds of chunks a download arrives in
@@ -138,9 +152,38 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     };
   }, [dictionaryUrl]);
 
+  // The bigram table loads after the dictionary, so it never delays the first candidates.
+  // Until it arrives, and for good if it fails, Sentence candidates score unigram only.
+  useEffect(() => {
+    if (!dictionary || !bigramsUrl) return;
+    const controller = new AbortController();
+    let cancelled = false;
+    loadBigramTable(bigramsUrl, { signal: controller.signal })
+      .then((table) => {
+        if (!cancelled) setBigrams(table);
+      })
+      .catch((err: unknown) => {
+        if (cancelled || (err instanceof Error && err.name === 'AbortError')) return;
+        setBigramFailed(true);
+        console.warn(`Sentence candidates will score without bigrams: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [dictionary, bigramsUrl]);
+
+  const bigramStatus: BigramStatus = !bigramsUrl
+    ? 'none'
+    : bigrams
+      ? 'ready'
+      : bigramFailed
+        ? 'failed'
+        : 'loading';
+
   const engine = useMemo(
-    () => (dictionary ? new LazyPinyinSearchEngine(dictionary) : null),
-    [dictionary]
+    () => (dictionary ? new LazyPinyinSearchEngine(dictionary, bigrams ? { bigrams } : {}) : null),
+    [dictionary, bigrams]
   );
   const entryCount = dictionary?.entryCount ?? 0;
 
@@ -543,6 +586,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     setScript,
     toggleScript,
     dictionaryStatus,
+    bigramStatus,
     dictionaryError,
     downloadProgress,
     entryCount,

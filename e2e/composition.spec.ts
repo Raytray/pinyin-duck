@@ -58,7 +58,8 @@ test('narrows candidates as more pinyin is typed', async ({ page }) => {
 
   await editor(page).pressSequentially('ih');
   await expectBuffer(page, 'nih');
-  await expectCandidates(page, ['你', '呢', '你好', '霓虹灯', '泥孩']);
+  // Words that complete the query come before ones that leave pinyin to compose (issue #30).
+  await expectCandidates(page, ['你好', '霓虹灯', '泥孩', '拟合', '尼赫鲁']);
 
   await editor(page).pressSequentially('ao');
   await expectBuffer(page, 'nihao');

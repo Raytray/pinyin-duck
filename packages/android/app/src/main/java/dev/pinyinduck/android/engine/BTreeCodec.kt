@@ -8,7 +8,7 @@ import java.nio.ByteBuffer
  * A direct port of `packages/core/src/data/btree-codec.ts`. The layout is
  *
  * ```
- * header (28 bytes) | page directory (pageCount * 8 bytes) | pages
+ * header (32 bytes) | page directory (pageCount * 8 bytes) | pages
  * ```
  *
  * so a reader opens the file by reading only the header and the directory, then touches
@@ -16,8 +16,9 @@ import java.nio.ByteBuffer
  * kept byte-for-byte compatible with the TypeScript, which is what lets both clients read
  * the one committed `dictionary.btree`.
  *
- * The header ends with the build id (u32 at offset 24) that the Candidate detail file
- * built alongside must match. A leaf record is key, simplified, traditional, pinyinNumbers
+ * The header holds the build id (u32 at offset 24) that the Candidate detail file
+ * built alongside must match, then the base word cost (u32 at offset 28) that Sentence
+ * candidates score with. A leaf record is key, simplified, traditional, pinyinNumbers
  * and shortGloss (varint-length UTF-8 strings), a varint frequency, a u8 HSK level, a
  * varint count of entry ids followed by each id as a varint, and a u8 script marker
  * (0 both, 1 simplified only, 2 traditional only). Each id is stored as the zigzag-encoded
@@ -30,9 +31,10 @@ const val BTREE_MAGIC = "PDBT"
 /**
  * Format 2 keys entries by headword and caseless reading (ADR 0001), so rows gained the
  * entry ids they stand for, a script marker and the header's build id (ADR 0002).
+ * Format 3 adds the base word cost (u32 at offset 28) that Sentence candidates score with.
  */
-const val BTREE_FORMAT_VERSION = 2
-const val HEADER_SIZE = 28
+const val BTREE_FORMAT_VERSION = 3
+const val HEADER_SIZE = 32
 
 /** Script markers on a leaf record. */
 private const val SCRIPT_BOTH = 0
@@ -104,6 +106,8 @@ data class BTreeHeader(
     val directoryOffset: Int,
     /** Identifies the build, so a Candidate detail file from another build is refused. */
     val buildId: Int,
+    /** The scaled ln(corpus total) Sentence candidates charge per word (format 3). */
+    val baseWordCost: Int = 0,
 )
 
 data class PageLocation(
@@ -268,6 +272,7 @@ internal fun decodeHeader(bytes: ByteBuffer): BTreeHeader {
         rootPageId = reader.u32(),
         directoryOffset = reader.u32(),
         buildId = reader.u32(),
+        baseWordCost = reader.u32(),
     )
 }
 

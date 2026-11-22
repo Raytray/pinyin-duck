@@ -108,6 +108,11 @@ export class BTreeDictionary {
   }
 
   /** Number of pages the asset is split into. */
+  /** The scaled ln(corpus total) from the header; see `BTreeHeader.baseWordCost`. */
+  get baseWordCost(): number {
+    return this.header.baseWordCost;
+  }
+
   get pageCount(): number {
     return this.header.pageCount;
   }

@@ -99,27 +99,29 @@ class BTreeCodecTest {
                 entryCount = 122746,
                 pageCount = 1196,
                 root = 1195,
-                directoryOffset = 28,
+                directoryOffset = 32,
                 buildId = 0x1234abcd,
+                baseWordCost = 119936,
             )
         assertEquals(122746, decodeHeader(header).entryCount)
         assertEquals(1196, decodeHeader(header).pageCount)
         assertEquals(1195, decodeHeader(header).rootPageId)
-        assertEquals(28, decodeHeader(header).directoryOffset)
+        assertEquals(32, decodeHeader(header).directoryOffset)
         assertEquals(0x1234abcd, decodeHeader(header).buildId)
+        assertEquals(119936, decodeHeader(header).baseWordCost)
     }
 
     @Test
-    fun isFormat2AndRejectsAFormat1Asset() {
-        // Format 2 added entry ids, a script marker and the build id; a format 1 asset lacks them.
-        assertEquals(2, BTREE_FORMAT_VERSION)
-        assertEquals(28, HEADER_SIZE)
+    fun isFormat3AndRejectsAFormat2Asset() {
+        // Format 3 added the base word cost; a format 2 asset lacks it.
+        assertEquals(3, BTREE_FORMAT_VERSION)
+        assertEquals(32, HEADER_SIZE)
         val header =
             ByteBuffer.wrap(
-                "PDBT".toByteArray(Charsets.US_ASCII) + byteArrayOf(1) + ByteArray(HEADER_SIZE - 5),
+                "PDBT".toByteArray(Charsets.US_ASCII) + byteArrayOf(2) + ByteArray(HEADER_SIZE - 5),
             )
         val error = assertThrows(DictionaryFormatException::class.java) { decodeHeader(header) }
-        assertTrue(error.message!!.contains("built with B-tree format 1"))
+        assertTrue(error.message!!.contains("built with B-tree format 2"))
     }
 
     @Test
@@ -281,12 +283,13 @@ class BTreeCodecTest {
         root: Int,
         directoryOffset: Int,
         buildId: Int,
+        baseWordCost: Int = 0,
     ): ByteBuffer =
         ByteBuffer.wrap(
             byteArrayOf('P'.code.toByte(), 'D'.code.toByte(), 'B'.code.toByte(), 'T'.code.toByte()) +
                 byteArrayOf(BTREE_FORMAT_VERSION.toByte(), 0, 0, 0) +
                 intBytes(entryCount) + intBytes(pageCount) + intBytes(root) + intBytes(directoryOffset) +
-                intBytes(buildId),
+                intBytes(buildId) + intBytes(baseWordCost),
         )
 
     private fun intBytes(value: Int) =

@@ -248,8 +248,11 @@ export interface ToneConstraint {
   tone: number;
 }
 
-/** Same normalization as `cleanPinyin`, one character at a time. */
-function tonelessLetter(char: string): string | null {
+/**
+ * Same normalization as `cleanPinyin`, one character at a time: the toneless letter `char`
+ * contributes to the search key, or null when it is not a pinyin letter.
+ */
+export function tonelessLetter(char: string): string | null {
   const base = TONE_CHAR_MAP[char] ?? char;
   return /^[a-z\u00FC]$/.test(base) ? base : null;
 }

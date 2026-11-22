@@ -65,6 +65,7 @@ object SyntheticDictionary {
         out.u32(rootPageId)
         out.u32(directoryOffset)
         out.u32(0) // buildId
+        out.u32(0) // baseWordCost
         locations.forEach { (pageOffset, length) ->
             out.u32(pageOffset)
             out.u32(length)

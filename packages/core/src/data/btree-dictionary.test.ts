@@ -83,6 +83,7 @@ describe('opening', () => {
         rootPageId: 0,
         directoryOffset,
         buildId: 0,
+        baseWordCost: 0,
       }),
       0
     );

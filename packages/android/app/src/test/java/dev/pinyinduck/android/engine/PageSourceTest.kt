@@ -130,7 +130,7 @@ class PageSourceTest {
         val header =
             byteArrayOf('P'.code.toByte(), 'D'.code.toByte(), 'B'.code.toByte(), 'T'.code.toByte()) +
                 byteArrayOf(BTREE_FORMAT_VERSION.toByte(), 0, 0, 0) +
-                intBytes(1) + intBytes(1) + intBytes(0) + intBytes(HEADER_SIZE) + intBytes(0)
+                intBytes(1) + intBytes(1) + intBytes(0) + intBytes(HEADER_SIZE) + intBytes(0) + intBytes(0)
         // One directory entry pointing at a page whose kind byte is nonsense.
         val directory = intBytes(HEADER_SIZE + 8) + intBytes(4)
         val page = byteArrayOf(0x7f, 0, 0, 0)

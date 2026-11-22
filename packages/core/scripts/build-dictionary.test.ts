@@ -188,6 +188,15 @@ describe('joinCorpora', () => {
     expect(china[5]).toBe(2);
   });
 
+  it('computes the base word cost as the scaled ln of the corpus total', () => {
+    // Total 12100, maximum 7000: 100000 * ln(12100) / ln(7001), rounded.
+    expect(joinCorpora(cedict, frequency, hsk).baseWordCost).toBe(106180);
+  });
+
+  it('has no base word cost without a frequency corpus', () => {
+    expect(joinCorpora(cedict, '', hsk).baseWordCost).toBe(0);
+  });
+
   it('reports coverage counts for frequency, HSK and single characters', () => {
     const { stats } = joinCorpora(cedict, frequency, hsk);
     expect(stats.withFrequency).toBe(3);
@@ -450,6 +459,10 @@ describe('encodeDictionary', () => {
     expect(dictionary.buildId).toBe(buildId);
     expect(buildId).not.toBe(0);
     expect(encodeDictionary(rows).buildId).toBe(buildId);
+  });
+
+  it('writes the base word cost into the header', () => {
+    expect(BTreeDictionary.open(encodeDictionary(rows, 106180).bytes).baseWordCost).toBe(106180);
   });
 
   it('gives a different build id when the entry ids change', () => {
