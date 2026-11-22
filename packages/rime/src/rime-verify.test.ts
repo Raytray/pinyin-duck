@@ -375,6 +375,25 @@ describe('evaluateSmoke', () => {
     expect(report.failures).toEqual([]);
   });
 
+  it('fails when a candidate pinned as absent is in the menu, naming its position', () => {
+    const report = evaluateSmoke(
+      [...healthy(), ...candidates('woxianghekafei', ['我祥和咖啡', '我'])],
+      [testCase({ query: 'woxianghekafei', expect: undefined, expectAbsent: ['我祥和咖啡'] })],
+      ''
+    );
+    expect(report.failures).toHaveLength(1);
+    expect(report.failures[0].message).toMatch(/"我祥和咖啡" is in the menu at position 0/);
+  });
+
+  it('passes when no candidate pinned as absent is in the menu', () => {
+    const report = evaluateSmoke(
+      [...healthy(), ...candidates('woxianghekafei', ['我', '窝'])],
+      [testCase({ query: 'woxianghekafei', expect: ['我'], expectAbsent: ['我祥和咖啡'] })],
+      ''
+    );
+    expect(report.failures).toEqual([]);
+  });
+
   it('fails when a pinned comment fragment is missing', () => {
     const report = evaluateSmoke(
       [...healthy(), ...candidates('shi4', ['是', '试'], '')],
@@ -556,11 +575,16 @@ describe('SMOKE_CASES', () => {
   it('gives every case a reason and something to pin', () => {
     for (const testCase of SMOKE_CASES) {
       expect(testCase.why.length).toBeGreaterThan(20);
-      // A case pins the candidate order, the committed text, or the resulting preedit.
+      // A case pins the candidate order, the committed text, the resulting preedit, or a
+      // candidate that must be dropped.
       const pinsOrder = (testCase.expect?.length ?? 0) >= 2;
       const pinsCommit = testCase.expectCommit !== undefined;
       const pinsPreedit = testCase.expectPreedit !== undefined;
-      expect(pinsOrder || pinsCommit || pinsPreedit, `${testCase.query} pins nothing`).toBe(true);
+      const pinsAbsent = (testCase.expectAbsent?.length ?? 0) > 0;
+      expect(
+        pinsOrder || pinsCommit || pinsPreedit || pinsAbsent,
+        `${testCase.query} pins nothing`
+      ).toBe(true);
     }
   });
 

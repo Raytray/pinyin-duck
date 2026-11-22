@@ -33,3 +33,7 @@ Everything under `packages/windows/rime/` and `packages/macos/rime/` is generate
 librime's dictionary format has no field for a definition. A `.dict.yaml` row is text, code and weight; `EntryCollector` never reads a comment column, so the definition column the emitter writes is dropped at compile time. It is still written, so a librime that grows a definition field would deliver it without a rebuild.
 
 What actually puts the English on each candidate is the Lua filter. The build also writes `lua/pinyinduck_gloss.lua`, a table from candidate text and toneless code to definition, and the schema's `lua_filter@*pinyinduck_gloss_filter` looks every candidate up in it. Without librime-lua, or without the sidecar, the filter passes candidates through unchanged and each shows its spelling instead.
+
+## Sentence candidates
+
+librime's `script_translator` ignores `enable_sentence: false` and offers a sentence of its own, ranked first and unglossed (for `woxianghekafei`, 我祥和咖啡). The same Lua filter drops every candidate whose type is `sentence` before it looks up glosses, and does so even when the sidecar failed to load, so Rime stays one word at a time. `npm run test:rime` pins this: 我 first with its gloss, 我祥和咖啡 absent, and `nihao` still giving 你好 first.

@@ -18,7 +18,7 @@
 #   npm run setup:rime        # from the repository root
 #
 # Overridable:
-#   RIME_TAG       librime version to build. 1.11.2 is what Weasel 0.17.4 bundles, so
+#   RIME_TAG       librime version to build. 1.13.1 is what Weasel 0.17.4 bundles, so
 #                  the test runs against the same engine the Windows host will use.
 #   BOOST_SERIES   Boost minor version to fetch, e.g. 1.74. Auto-detected on Ubuntu.
 #   LIBPKGCONF_PKG libpkgconf package name to fetch (e.g. libpkgconf3, libpkgconf7).
@@ -79,7 +79,7 @@ ensure_cmake() {
   step "Fetching cmake"
   local wheel
   wheel="$(mktemp -d)"
-  # Deliberately the 3.x line. librime 1.11.2 is a 2023 release and its bundled
+  # Deliberately the 3.x line. librime 1.13.1's bundled
   # yaml-cpp 0.8.0 still declares `cmake_minimum_required(VERSION 3.4)`, which CMake 4
   # refuses outright. Staying on 3.x keeps the pinned upstream source untouched instead of
   # patching a submodule to accommodate a build tool.

@@ -109,6 +109,11 @@ translator:
   # Dictionary lookup only, one word at a time. A sentence model would offer phrases that
   # cannot be explained, which is the opposite of what a learner needs, and it would rank
   # them above the word the learner was actually reaching for.
+  #
+  # This key does not do that. script_translator ignores enable_sentence (only
+  # table_translator reads it) and still builds a sentence candidate, so suppression is
+  # done by lua_filter@*pinyinduck_gloss_filter, which drops every candidate of type
+  # "sentence". The key stays for any translator that does honour it.
   enable_sentence: false
   # The dictionary already ranks by corpus frequency and HSK level. Letting a user's own
   # words rewrite that order is how a learner ends up typing their own bad habits back.

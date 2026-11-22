@@ -1,5 +1,16 @@
 -- PinyinDuck gloss filter for the Rime ({{HOST}}) {{OS}} input method.
 --
+-- This filter now does two jobs, and keeps its old name because renaming it would leave
+-- the old file behind in existing installs:
+--
+--   1. It drops librime's sentence candidates (cand.type == "sentence"), so Rime stays
+--      one word at a time. script_translator ignores `enable_sentence: false` and would
+--      otherwise rank an unglossed sentence first: for woxianghekafei it picks the
+--      fewest-words reading 我祥和咖啡, not 我想喝咖啡, and no gloss could explain that.
+--      This runs before the gloss lookup and even when the sidecar failed to load.
+--      `translator/max_sentences` is not used: librime reads it only from 1.17.0.
+--   2. It puts the English definition on each remaining candidate, as below.
+--
 -- Rime's dictionary format has no field a candidate can display the definition from:
 -- librime's EntryCollector reads text/code/weight and discards the comment column. The
 -- build emits lua/pinyinduck_gloss.lua from that comment column, and this filter puts
@@ -44,13 +55,17 @@ end
 -- never touched.
 local function filter(input)
   for cand in input:iter() do
-    if gloss then
-      local resolved = resolve_gloss(cand.text, cand.comment, cand.preedit)
-      if resolved then
-        cand:get_genuine().comment = resolved
+    -- Job 1: drop sentences first, whether or not the sidecar loaded.
+    if cand.type ~= "sentence" then
+      -- Job 2: gloss what is left.
+      if gloss then
+        local resolved = resolve_gloss(cand.text, cand.comment, cand.preedit)
+        if resolved then
+          cand:get_genuine().comment = resolved
+        end
       end
+      yield(cand)
     end
-    yield(cand)
   end
 end
 
