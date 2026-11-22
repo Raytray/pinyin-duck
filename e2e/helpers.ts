@@ -42,9 +42,19 @@ export async function gotoApp(page: Page) {
   await expect(editor(page)).toBeFocused();
 }
 
-/** Asserts the hanzi of the visible candidates, in order. */
+/**
+ * Asserts the hanzi of the visible candidates, in order, a Sentence candidate counting as
+ * its whole sentence. A sentence row draws its words in separate blocks, so each row's Hanzi
+ * is read from its ⓘ button ("Details for 我想喝咖啡"), which every row has.
+ */
 export async function expectCandidates(page: Page, expected: string[]) {
-  await expect(page.locator('.candidate-hanzi')).toHaveText(expected);
+  await expect
+    .poll(() =>
+      candidateItems(page)
+        .getByRole('button', { name: /^Details for / })
+        .evaluateAll((buttons) => buttons.map((b) => b.getAttribute('aria-label')!.replace(/^Details for /, '')))
+    )
+    .toEqual(expected);
 }
 
 /** Asserts the tone-marked pinyin of the visible candidates, in order. */

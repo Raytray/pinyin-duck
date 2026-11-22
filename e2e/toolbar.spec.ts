@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 import { test, expect } from './coverage-fixtures.js';
 import {
   editor,
+  candidateItems,
   candidateList,
   scriptToggle,
   clearButton,
@@ -11,6 +12,7 @@ import {
   expectGlosses,
   textLength,
 } from './helpers';
+import { expectSentenceRow } from './sentence-helpers';
 
 test.beforeEach(async ({ page }) => {
   await gotoApp(page);
@@ -34,13 +36,11 @@ test('renders traditional characters after the script toggle', async ({ page }) 
   await editor(page).pressSequentially('xiexie');
   // 洩瀉 shares 泄泻 with 泄瀉, so it is a candidate of its own only in traditional script.
   await expectCandidates(page, ['謝謝', '泄瀉', '洩瀉', '寫些', '寫']);
-  await expectGlosses(page, [
-    'to thank / thanks / thank you',
-    '(TCM) to have diarrhea',
-    'variant of 泄瀉|泄泻',
-    // A Sentence candidate's gloss is its words' glosses joined.
-    'to write · classifier indicating a small amount or small number greater tha…',
-    'to write',
+  // The word rows' glosses; the Sentence candidate 寫些 glosses each of its words instead.
+  await expectGlosses(page, ['to thank / thanks / thank you', '(TCM) to have diarrhea', 'variant of 泄瀉|泄泻', 'to write']);
+  await expectSentenceRow(candidateItems(page).nth(3), [
+    { pinyin: 'xiě', hanzi: '寫', gloss: 'to write' },
+    { pinyin: 'xiē', hanzi: '些', gloss: 'classifier indicating a small amount or small number greater tha…' },
   ]);
   await editor(page).press(' ');
 

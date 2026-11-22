@@ -44,6 +44,8 @@ export interface OpenCandidateDetail {
   index: number;
   status: 'loading' | 'ready' | 'failed';
   view?: DetailView;
+  /** For a Sentence candidate, once ready: one detail view per word, in order. */
+  wordViews?: DetailView[];
 }
 
 const IDLE: DetailLoadState = { status: 'idle' };
@@ -240,6 +242,11 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     const base = { candidate: detailCandidate, index: selectedIndex };
     if (detailLoad.status === 'ready') {
       try {
+        // A Sentence candidate stands for no entry of its own: each word has its view.
+        if (detailCandidate.words) {
+          const wordViews = detailCandidate.words.map((word) => candidateDetail(word, script, detailLoad.file));
+          return { ...base, status: 'ready', wordViews };
+        }
         return { ...base, status: 'ready', view: candidateDetail(detailCandidate, script, detailLoad.file) };
       } catch {
         // An entry id the file does not hold: the file is broken, which reads as a failed load.

@@ -2,6 +2,8 @@ import React from 'react';
 import { Candidate } from '@pinyinduck/core';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { CandidateDetail } from './CandidateDetail';
+import { SentenceDetail } from './SentenceDetail';
+import { SentenceRow } from './SentenceRow';
 import type { OpenCandidateDetail } from '../hooks/usePinyinDuck';
 
 interface CandidatePopupProps {
@@ -96,14 +98,23 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
                 // the pointer would move the detail, and the rows with it, under the pointer.
                 onMouseEnter={detail ? undefined : () => onHoverIndex(idx)}
               >
-                <div className="candidate-left">
-                  <span className="candidate-num">{displayNum}</span>
-                  <span className="candidate-hanzi">{cand.hanzi}</span>
-                  <span className="candidate-pinyin">{cand.pinyinMarks}</span>
-                </div>
-                <div className="candidate-gloss" title={cand.shortGloss}>
-                  {cand.shortGloss}
-                </div>
+                {cand.words ? (
+                  <>
+                    <span className="candidate-num">{displayNum}</span>
+                    <SentenceRow words={cand.words} leftover={cand.remainingPinyin} />
+                  </>
+                ) : (
+                  <>
+                    <div className="candidate-left">
+                      <span className="candidate-num">{displayNum}</span>
+                      <span className="candidate-hanzi">{cand.hanzi}</span>
+                      <span className="candidate-pinyin">{cand.pinyinMarks}</span>
+                    </div>
+                    <div className="candidate-gloss" title={cand.shortGloss}>
+                      {cand.shortGloss}
+                    </div>
+                  </>
+                )}
                 <button
                   type="button"
                   className={`candidate-info ${detailHere ? 'on' : ''}`}
@@ -120,7 +131,12 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
                   ⓘ
                 </button>
               </div>
-              {detailHere && <CandidateDetail detail={detail} onCommit={() => onSelectCandidate(idx)} />}
+              {detailHere &&
+                (cand.words ? (
+                  <SentenceDetail detail={detail} onCommit={() => onSelectCandidate(idx)} />
+                ) : (
+                  <CandidateDetail detail={detail} onCommit={() => onSelectCandidate(idx)} />
+                ))}
             </React.Fragment>
           );
         })}
