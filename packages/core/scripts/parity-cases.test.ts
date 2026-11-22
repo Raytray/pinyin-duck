@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
-import { buildParityCases, queriesForWord, SEED_WORDS } from './parity-cases';
+import { ALTERNATIVES_CASES, buildParityCases, FIXED_WORD_CASES, queriesForWord, SEED_WORDS } from './parity-cases';
 
-const GOLDEN_PATH = path.resolve(__dirname, '../../android/app/src/test/resources/engine-parity.tsv');
+const RESOURCES = path.resolve(__dirname, '../../android/app/src/test/resources');
+const GOLDEN_PATH = path.join(RESOURCES, 'engine-parity.tsv');
+const FIXED_GOLDEN_PATH = path.join(RESOURCES, 'fixed-word-parity.tsv');
 
 describe('queriesForWord', () => {
   it('puts a tone, and a wrong tone, in each position', () => {
@@ -81,5 +83,36 @@ describe('engine-parity.tsv', () => {
 
   it('pins candidates outside the BMP', () => {
     expect(candidates.some((line) => [...line.split('\t')[0]].some((ch) => ch.codePointAt(0)! > 0xffff))).toBe(true);
+  });
+});
+
+describe('fixed-word-parity.tsv', () => {
+  const lines = fs.readFileSync(FIXED_GOLDEN_PATH, 'utf8').split('\n');
+  const records: string[][] = [];
+  for (const line of lines) {
+    if (line.startsWith('>')) records.push([line]);
+    else if (line !== '' && !line.startsWith('#')) records[records.length - 1]?.push(line);
+  }
+
+  it('pins exactly the fixed word cases, then the alternatives cases, in order', () => {
+    const fixedLines = (fixedWords: (typeof FIXED_WORD_CASES)[number]['fixedWords']) =>
+      fixedWords.map(({ start, end, word }) => `fixed\t${start}\t${end}\t${word.simplified}\t${word.traditional}\t${word.pinyinNumbers}`);
+    const expected = [
+      ...FIXED_WORD_CASES.map((c) => [`search\t${c.query}\tsimplified`, ...fixedLines(c.fixedWords)]),
+      ...ALTERNATIVES_CASES.map((c) => [`alternatives\t${c.query}\tsimplified\t${c.span.start}\t${c.span.end}`]),
+    ];
+    const pinned = records.map(([header, ...rest]) => {
+      const fields = header.slice(1).split('\t');
+      // Drop the count the generator appends to each header.
+      return [fields.slice(0, -1).join('\t'), ...rest.filter((line) => line.startsWith('fixed\t'))];
+    });
+    expect(pinned).toEqual(expected);
+  });
+
+  it('pins the edited sentence first, with its word spans', () => {
+    const [search] = records;
+    expect(search.find((line) => line.startsWith('spans '))).toBe('spans 0-2 2-7 7-9 9-14');
+    const firstCandidate = search.find((line) => !/^(>|fixed\t|segments |spans )/.test(line))!;
+    expect(firstCandidate.split('\t')[0]).toBe('我想喝咖啡');
   });
 });
