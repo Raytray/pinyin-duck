@@ -46,7 +46,8 @@ import org.robolectric.annotation.Config
 
 /**
  * The full-height IME window's content: the keyboard on the bottom edge and, while it is open,
- * the Candidate detail bubble in the space above it (#16, #21).
+ * the Candidate detail bubble in the space above it (#16, #21), opened from the strip or from the
+ * Expanded candidate list (#22).
  *
  * The window itself (size, insets, fullscreen) is `ImeWindowTest`'s and the rules for what
  * opens and closes the bubble are `CandidateDetailServiceTest`'s; this is what is drawn and
@@ -347,6 +348,121 @@ class KeyboardWindowTest {
         compose.onNode(inStrip("猫")).assertIsFocused()
     }
 
+    // --- from the Expanded candidate list (#22) -----------------------------------------
+
+    @Test
+    fun longPressingACardInTheExpandedListAsksForItsDetail() {
+        val recorder = Recorder()
+        show(recorder, candidates = listOf(candidate("他"), candidate("她")), expanded = true)
+
+        compose.onNodeWithText("她").performTouchInput { longClick() }
+
+        assertEquals(listOf(1), recorder.details)
+        assertEquals("a long press must not also commit", emptyList<Int>(), recorder.selected)
+    }
+
+    @Test
+    fun aTapOnACardInTheExpandedListStillCommitsIt() {
+        val recorder = Recorder()
+        show(recorder, candidates = listOf(candidate("他"), candidate("她")), expanded = true)
+
+        compose.onNodeWithText("她").performClick()
+
+        assertEquals(listOf(1), recorder.selected)
+        assertEquals(emptyList<Int>(), recorder.details)
+    }
+
+    @Test
+    fun eachCardInTheExpandedListOffersShowDetailsAsAnAccessibilityAction() {
+        val recorder = Recorder()
+        show(recorder, candidates = listOf(candidate("他"), candidate("她")), expanded = true)
+
+        val card = compose.onNodeWithText("她").fetchSemanticsNode()
+        val showDetails = card.config[SemanticsActions.CustomActions].single { it.label == "Show details" }
+        assertEquals("Show details", card.config[SemanticsActions.OnLongClick].label)
+        compose.runOnIdle { showDetails.action() }
+
+        assertEquals(listOf(1), recorder.details)
+    }
+
+    @Test
+    fun theBubbleSitsOverACardInTheRightColumnAndInsideTheRightEdge() {
+        // Two columns: 二 and 四 are on the right.
+        show(Recorder(), candidates = FOUR, detail = OpenDetail(3, FOUR[3], CAT_VIEW), expanded = true)
+
+        assertBubbleOverAnchorAndInsideWindow("四")
+        // Centred in the window it would end 40 dp short of the edge; over 四 it is clamped.
+        val right = compose.onRoot().getBoundsInRoot().right - 10.dp
+        assertEquals(right, compose.onNodeWithTag(DETAIL_BUBBLE_TAG).getBoundsInRoot().right)
+    }
+
+    @Test
+    fun theBubbleSitsOverACardInTheLeftColumnAndInsideTheLeftEdge() {
+        show(Recorder(), candidates = FOUR, detail = OpenDetail(2, FOUR[2], CAT_VIEW), expanded = true)
+
+        assertBubbleOverAnchorAndInsideWindow("三")
+        assertEquals(10.dp, compose.onNodeWithTag(DETAIL_BUBBLE_TAG).getBoundsInRoot().left)
+    }
+
+    @Test
+    fun withTheExpandedListOpenTheBubbleStaysAboveTheTallerKeyboardAndScrolls() {
+        // The list makes the keyboard taller, so the same window leaves less room above it.
+        val view = DetailView(counterpart = null, groups = listOf(group(senses = (1..20).map { "sense $it" })))
+        show(
+            Recorder(),
+            candidates = FOUR,
+            detail = OpenDetail(3, FOUR[3], view),
+            windowHeight = EXPANDED_SHORT_WINDOW_HEIGHT,
+            expanded = true,
+        )
+
+        val bubble = compose.onNodeWithTag(DETAIL_BUBBLE_TAG).getBoundsInRoot()
+        val keyboard = compose.onNodeWithTag(KEYBOARD_TAG).getBoundsInRoot()
+        assertTrue("there is no room above the keyboard (top ${keyboard.top})", keyboard.top > 100.dp)
+        assertTrue("bubble top ${bubble.top} is above the window", bubble.top >= 0.dp)
+        assertTrue("bubble bottom ${bubble.bottom} is below the keyboard top ${keyboard.top}", bubble.bottom <= keyboard.top)
+        compose.onNode(inBubble("sense 20")).assertIsNotDisplayed()
+        compose.onNode(inBubble("sense 20")).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun theBubbleFollowsTheCardWhenItSwitchesWithinTheExpandedList() {
+        var detail by mutableStateOf(OpenDetail(2, FOUR[2], CAT_VIEW))
+        show(Recorder(), candidates = FOUR, detailState = { detail }, expanded = true)
+        assertEquals(10.dp, compose.onNodeWithTag(DETAIL_BUBBLE_TAG).getBoundsInRoot().left)
+
+        detail = OpenDetail(1, FOUR[1], CAT_VIEW)
+        compose.waitForIdle()
+
+        assertBubbleOverAnchorAndInsideWindow("二")
+        assertEquals(compose.onRoot().getBoundsInRoot().right - 10.dp, compose.onNodeWithTag(DETAIL_BUBBLE_TAG).getBoundsInRoot().right)
+    }
+
+    @Test
+    fun aTapOnTheAppAreaClosesABubbleOpenedFromTheExpandedList() {
+        val recorder = Recorder()
+        show(recorder, candidates = FOUR, detail = OpenDetail(1, FOUR[1], CAT_VIEW), expanded = true)
+
+        compose.onNodeWithTag(APP_AREA_TAG).performTouchInput { click(topLeft) }
+
+        assertEquals(1, recorder.closes)
+        assertEquals(emptyList<Int>(), recorder.selected)
+    }
+
+    @Test
+    fun closingABubbleOpenedFromTheExpandedListReturnsFocusToTheCard() {
+        var detail by mutableStateOf<OpenDetail?>(null)
+        show(Recorder(), candidates = listOf(candidate("毛"), CAT), detailState = { detail }, expanded = true)
+
+        detail = OpenDetail(1, CAT, CAT_VIEW)
+        compose.waitForIdle()
+        compose.onNodeWithTag(DETAIL_HEADING_TAG).assertIsFocused()
+
+        detail = null
+        compose.waitForIdle()
+        compose.onNode(inStrip("猫")).assertIsFocused()
+    }
+
     // --- helpers ------------------------------------------------------------------
 
     /** A node with [text] inside the bubble. */
@@ -374,6 +490,7 @@ class KeyboardWindowTest {
         detail: OpenDetail? = null,
         windowHeight: Int = TALL_WINDOW_HEIGHT,
         detailState: () -> OpenDetail? = { detail },
+        expanded: Boolean = false,
     ) {
         compose.setContent {
             PinyinDuckTheme {
@@ -385,6 +502,7 @@ class KeyboardWindowTest {
                                 buffer = if (candidates.isEmpty()) "" else "mao",
                                 candidates = candidates,
                                 total = candidates.size,
+                                expanded = expanded,
                                 detail = detailState(),
                             ),
                         callbacks = recorder.callbacks(),
@@ -403,6 +521,12 @@ class KeyboardWindowTest {
          * ~100-150 dp #11 expects there.
          */
         const val SHORT_WINDOW_HEIGHT = 500
+
+        /**
+         * About 140 dp above the keyboard with the Expanded candidate list open, which makes the
+         * keyboard roughly 500 dp tall. (A landscape phone has no room at all then; see #22.)
+         */
+        const val EXPANDED_SHORT_WINDOW_HEIGHT = 640
 
         fun candidate(
             hanzi: String,
