@@ -36,6 +36,9 @@ export const dictionaryError = (page: Page) => page.getByRole('alert');
 export async function gotoApp(page: Page) {
   await page.goto('/');
   await expect(dictionaryStatus(page)).toContainText('entries');
+  // The bigram table loads after the dictionary and changes Sentence candidates, so the
+  // candidates a test pins are the ones once it has settled.
+  await expect(page.locator('.app-shell')).not.toHaveAttribute('data-bigrams', 'loading');
   await expect(editor(page)).toBeFocused();
 }
 

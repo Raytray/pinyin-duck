@@ -323,13 +323,25 @@ jobs:
       - name: Cache dictionary sources
         uses: actions/cache@v6
         with:
-          path: packages/core/.cache
+          path: |
+            packages/core/.cache
+            !packages/core/.cache/opensubtitles-*
           key: dictionary-sources-${{ hashFiles('packages/core/scripts/sources.ts') }}
+
+      - name: Cache the OpenSubtitles corpus
+        uses: actions/cache@v6
+        with:
+          path: packages/core/.cache/opensubtitles-zh_cn.txt.gz
+          key: opensubtitles-${{ hashFiles('packages/core/scripts/sources.ts') }}
 
       - name: Build dictionary assets
         run: |
           npm run build:dict
           npm run build:rime
+
+      # The site ships the bigram table, so the e2e tests pin candidates with it loaded.
+      - name: Build bigram table
+        run: npm run build:bigrams
 
       - name: Run E2E tests
         run: npm run test:e2e

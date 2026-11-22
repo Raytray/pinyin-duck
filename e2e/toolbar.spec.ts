@@ -20,7 +20,8 @@ test('starts in simplified script', async ({ page }) => {
   await expect(scriptToggle(page)).toContainText('简体 (Simplified)');
 
   await editor(page).pressSequentially('xiexie');
-  await expectCandidates(page, ['谢谢', '泄泻', '写', '些', '鞋']);
+  // 写些 is the Sentence candidate, right after the words that cover the whole query.
+  await expectCandidates(page, ['谢谢', '泄泻', '写些', '写', '些']);
   await editor(page).press(' ');
 
   await expect(editor(page)).toHaveValue('谢谢');
@@ -32,13 +33,14 @@ test('renders traditional characters after the script toggle', async ({ page }) 
 
   await editor(page).pressSequentially('xiexie');
   // 洩瀉 shares 泄泻 with 泄瀉, so it is a candidate of its own only in traditional script.
-  await expectCandidates(page, ['謝謝', '泄瀉', '洩瀉', '寫', '些']);
+  await expectCandidates(page, ['謝謝', '泄瀉', '洩瀉', '寫些', '寫']);
   await expectGlosses(page, [
     'to thank / thanks / thank you',
     '(TCM) to have diarrhea',
     'variant of 泄瀉|泄泻',
+    // A Sentence candidate's gloss is its words' glosses joined.
+    'to write · classifier indicating a small amount or small number greater tha…',
     'to write',
-    'classifier indicating a small amount or small number greater tha…',
   ]);
   await editor(page).press(' ');
 
@@ -49,11 +51,11 @@ test('toggles back to simplified without losing the composition buffer', async (
   await scriptToggle(page).click();
 
   await editor(page).pressSequentially('zaijian');
-  await expectCandidates(page, ['再見', '在建', '再建', '在', '再']);
+  await expectCandidates(page, ['再見', '在建', '再建', '再見全壘打', '在監獄']);
   await expect(page.locator('.candidate-buffer-text')).toHaveText('zaijian');
 
   await scriptToggle(page).click();
-  await expectCandidates(page, ['再见', '在建', '再建', '在', '再']);
+  await expectCandidates(page, ['再见', '在建', '再建', '再见全垒打', '在监狱']);
   await expect(page.locator('.candidate-buffer-text')).toHaveText('zaijian');
 });
 
@@ -167,19 +169,20 @@ test('credits the dictionary sources and their licenses', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(credits).toBeHidden();
   await editor(page).pressSequentially('xiexie');
-  await expectCandidates(page, ['谢谢', '泄泻', '写', '些', '鞋']);
+  // 写些 is the Sentence candidate, right after the words that cover the whole query.
+  await expectCandidates(page, ['谢谢', '泄泻', '写些', '写', '些']);
 });
 
-// "fafang" has 23 traditional candidates but 18 simplified ones (one simplified candidate
+// "fafang" has 24 traditional candidates but 19 simplified ones (one simplified candidate
 // can stand for several headwords, such as 发 for 發 and 髮), so the last traditional
 // candidate is past the end of the simplified list.
 async function highlightLastTraditionalFafang(page: Page) {
   await scriptToggle(page).click();
   await editor(page).pressSequentially('fafang');
   for (let i = 0; i < 4; i++) await editor(page).press(']');
-  for (let i = 0; i < 2; i++) await editor(page).press('ArrowRight');
-  await expectCandidates(page, ['茷', '醱', '鍅']);
-  await expect(page.locator('.candidate-hanzi').nth(2)).toHaveText('鍅');
+  for (let i = 0; i < 3; i++) await editor(page).press('ArrowRight');
+  await expectCandidates(page, ['筏', '茷', '醱', '鍅']);
+  await expect(page.locator('.candidate-hanzi').nth(3)).toHaveText('鍅');
 }
 
 test('a script toggle mid-composition goes back to the first candidate for punctuation', async ({
@@ -188,7 +191,7 @@ test('a script toggle mid-composition goes back to the first candidate for punct
   await highlightLastTraditionalFafang(page);
 
   await scriptToggle(page).click();
-  await expectCandidates(page, ['发放', '发', '法', '罚', '伐']);
+  await expectCandidates(page, ['发放', '法放', '发', '法', '罚']);
 
   await editor(page).press(',');
   await expect(editor(page)).toHaveValue('发放，');
