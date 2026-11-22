@@ -48,8 +48,11 @@ const val LEAF_KIND = 1
  */
 const val NO_PAGE = -1
 
-/** Raised when the asset is not a readable PinyinDuck B-tree. */
-class DictionaryFormatException(
+/**
+ * Raised when an asset is not a readable PinyinDuck B-tree, or its Candidate detail file
+ * cannot be read alongside it. Open so the detail file's build id mismatch can be told apart.
+ */
+open class DictionaryFormatException(
     message: String,
 ) : RuntimeException(message)
 
@@ -166,6 +169,19 @@ internal class ByteReader(
         view.position(position)
         view.get(bytes)
         position += length
+        return String(bytes, Charsets.UTF_8)
+    }
+
+    /** A UTF-8 string ended by a zero byte, as the Candidate detail file writes them. */
+    fun zeroTerminatedString(): String {
+        var end = position
+        while (end < buffer.limit() && buffer.get(end) != 0.toByte()) end++
+        if (end >= buffer.limit()) throw DictionaryFormatException("a string has no end")
+        val bytes = ByteArray(end - position)
+        val view = buffer.duplicate()
+        view.position(position)
+        view.get(bytes)
+        position = end + 1
         return String(bytes, Charsets.UTF_8)
     }
 }
