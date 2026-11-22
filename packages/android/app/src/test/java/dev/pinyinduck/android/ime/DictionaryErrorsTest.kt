@@ -1,5 +1,6 @@
 package dev.pinyinduck.android.ime
 
+import dev.pinyinduck.android.engine.DetailBuildMismatchException
 import dev.pinyinduck.android.engine.DictionaryFormatException
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -44,6 +45,25 @@ class DictionaryErrorsTest {
             )
         assertTrue(message, message.contains("unreadable"))
         assertTrue(message, message.contains("not a PinyinDuck B-tree"))
+        assertTrue(message, message.contains("build:dict"))
+    }
+
+    @Test
+    fun aDetailFileFromAnotherBuildSaysToRebuildBoth() {
+        // The pair is built together, so a mismatch means stale assets, not a corrupt one.
+        val message = DictionaryErrors.describe(DetailBuildMismatchException(0x07, 0x08))
+        assertTrue(message, message.contains("detail.bin"))
+        assertTrue(message, message.contains("different builds"))
+        assertTrue(message, message.contains("00000007"))
+        assertTrue(message, message.contains("build:dict"))
+    }
+
+    @Test
+    fun aMissingDetailAssetIsNamed() {
+        // `openFd` names the asset it could not find, and blaming dictionary.btree would
+        // send the reader looking at the wrong file.
+        val message = DictionaryErrors.describe(FileNotFoundException("detail.bin"))
+        assertTrue(message, message.contains("detail.bin is missing"))
         assertTrue(message, message.contains("build:dict"))
     }
 

@@ -37,20 +37,22 @@ export async function loadDictionary(
     );
   }
 
-  return BTreeDictionary.open(await readBody(response, onProgress));
+  return BTreeDictionary.open(await readBody(response, onProgress, malformedDictionary));
 }
 
 /**
- * Reads the body, decompressing it on the way when it is gzip, into one buffer.
+ * Reads the body, decompressing it on the way when it is gzip, into one buffer. A body that
+ * will not decompress is reported through `malformed`. Shared with the Candidate detail file.
  *
  * A host that serves `.gz` files with `Content-Encoding: gzip` has the browser decompress
  * the body before it reaches the app. Checking the gzip magic number on the first bytes
  * covers that host and every other without asking which one this is. The body streams
  * straight into the decompressor, so the download is never held twice.
  */
-async function readBody(
+export async function readBody(
   response: Response,
-  onProgress: LoadDictionaryOptions['onProgress']
+  onProgress: LoadDictionaryOptions['onProgress'],
+  malformed: (reason: string) => Error
 ): Promise<Uint8Array> {
   // A response the host encoded has a `Content-Length` in encoded bytes, but the body
   // yields decoded ones, so the length is only a total when nothing was encoded.
@@ -58,7 +60,7 @@ async function readBody(
   const encoded = response.headers.has('content-encoding');
   const total = !encoded && Number.isFinite(length) && length > 0 ? length : null;
 
-  if (!response.body) throw malformedDictionary('empty response');
+  if (!response.body) throw malformed('empty response');
   const reader = response.body.getReader();
   let loaded = 0;
   // A failure reading the body (an abort, a dropped connection) is passed on as it is,
@@ -113,6 +115,6 @@ async function readBody(
     return new Uint8Array(await new Response(bytes).arrayBuffer());
   } catch (error) {
     if (readError !== undefined && error === readError) throw error;
-    throw malformedDictionary(error instanceof Error ? error.message : String(error));
+    throw malformed(error instanceof Error ? error.message : String(error));
   }
 }

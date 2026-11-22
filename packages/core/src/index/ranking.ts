@@ -27,6 +27,11 @@ export interface ScorableEntry {
   pinyinNumbers: string;
   frequency: number;
   hskLevel?: number;
+  /**
+   * Breaks the last tie, between headwords that share a simplified form and reading (後
+   * and 后, both hòu), which are separate candidates in traditional script.
+   */
+  traditional?: string;
 }
 
 /**
@@ -44,6 +49,8 @@ export interface CandidateSource extends ScorableEntry {
   traditional: string;
   pinyinMarks: string;
   shortGloss: string;
+  /** The entries the candidate stands for; see `Candidate.entryIds`. */
+  entryIds?: number[];
 }
 
 /**
@@ -137,8 +144,8 @@ export interface ScoredEntry<E extends ScorableEntry = ScorableEntry> {
 }
 
 /**
- * The one ordering every engine ranks by: score, then frequency, then key, form and
- * reading.
+ * The one ordering every engine ranks by: score, then frequency, then key, form,
+ * reading and traditional form.
  *
  * The TypeScript engine and the Android port sort with this exact chain, and use it to
  * pick which reading represents a hanzi that appears under several, so the same query
@@ -157,6 +164,9 @@ export function compareScored(a: ScoredEntry, b: ScoredEntry): number {
   if (a.entry.pinyinNumbers !== b.entry.pinyinNumbers) {
     return a.entry.pinyinNumbers < b.entry.pinyinNumbers ? -1 : 1;
   }
+  const traditionalA = a.entry.traditional ?? '';
+  const traditionalB = b.entry.traditional ?? '';
+  if (traditionalA !== traditionalB) return traditionalA < traditionalB ? -1 : 1;
   return 0;
 }
 
@@ -183,5 +193,6 @@ export function entryToCandidate(
     matchedPinyin: entry.pinyinClean,
     remainingPinyin,
     hskLevel: entry.hskLevel,
+    entryIds: entry.entryIds ?? [],
   };
 }

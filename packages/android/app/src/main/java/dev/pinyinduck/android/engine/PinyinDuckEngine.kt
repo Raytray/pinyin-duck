@@ -46,6 +46,8 @@ class PinyinDuckEngine(
         val chosen = LinkedHashMap<String, ScoredEntry>()
 
         fun consider(entry: StoredEntry) {
+            // A row for one script only stands in for rows the other script shows instead.
+            if (entry.onlyIn != null && entry.onlyIn != options.script) return
             val score = scoreEntry(entry.toScorable(), tonelessQuery, toneFilter)
             if (hasToneFilter && score <= 0) return
             val hanzi = if (options.script == ScriptType.TRADITIONAL) entry.traditional else entry.simplified
@@ -145,6 +147,9 @@ class PinyinDuckEngine(
                 .thenBy { it.entry.key }
                 .thenBy { it.entry.simplified }
                 .thenBy { it.entry.pinyinNumbers }
+                // Headwords sharing a simplified form and reading (後 and 后, both hòu) are
+                // separate candidates in traditional script and tie on everything else.
+                .thenBy { it.entry.traditional }
     }
 }
 
@@ -170,4 +175,5 @@ private fun StoredEntry.toCandidate(
     shortGloss = shortGloss,
     script = script,
     tonelessQuery = tonelessQuery,
+    entryIds = entryIds,
 )

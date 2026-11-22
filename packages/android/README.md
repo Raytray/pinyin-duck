@@ -1,6 +1,6 @@
 # PinyinDuck for Android
 
-PinyinDuck for Android is an on-screen keyboard (an Android input method) for Mandarin learners. It ranks candidates with the same rules as the web app and reads the same `dictionary.btree`, mapped straight out of the APK, so it works offline.
+PinyinDuck for Android is an on-screen keyboard (an Android input method) for Mandarin learners. It ranks candidates with the same rules as the web app and reads the same `dictionary.btree` and Candidate detail file (`detail.bin`), both mapped straight out of the APK, so it works offline.
 
 ## Requirements
 
@@ -20,7 +20,7 @@ cd packages/android
 ./gradlew assembleDebug
 ```
 
-`npm run build:dict` writes `packages/web/public/dictionary.btree`. It is gitignored, and the Android build copies it into the APK, so Gradle stops with an error naming that command if the file is missing.
+`npm run build:dict` writes `packages/web/public/dictionary.btree` and `detail.bin` beside it, from the same build. Both are gitignored, and the Android build copies them into the APK, so Gradle stops with an error naming that command if either file is missing. At runtime the keyboard refuses a `detail.bin` whose build id differs from the dictionary's, and says to rebuild both.
 
 The APK is written to:
 
@@ -81,7 +81,7 @@ With a hardware keyboard, the arrow keys move the highlighted candidate (up and 
 
 This is a Gradle project, not an npm package. The `package.json` only makes it a member of the root workspace.
 
-Unit tests run on the JVM with Robolectric, so no device or emulator is needed. They read the real `dictionary.btree`, so run `npm run build:dict` first.
+Unit tests run on the JVM with Robolectric, so no device or emulator is needed. They read the real `dictionary.btree` and `detail.bin`, so run `npm run build:dict` first.
 
 ```bash
 cd packages/android
@@ -98,7 +98,7 @@ The coverage report is written to `app/build/reports/jacoco/jacocoTestReport/htm
 
 ### Parity with the web engine
 
-The search engine in `engine/` is a Kotlin port of `packages/core/src/index/lazy-search.ts`. `PinyinEngineParityTest` compares it to the TypeScript engine's output, which is recorded in `app/src/test/resources/engine-parity.tsv`. If you change ranking, tie-breaking or search in core, regenerate that file and commit it with the change:
+The search engine in `engine/` is a Kotlin port of `packages/core/src/index/lazy-search.ts`. `PinyinEngineParityTest` compares it to the TypeScript engine's output, which is recorded in `app/src/test/resources/engine-parity.tsv`. If you change ranking, tie-breaking or search in core, regenerate that file and commit it with the change. The same command writes `detail-parity.tsv`, the Candidate detail view for every entry those queries reach, which the Kotlin detail view is pinned to; regenerate it when the detail file or the detail view in core changes:
 
 ```bash
 npm run build:parity -w @pinyinduck/core
@@ -106,7 +106,7 @@ npm run build:parity -w @pinyinduck/core
 
 ## Troubleshooting
 
-- `Missing …/dictionary.btree` during the build: run `npm run build:dict` at the repo root.
+- `Missing …/dictionary.btree` or `Missing …/detail.bin` during the build: run `npm run build:dict` at the repo root.
 - PinyinDuck isn't in the keyboard list: reinstall the APK, then enable it again under On-screen keyboard.
 - The candidate strip shows a dictionary error: the message names the cause and the fix. Usually the APK was built without the dictionary, so run `npm run build:dict` and rebuild.
 - `check` fails on coverage: open the HTML report, find the class named in the error and add tests for its uncovered branches.

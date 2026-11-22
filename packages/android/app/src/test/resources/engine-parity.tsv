@@ -7,13 +7,13 @@
 #
 # Pinned because packages/android is a port of this engine. Re-run the generator and
 # commit the result whenever the ranking rules or the dictionary change.
-# entries 122982
+# entries 125276
 # depth 12
 
 >nihao	simplified	38
 segments ni hao
 你好	nǐ hǎo	hello; hi
-你	nǐ	you (informal, as opposed to courteous 您)
+你	nǐ	you (informal, as opposed to courteous 您) / you (Note: In Taiwan…
 呢	ní	dense wool fabric (used for coats and jackets)
 尼	ní	Buddhist nun / (often used in phonetic spellings)
 妮	nī	girl / phonetic "ni" (in female names) / Taiwan pr.
@@ -22,13 +22,14 @@ segments ni hao
 腻	nì	greasy / soft / unctuous
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
-昵	nì	variant of 暱|昵
+昵	nì	familiar / intimate / to approach
 祢	nǐ	you (used to address a deity)
 
->nihao	traditional	38
+>nihao	traditional	42
 segments ni hao
 你好	nǐ hǎo	hello; hi
 你	nǐ	you (informal, as opposed to courteous 您)
+妳	nǐ	you (Note: In Taiwan, 妳 is used to address females, but in mainl…
 呢	ní	dense wool fabric (used for coats and jackets)
 尼	ní	Buddhist nun / (often used in phonetic spellings)
 妮	nī	girl / phonetic "ni" (in female names) / Taiwan pr.
@@ -38,14 +39,13 @@ segments ni hao
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
 昵	nì	variant of 暱|昵
-祢	nǐ	you (used to address a deity)
 
 >ni3hao3	simplified	12
 segments ni3 hao3
 你好	nǐ hǎo	hello; hi
-你	nǐ	you (informal, as opposed to courteous 您)
+你	nǐ	you (informal, as opposed to courteous 您) / you (Note: In Taiwan…
 祢	nǐ	you (used to address a deity)
-拟	nǐ	doubtful / suspicious / to emulate
+拟	nǐ	to plan to / doubtful
 伱	nǐ	old variant of 你
 伲	nǐ	variant of 你
 儞	nǐ	old variant of 你
@@ -55,25 +55,25 @@ segments ni3 hao3
 袮	nǐ	You / Thou (of deity)
 鿭	nǐ	(chemistry) nihonium
 
->ni3hao3	traditional	12
+>ni3hao3	traditional	14
 segments ni3 hao3
 你好	nǐ hǎo	hello; hi
 你	nǐ	you (informal, as opposed to courteous 您)
+妳	nǐ	you (Note: In Taiwan, 妳 is used to address females, but in mainl…
 祢	nǐ	you (used to address a deity)
 儗	nǐ	doubtful / suspicious / to emulate
+擬	nǐ	to plan to / to draft (a plan) / to imitate
 伱	nǐ	old variant of 你
 伲	nǐ	variant of 你
 儞	nǐ	old variant of 你
 旎	nǐ	used in 旖旎
 柅	nǐ	(tree) / to stop
 薿	nǐ	luxuriant (of plants)
-袮	nǐ	You / Thou (of deity)
-鉨	nǐ	(chemistry) nihonium
 
 >ni'hao	simplified	38
 segments ni hao
 你好	nǐ hǎo	hello; hi
-你	nǐ	you (informal, as opposed to courteous 您)
+你	nǐ	you (informal, as opposed to courteous 您) / you (Note: In Taiwan…
 呢	ní	dense wool fabric (used for coats and jackets)
 尼	ní	Buddhist nun / (often used in phonetic spellings)
 妮	nī	girl / phonetic "ni" (in female names) / Taiwan pr.
@@ -82,13 +82,14 @@ segments ni hao
 腻	nì	greasy / soft / unctuous
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
-昵	nì	variant of 暱|昵
+昵	nì	familiar / intimate / to approach
 祢	nǐ	you (used to address a deity)
 
->ni'hao	traditional	38
+>ni'hao	traditional	42
 segments ni hao
 你好	nǐ hǎo	hello; hi
 你	nǐ	you (informal, as opposed to courteous 您)
+妳	nǐ	you (Note: In Taiwan, 妳 is used to address females, but in mainl…
 呢	ní	dense wool fabric (used for coats and jackets)
 尼	ní	Buddhist nun / (often used in phonetic spellings)
 妮	nī	girl / phonetic "ni" (in female names) / Taiwan pr.
@@ -98,14 +99,13 @@ segments ni hao
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
 昵	nì	variant of 暱|昵
-祢	nǐ	you (used to address a deity)
 
 >ni3'hao3	simplified	12
 segments ni3 hao3
 你好	nǐ hǎo	hello; hi
-你	nǐ	you (informal, as opposed to courteous 您)
+你	nǐ	you (informal, as opposed to courteous 您) / you (Note: In Taiwan…
 祢	nǐ	you (used to address a deity)
-拟	nǐ	doubtful / suspicious / to emulate
+拟	nǐ	to plan to / doubtful
 伱	nǐ	old variant of 你
 伲	nǐ	variant of 你
 儞	nǐ	old variant of 你
@@ -115,27 +115,27 @@ segments ni3 hao3
 袮	nǐ	You / Thou (of deity)
 鿭	nǐ	(chemistry) nihonium
 
->ni3'hao3	traditional	12
+>ni3'hao3	traditional	14
 segments ni3 hao3
 你好	nǐ hǎo	hello; hi
 你	nǐ	you (informal, as opposed to courteous 您)
+妳	nǐ	you (Note: In Taiwan, 妳 is used to address females, but in mainl…
 祢	nǐ	you (used to address a deity)
 儗	nǐ	doubtful / suspicious / to emulate
+擬	nǐ	to plan to / to draft (a plan) / to imitate
 伱	nǐ	old variant of 你
 伲	nǐ	variant of 你
 儞	nǐ	old variant of 你
 旎	nǐ	used in 旖旎
 柅	nǐ	(tree) / to stop
 薿	nǐ	luxuriant (of plants)
-袮	nǐ	You / Thou (of deity)
-鉨	nǐ	(chemistry) nihonium
 
 >ni3 hao3	simplified	12
 segments ni3 hao3
 你好	nǐ hǎo	hello; hi
-你	nǐ	you (informal, as opposed to courteous 您)
+你	nǐ	you (informal, as opposed to courteous 您) / you (Note: In Taiwan…
 祢	nǐ	you (used to address a deity)
-拟	nǐ	doubtful / suspicious / to emulate
+拟	nǐ	to plan to / doubtful
 伱	nǐ	old variant of 你
 伲	nǐ	variant of 你
 儞	nǐ	old variant of 你
@@ -145,25 +145,25 @@ segments ni3 hao3
 袮	nǐ	You / Thou (of deity)
 鿭	nǐ	(chemistry) nihonium
 
->ni3 hao3	traditional	12
+>ni3 hao3	traditional	14
 segments ni3 hao3
 你好	nǐ hǎo	hello; hi
 你	nǐ	you (informal, as opposed to courteous 您)
+妳	nǐ	you (Note: In Taiwan, 妳 is used to address females, but in mainl…
 祢	nǐ	you (used to address a deity)
 儗	nǐ	doubtful / suspicious / to emulate
+擬	nǐ	to plan to / to draft (a plan) / to imitate
 伱	nǐ	old variant of 你
 伲	nǐ	variant of 你
 儞	nǐ	old variant of 你
 旎	nǐ	used in 旖旎
 柅	nǐ	(tree) / to stop
 薿	nǐ	luxuriant (of plants)
-袮	nǐ	You / Thou (of deity)
-鉨	nǐ	(chemistry) nihonium
 
 >Nihao	simplified	38
 segments ni hao
 你好	nǐ hǎo	hello; hi
-你	nǐ	you (informal, as opposed to courteous 您)
+你	nǐ	you (informal, as opposed to courteous 您) / you (Note: In Taiwan…
 呢	ní	dense wool fabric (used for coats and jackets)
 尼	ní	Buddhist nun / (often used in phonetic spellings)
 妮	nī	girl / phonetic "ni" (in female names) / Taiwan pr.
@@ -172,13 +172,14 @@ segments ni hao
 腻	nì	greasy / soft / unctuous
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
-昵	nì	variant of 暱|昵
+昵	nì	familiar / intimate / to approach
 祢	nǐ	you (used to address a deity)
 
->Nihao	traditional	38
+>Nihao	traditional	42
 segments ni hao
 你好	nǐ hǎo	hello; hi
 你	nǐ	you (informal, as opposed to courteous 您)
+妳	nǐ	you (Note: In Taiwan, 妳 is used to address females, but in mainl…
 呢	ní	dense wool fabric (used for coats and jackets)
 尼	ní	Buddhist nun / (often used in phonetic spellings)
 妮	nī	girl / phonetic "ni" (in female names) / Taiwan pr.
@@ -188,14 +189,13 @@ segments ni hao
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
 昵	nì	variant of 暱|昵
-祢	nǐ	you (used to address a deity)
 
 >ni3hao	simplified	12
 segments ni3 hao
 你好	nǐ hǎo	hello; hi
-你	nǐ	you (informal, as opposed to courteous 您)
+你	nǐ	you (informal, as opposed to courteous 您) / you (Note: In Taiwan…
 祢	nǐ	you (used to address a deity)
-拟	nǐ	doubtful / suspicious / to emulate
+拟	nǐ	to plan to / doubtful
 伱	nǐ	old variant of 你
 伲	nǐ	variant of 你
 儞	nǐ	old variant of 你
@@ -205,20 +205,20 @@ segments ni3 hao
 袮	nǐ	You / Thou (of deity)
 鿭	nǐ	(chemistry) nihonium
 
->ni3hao	traditional	12
+>ni3hao	traditional	14
 segments ni3 hao
 你好	nǐ hǎo	hello; hi
 你	nǐ	you (informal, as opposed to courteous 您)
+妳	nǐ	you (Note: In Taiwan, 妳 is used to address females, but in mainl…
 祢	nǐ	you (used to address a deity)
 儗	nǐ	doubtful / suspicious / to emulate
+擬	nǐ	to plan to / to draft (a plan) / to imitate
 伱	nǐ	old variant of 你
 伲	nǐ	variant of 你
 儞	nǐ	old variant of 你
 旎	nǐ	used in 旖旎
 柅	nǐ	(tree) / to stop
 薿	nǐ	luxuriant (of plants)
-袮	nǐ	You / Thou (of deity)
-鉨	nǐ	(chemistry) nihonium
 
 >ni4hao	simplified	13
 segments ni4 hao
@@ -226,7 +226,7 @@ segments ni4 hao
 腻	nì	greasy / soft / unctuous
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
-昵	nì	variant of 暱|昵
+昵	nì	familiar / intimate / to approach
 睨	nì	to look askance at
 伲	nì	(dialect) I / my / we
 匿	nì	to hide
@@ -235,25 +235,25 @@ segments ni4 hao
 氼	nì	old variant of 溺
 溺	nì	to drown / to indulge / addicted to
 
->ni4hao	traditional	13
+>ni4hao	traditional	14
 segments ni4 hao
 泥	nì	restrained
 膩	nì	greasy / soft / unctuous
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
 昵	nì	variant of 暱|昵
+暱	nì	familiar / intimate / to approach
 睨	nì	to look askance at
 伲	nì	(dialect) I / my / we
 匿	nì	to hide
 堄	nì	parapet
 惄	nì	distressed / famished
 氼	nì	old variant of 溺
-溺	nì	to drown / to indulge / addicted to
 
 >nihao3	simplified	38
 segments ni hao3
 你好	nǐ hǎo	hello; hi
-你	nǐ	you (informal, as opposed to courteous 您)
+你	nǐ	you (informal, as opposed to courteous 您) / you (Note: In Taiwan…
 呢	ní	dense wool fabric (used for coats and jackets)
 尼	ní	Buddhist nun / (often used in phonetic spellings)
 妮	nī	girl / phonetic "ni" (in female names) / Taiwan pr.
@@ -262,13 +262,14 @@ segments ni hao3
 腻	nì	greasy / soft / unctuous
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
-昵	nì	variant of 暱|昵
+昵	nì	familiar / intimate / to approach
 祢	nǐ	you (used to address a deity)
 
->nihao3	traditional	38
+>nihao3	traditional	42
 segments ni hao3
 你好	nǐ hǎo	hello; hi
 你	nǐ	you (informal, as opposed to courteous 您)
+妳	nǐ	you (Note: In Taiwan, 妳 is used to address females, but in mainl…
 呢	ní	dense wool fabric (used for coats and jackets)
 尼	ní	Buddhist nun / (often used in phonetic spellings)
 妮	nī	girl / phonetic "ni" (in female names) / Taiwan pr.
@@ -278,7 +279,6 @@ segments ni hao3
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
 昵	nì	variant of 暱|昵
-祢	nǐ	you (used to address a deity)
 
 >ni4hao3	simplified	13
 segments ni4 hao3
@@ -286,7 +286,7 @@ segments ni4 hao3
 腻	nì	greasy / soft / unctuous
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
-昵	nì	variant of 暱|昵
+昵	nì	familiar / intimate / to approach
 睨	nì	to look askance at
 伲	nì	(dialect) I / my / we
 匿	nì	to hide
@@ -295,24 +295,24 @@ segments ni4 hao3
 氼	nì	old variant of 溺
 溺	nì	to drown / to indulge / addicted to
 
->ni4hao3	traditional	13
+>ni4hao3	traditional	14
 segments ni4 hao3
 泥	nì	restrained
 膩	nì	greasy / soft / unctuous
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
 昵	nì	variant of 暱|昵
+暱	nì	familiar / intimate / to approach
 睨	nì	to look askance at
 伲	nì	(dialect) I / my / we
 匿	nì	to hide
 堄	nì	parapet
 惄	nì	distressed / famished
 氼	nì	old variant of 溺
-溺	nì	to drown / to indulge / addicted to
 
 >nihao4	simplified	37
 segments ni hao4
-你	nǐ	you (informal, as opposed to courteous 您)
+你	nǐ	you (informal, as opposed to courteous 您) / you (Note: In Taiwan…
 呢	ní	dense wool fabric (used for coats and jackets)
 尼	ní	Buddhist nun / (often used in phonetic spellings)
 妮	nī	girl / phonetic "ni" (in female names) / Taiwan pr.
@@ -321,13 +321,14 @@ segments ni hao4
 腻	nì	greasy / soft / unctuous
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
-昵	nì	variant of 暱|昵
+昵	nì	familiar / intimate / to approach
 祢	nǐ	you (used to address a deity)
 睨	nì	to look askance at
 
->nihao4	traditional	37
+>nihao4	traditional	41
 segments ni hao4
 你	nǐ	you (informal, as opposed to courteous 您)
+妳	nǐ	you (Note: In Taiwan, 妳 is used to address females, but in mainl…
 呢	ní	dense wool fabric (used for coats and jackets)
 尼	ní	Buddhist nun / (often used in phonetic spellings)
 妮	nī	girl / phonetic "ni" (in female names) / Taiwan pr.
@@ -337,14 +338,13 @@ segments ni hao4
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
 昵	nì	variant of 暱|昵
-祢	nǐ	you (used to address a deity)
-睨	nì	to look askance at
+暱	nì	familiar / intimate / to approach
 
 >ni3hao4	simplified	11
 segments ni3 hao4
-你	nǐ	you (informal, as opposed to courteous 您)
+你	nǐ	you (informal, as opposed to courteous 您) / you (Note: In Taiwan…
 祢	nǐ	you (used to address a deity)
-拟	nǐ	doubtful / suspicious / to emulate
+拟	nǐ	to plan to / doubtful
 伱	nǐ	old variant of 你
 伲	nǐ	variant of 你
 儞	nǐ	old variant of 你
@@ -354,11 +354,13 @@ segments ni3 hao4
 袮	nǐ	You / Thou (of deity)
 鿭	nǐ	(chemistry) nihonium
 
->ni3hao4	traditional	11
+>ni3hao4	traditional	13
 segments ni3 hao4
 你	nǐ	you (informal, as opposed to courteous 您)
+妳	nǐ	you (Note: In Taiwan, 妳 is used to address females, but in mainl…
 祢	nǐ	you (used to address a deity)
 儗	nǐ	doubtful / suspicious / to emulate
+擬	nǐ	to plan to / to draft (a plan) / to imitate
 伱	nǐ	old variant of 你
 伲	nǐ	variant of 你
 儞	nǐ	old variant of 你
@@ -366,7 +368,6 @@ segments ni3 hao4
 柅	nǐ	(tree) / to stop
 薿	nǐ	luxuriant (of plants)
 袮	nǐ	You / Thou (of deity)
-鉨	nǐ	(chemistry) nihonium
 
 >zhongguo	simplified	162
 segments zhong guo
@@ -383,7 +384,7 @@ segments zhong guo
 中国产	zhōng guó chǎn	made in China / home-grown (talent)
 中国长城工业公司	zhōng guó cháng chéng gōng yè gōng sī	China Great Wall Industry Corporation (CGWIC)
 
->zhongguo	traditional	162
+>zhongguo	traditional	165
 segments zhong guo
 中國	zhōng guó	China
 種	zhǒng	seed / species / kind
@@ -413,7 +414,7 @@ segments zhong1 guo2
 中国长城工业公司	zhōng guó cháng chéng gōng yè gōng sī	China Great Wall Industry Corporation (CGWIC)
 中国城	zhōng guó chéng	Chinatown
 
->zhong1guo2	traditional	149
+>zhong1guo2	traditional	150
 segments zhong1 guo2
 中國	zhōng guó	China
 中國白眉朱雀	zhōng guó bái méi zhū què	(bird species of China) Chinese white-browed rosefinch (Carpodac…
@@ -443,7 +444,7 @@ segments zhong guo
 中国产	zhōng guó chǎn	made in China / home-grown (talent)
 中国长城工业公司	zhōng guó cháng chéng gōng yè gōng sī	China Great Wall Industry Corporation (CGWIC)
 
->zhong'guo	traditional	162
+>zhong'guo	traditional	165
 segments zhong guo
 中國	zhōng guó	China
 種	zhǒng	seed / species / kind
@@ -473,7 +474,7 @@ segments zhong1 guo2
 中国长城工业公司	zhōng guó cháng chéng gōng yè gōng sī	China Great Wall Industry Corporation (CGWIC)
 中国城	zhōng guó chéng	Chinatown
 
->zhong1'guo2	traditional	149
+>zhong1'guo2	traditional	150
 segments zhong1 guo2
 中國	zhōng guó	China
 中國白眉朱雀	zhōng guó bái méi zhū què	(bird species of China) Chinese white-browed rosefinch (Carpodac…
@@ -503,7 +504,7 @@ segments zhong1 guo2
 中国长城工业公司	zhōng guó cháng chéng gōng yè gōng sī	China Great Wall Industry Corporation (CGWIC)
 中国城	zhōng guó chéng	Chinatown
 
->zhong1 guo2	traditional	149
+>zhong1 guo2	traditional	150
 segments zhong1 guo2
 中國	zhōng guó	China
 中國白眉朱雀	zhōng guó bái méi zhū què	(bird species of China) Chinese white-browed rosefinch (Carpodac…
@@ -533,7 +534,7 @@ segments zhong guo
 中国产	zhōng guó chǎn	made in China / home-grown (talent)
 中国长城工业公司	zhōng guó cháng chéng gōng yè gōng sī	China Great Wall Industry Corporation (CGWIC)
 
->Zhongguo	traditional	162
+>Zhongguo	traditional	165
 segments zhong guo
 中國	zhōng guó	China
 種	zhǒng	seed / species / kind
@@ -563,7 +564,7 @@ segments zhong1 guo
 中国长城工业公司	zhōng guó cháng chéng gōng yè gōng sī	China Great Wall Industry Corporation (CGWIC)
 中国城	zhōng guó chéng	Chinatown
 
->zhong1guo	traditional	149
+>zhong1guo	traditional	150
 segments zhong1 guo
 中國	zhōng guó	China
 中國白眉朱雀	zhōng guó bái méi zhū què	(bird species of China) Chinese white-browed rosefinch (Carpodac…
@@ -599,7 +600,7 @@ segments zhong guo2
 中国长城工业公司	zhōng guó cháng chéng gōng yè gōng sī	China Great Wall Industry Corporation (CGWIC)
 中国城	zhōng guó chéng	Chinatown
 
->zhongguo2	traditional	162
+>zhongguo2	traditional	165
 segments zhong guo2
 中國	zhōng guó	China
 中國白眉朱雀	zhōng guó bái méi zhū què	(bird species of China) Chinese white-browed rosefinch (Carpodac…
@@ -624,35 +625,35 @@ segments zhong2 guo2
 segments zhong guo3
 种	zhǒng	seed / species / kind
 重	zhòng	heavy / serious / to attach importance to
-钟	zhōng	handleless cup; goblet / (bound form) to concentrate (one's affe…
+钟	zhōng	a (large) bell (CL:架) / handleless cup; goblet
 中	zhōng	within; among; in / middle; center / while (doing sth); during
 终	zhōng	end / finish
 忠	zhōng	loyal; devoted; faithful
-冢	zhǒng	mound / burial mound / senior (i.e. eldest child or senior in ra…
-众	zhòng	abbr. for 眾議院|众议院, House of Representatives
+冢	zhǒng	mound / burial mound (variant of 冢)
+众	zhòng	(bound form) crowd; multitude / (bound form) many; numerous
 肿	zhǒng	to swell / swelling / swollen
 伀	zhōng	restless / agitated
 仲	zhòng	second month of a season / middle / intermediate
 柊	zhōng	used in 柊葉|柊叶
 
->zhongguo3	traditional	27
+>zhongguo3	traditional	30
 segments zhong guo3
 種	zhǒng	seed / species / kind
 重	zhòng	heavy / serious / to attach importance to
 鍾	zhōng	handleless cup; goblet / (bound form) to concentrate (one's affe…
+鐘	zhōng	a (large) bell (CL:架) / clock (CL:座) / amount of time; o'clock (…
 中	zhōng	within; among; in / middle; center / while (doing sth); during
 終	zhōng	end / finish
 忠	zhōng	loyal; devoted; faithful
 冢	zhǒng	mound / burial mound / senior (i.e. eldest child or senior in ra…
-眾	zhòng	abbr. for 眾議院|众议院, House of Representatives
+塚	zhǒng	burial mound (variant of 冢)
+眾	zhòng	(bound form) crowd; multitude / (bound form) many; numerous
+衆	zhòng	variant of 眾|众
 腫	zhǒng	to swell / swelling / swollen
-伀	zhōng	restless / agitated
-仲	zhòng	second month of a season / middle / intermediate
-柊	zhōng	used in 柊葉|柊叶
 
 >zhong1guo3	simplified	14
 segments zhong1 guo3
-钟	zhōng	handleless cup; goblet / (bound form) to concentrate (one's affe…
+钟	zhōng	a (large) bell (CL:架) / handleless cup; goblet
 中	zhōng	within; among; in / middle; center / while (doing sth); during
 终	zhōng	end / finish
 忠	zhōng	loyal; devoted; faithful
@@ -665,9 +666,10 @@ segments zhong1 guo3
 盅	zhōng	handleless cup / goblet
 螽	zhōng	(grasshopper) / Gompsocleis mikado
 
->zhong1guo3	traditional	14
+>zhong1guo3	traditional	15
 segments zhong1 guo3
 鍾	zhōng	handleless cup; goblet / (bound form) to concentrate (one's affe…
+鐘	zhōng	a (large) bell (CL:架) / clock (CL:座) / amount of time; o'clock (…
 中	zhōng	within; among; in / middle; center / while (doing sth); during
 終	zhōng	end / finish
 忠	zhōng	loyal; devoted; faithful
@@ -678,7 +680,6 @@ segments zhong1 guo3
 汷	zhōng	name of an ancient river in Hubei
 泈	zhōng	old variant of 汷
 盅	zhōng	handleless cup / goblet
-螽	zhōng	(grasshopper) / Gompsocleis mikado
 
 >xian	simplified	1386
 segments xian
@@ -686,29 +687,29 @@ segments xian
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
 西安	xī ān	see 西安市 / see 西安區|西安区
 锡安	xī ān	Zion
-咸	xián	all / everyone / each
+咸	xián	all / salted
 县	xiàn	county / (Japan) prefecture
 嫌	xián	to dislike / suspicion / resentment
 见	xiàn	to appear / also written 現|现
 弦	xián	bow string / string of musical instrument / watchspring
-线	xiàn	variant of 線|线
+线	xiàn	thread / string / wire
 秈	xiān	common rice
 险	xiǎn	danger / dangerous / rugged
 
->xian	traditional	1387
+>xian	traditional	1408
 segments xian
 洗	xiǎn	used in 洗馬|洗马
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
 西安	xī ān	see 西安市 / see 西安區|西安区
 錫安	xī ān	Zion
 咸	xián	all / everyone / each
+鹹	xián	salted / salty / stingy
 縣	xiàn	county / (Japan) prefecture
 嫌	xián	to dislike / suspicion / resentment
 見	xiàn	to appear / also written 現|现
 弦	xián	bow string / string of musical instrument / watchspring
 綫	xiàn	variant of 線|线
-秈	xiān	common rice
-險	xiǎn	danger / dangerous / rugged
+線	xiàn	thread / string / wire
 
 >xi1an1	simplified	105
 segments xi1 an1
@@ -722,10 +723,10 @@ segments xi1 an1
 西安市	xī ān shì	Xi'an, sub-provincial city and capital of Shaanxi Province 陝西省|陕…
 西安事变	xī ān shì biàn	Xi'an Incident of 12th December 1936 (kidnap of Chiang Kai-shek…
 西安外国语大学	xī ān wài guó yǔ dà xué	Xi'an International Studies University (XISU)
-西	xī	the West / abbr. for Spain 西班牙 / Spanish
+西	xī	west
 溪	xī	creek / rivulet
 
->xi1an1	traditional	105
+>xi1an1	traditional	109
 segments xi1 an1
 西安	xī ān	see 西安市 / see 西安區|西安区
 錫安	xī ān	Zion
@@ -737,7 +738,7 @@ segments xi1 an1
 西安市	xī ān shì	Xi'an, sub-provincial city and capital of Shaanxi Province 陝西省|陕…
 西安事變	xī ān shì biàn	Xi'an Incident of 12th December 1936 (kidnap of Chiang Kai-shek…
 西安外國語大學	xī ān wài guó yǔ dà xué	Xi'an International Studies University (XISU)
-西	xī	the West / abbr. for Spain 西班牙 / Spanish
+西	xī	west
 溪	xī	creek / rivulet
 
 >xi'an	simplified	1547
@@ -746,29 +747,29 @@ segments xi an
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
 西安	xī ān	see 西安市 / see 西安區|西安区
 锡安	xī ān	Zion
-咸	xián	all / everyone / each
+咸	xián	all / salted
 县	xiàn	county / (Japan) prefecture
 嫌	xián	to dislike / suspicion / resentment
 见	xiàn	to appear / also written 現|现
 弦	xián	bow string / string of musical instrument / watchspring
-线	xiàn	variant of 線|线
+线	xiàn	thread / string / wire
 秈	xiān	common rice
 险	xiǎn	danger / dangerous / rugged
 
->xi'an	traditional	1548
+>xi'an	traditional	1578
 segments xi an
 洗	xiǎn	used in 洗馬|洗马
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
 西安	xī ān	see 西安市 / see 西安區|西安区
 錫安	xī ān	Zion
 咸	xián	all / everyone / each
+鹹	xián	salted / salty / stingy
 縣	xiàn	county / (Japan) prefecture
 嫌	xián	to dislike / suspicion / resentment
 見	xiàn	to appear / also written 現|现
 弦	xián	bow string / string of musical instrument / watchspring
 綫	xiàn	variant of 線|线
-秈	xiān	common rice
-險	xiǎn	danger / dangerous / rugged
+線	xiàn	thread / string / wire
 
 >xi1'an1	simplified	105
 segments xi1 an1
@@ -782,10 +783,10 @@ segments xi1 an1
 西安市	xī ān shì	Xi'an, sub-provincial city and capital of Shaanxi Province 陝西省|陕…
 西安事变	xī ān shì biàn	Xi'an Incident of 12th December 1936 (kidnap of Chiang Kai-shek…
 西安外国语大学	xī ān wài guó yǔ dà xué	Xi'an International Studies University (XISU)
-西	xī	the West / abbr. for Spain 西班牙 / Spanish
+西	xī	west
 溪	xī	creek / rivulet
 
->xi1'an1	traditional	105
+>xi1'an1	traditional	109
 segments xi1 an1
 西安	xī ān	see 西安市 / see 西安區|西安区
 錫安	xī ān	Zion
@@ -797,7 +798,7 @@ segments xi1 an1
 西安市	xī ān shì	Xi'an, sub-provincial city and capital of Shaanxi Province 陝西省|陕…
 西安事變	xī ān shì biàn	Xi'an Incident of 12th December 1936 (kidnap of Chiang Kai-shek…
 西安外國語大學	xī ān wài guó yǔ dà xué	Xi'an International Studies University (XISU)
-西	xī	the West / abbr. for Spain 西班牙 / Spanish
+西	xī	west
 溪	xī	creek / rivulet
 
 >xi1 an1	simplified	105
@@ -812,10 +813,10 @@ segments xi1 an1
 西安市	xī ān shì	Xi'an, sub-provincial city and capital of Shaanxi Province 陝西省|陕…
 西安事变	xī ān shì biàn	Xi'an Incident of 12th December 1936 (kidnap of Chiang Kai-shek…
 西安外国语大学	xī ān wài guó yǔ dà xué	Xi'an International Studies University (XISU)
-西	xī	the West / abbr. for Spain 西班牙 / Spanish
+西	xī	west
 溪	xī	creek / rivulet
 
->xi1 an1	traditional	105
+>xi1 an1	traditional	109
 segments xi1 an1
 西安	xī ān	see 西安市 / see 西安區|西安区
 錫安	xī ān	Zion
@@ -827,7 +828,7 @@ segments xi1 an1
 西安市	xī ān shì	Xi'an, sub-provincial city and capital of Shaanxi Province 陝西省|陕…
 西安事變	xī ān shì biàn	Xi'an Incident of 12th December 1936 (kidnap of Chiang Kai-shek…
 西安外國語大學	xī ān wài guó yǔ dà xué	Xi'an International Studies University (XISU)
-西	xī	the West / abbr. for Spain 西班牙 / Spanish
+西	xī	west
 溪	xī	creek / rivulet
 
 >Xian	simplified	1386
@@ -836,35 +837,35 @@ segments xian
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
 西安	xī ān	see 西安市 / see 西安區|西安区
 锡安	xī ān	Zion
-咸	xián	all / everyone / each
+咸	xián	all / salted
 县	xiàn	county / (Japan) prefecture
 嫌	xián	to dislike / suspicion / resentment
 见	xiàn	to appear / also written 現|现
 弦	xián	bow string / string of musical instrument / watchspring
-线	xiàn	variant of 線|线
+线	xiàn	thread / string / wire
 秈	xiān	common rice
 险	xiǎn	danger / dangerous / rugged
 
->Xian	traditional	1387
+>Xian	traditional	1408
 segments xian
 洗	xiǎn	used in 洗馬|洗马
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
 西安	xī ān	see 西安市 / see 西安區|西安区
 錫安	xī ān	Zion
 咸	xián	all / everyone / each
+鹹	xián	salted / salty / stingy
 縣	xiàn	county / (Japan) prefecture
 嫌	xián	to dislike / suspicion / resentment
 見	xiàn	to appear / also written 現|现
 弦	xián	bow string / string of musical instrument / watchspring
 綫	xiàn	variant of 線|线
-秈	xiān	common rice
-險	xiǎn	danger / dangerous / rugged
+線	xiàn	thread / string / wire
 
 >xi1an	simplified	105
 segments xi1 an
 西安	xī ān	see 西安市 / see 西安區|西安区
 锡安	xī ān	Zion
-西	xī	the West / abbr. for Spain 西班牙 / Spanish
+西	xī	west
 西鹌鹑	xī ān chún	(bird species of China) common quail (Coturnix coturnix)
 西安电子科技大学	xī ān diàn zǐ kē jì dà xué	Xidian University
 西安交通大学	xī ān jiāo tōng dà xué	Xi'an Jiaotong University (XJTU)
@@ -875,11 +876,11 @@ segments xi1 an
 西安外国语大学	xī ān wài guó yǔ dà xué	Xi'an International Studies University (XISU)
 溪	xī	creek / rivulet
 
->xi1an	traditional	105
+>xi1an	traditional	109
 segments xi1 an
 西安	xī ān	see 西安市 / see 西安區|西安区
 錫安	xī ān	Zion
-西	xī	the West / abbr. for Spain 西班牙 / Spanish
+西	xī	west
 西鵪鶉	xī ān chún	(bird species of China) common quail (Coturnix coturnix)
 西安電子科技大學	xī ān diàn zǐ kē jì dà xué	Xidian University
 西安交通大學	xī ān jiāo tōng dà xué	Xi'an Jiaotong University (XJTU)
@@ -892,7 +893,7 @@ segments xi1 an
 
 >xi2an	simplified	13
 segments xi2 an
-席	xí	woven mat / seat / banquet
+席	xí	woven mat / woven mat (variant of 席)
 袭	xí	(bound form) to raid; to attack / (bound form) to continue the p…
 习	xí	(bound form) to practice / to study / habit
 媳	xí	daughter-in-law
@@ -905,9 +906,10 @@ segments xi2 an
 霫	xí	Sui-Tang (premodern ethnic group)
 鳛	xí	loach / mudfish
 
->xi2an	traditional	13
+>xi2an	traditional	14
 segments xi2 an
 席	xí	woven mat / seat / banquet
+蓆	xí	woven mat (variant of 席)
 襲	xí	(bound form) to raid; to attack / (bound form) to continue the p…
 習	xí	(bound form) to practice / to study / habit
 媳	xí	daughter-in-law
@@ -918,7 +920,6 @@ segments xi2 an
 鎴	xí	strontium (obsolete, now 鍶|锶)
 隰	xí	low / marshy land
 霫	xí	Sui-Tang (premodern ethnic group)
-鰼	xí	loach / mudfish
 
 >xian1	simplified	248
 segments xian1
@@ -928,31 +929,31 @@ segments xian1
 秈	xiān	common rice
 仙	xiān	immortal
 掀	xiān	to lift (a lid) / to rock / to convulse
-鲜	xiān	fresh / bright (in color) / delicious
+鲜	xiān	fresh / fish
 仚	xiān	old variant of 仙
 佡	xiān	variant of 仙, immortal / light (as a feather)
 孅	xiān	cunning / slender
 忺	xiān	(literary) to want; to desire / (literary) pleased; gratified; h…
 憸	xiān	artful / flattering
 
->xian1	traditional	248
+>xian1	traditional	252
 segments xian1
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
 西安	xī ān	see 西安市 / see 西安區|西安区
 錫安	xī ān	Zion
 秈	xiān	common rice
 仙	xiān	immortal
+僊	xiān	variant of 仙
 掀	xiān	to lift (a lid) / to rock / to convulse
 鮮	xiān	fresh / bright (in color) / delicious
+鱻	xiān	fish / old variant of 鮮|鲜
 仚	xiān	old variant of 仙
 佡	xiān	variant of 仙, immortal / light (as a feather)
 孅	xiān	cunning / slender
-忺	xiān	(literary) to want; to desire / (literary) pleased; gratified; h…
-憸	xiān	artful / flattering
 
 >xi2an1	simplified	13
 segments xi2 an1
-席	xí	woven mat / seat / banquet
+席	xí	woven mat / woven mat (variant of 席)
 袭	xí	(bound form) to raid; to attack / (bound form) to continue the p…
 习	xí	(bound form) to practice / to study / habit
 媳	xí	daughter-in-law
@@ -965,9 +966,10 @@ segments xi2 an1
 霫	xí	Sui-Tang (premodern ethnic group)
 鳛	xí	loach / mudfish
 
->xi2an1	traditional	13
+>xi2an1	traditional	14
 segments xi2 an1
 席	xí	woven mat / seat / banquet
+蓆	xí	woven mat (variant of 席)
 襲	xí	(bound form) to raid; to attack / (bound form) to continue the p…
 習	xí	(bound form) to practice / to study / habit
 媳	xí	daughter-in-law
@@ -978,41 +980,40 @@ segments xi2 an1
 鎴	xí	strontium (obsolete, now 鍶|锶)
 隰	xí	low / marshy land
 霫	xí	Sui-Tang (premodern ethnic group)
-鰼	xí	loach / mudfish
 
 >xian2	simplified	152
 segments xian2
-咸	xián	all / everyone / each
+咸	xián	all / salted
 嫌	xián	to dislike / suspicion / resentment
 弦	xián	bow string / string of musical instrument / watchspring
-闲	xián	enclosure / (variant of 閒|闲) idle / unoccupied
+闲	xián	enclosure / idle
 絃	xián	variant of 弦 / bow string / string of musical instrument
 贤	xián	worthy or virtuous person / honorific used for a person of the s…
 㵪	xián	variant of 涎
 䕭	xián	a kind of vegetable
 伭	xián	(literary) cruel; ruthless / (literary) dark red; black
-娴	xián	variant of 嫻|娴
+娴	xián	elegant / refined / to be skilled at
 憪	xián	composed, contented
 挦	xián	to pull out (esp. hair or feathers) / to pick / to pluck
 
->xian2	traditional	152
+>xian2	traditional	162
 segments xian2
 咸	xián	all / everyone / each
+鹹	xián	salted / salty / stingy
 嫌	xián	to dislike / suspicion / resentment
 弦	xián	bow string / string of musical instrument / watchspring
 閑	xián	enclosure / (variant of 閒|闲) idle / unoccupied
+閒	xián	idle / unoccupied / leisure
 絃	xián	variant of 弦 / bow string / string of musical instrument
 賢	xián	worthy or virtuous person / honorific used for a person of the s…
 㵪	xián	variant of 涎
 䕭	xián	a kind of vegetable
 伭	xián	(literary) cruel; ruthless / (literary) dark red; black
 嫺	xián	variant of 嫻|娴
-憪	xián	composed, contented
-撏	xián	to pull out (esp. hair or feathers) / to pick / to pluck
 
 >xi1an2	simplified	95
 segments xi1 an2
-西	xī	the West / abbr. for Spain 西班牙 / Spanish
+西	xī	west
 溪	xī	creek / rivulet
 诶	xī	sigh (to express regret)
 吸	xī	to breathe / to suck in / to absorb
@@ -1021,14 +1022,15 @@ segments xi1 an2
 茜	xī	used in the transliteration of people's names
 唏	xī	sound of sobbing
 锡	xī	tin (chemistry) / to bestow / to confer
-膝	xī	old variant of 膝
+膝	xī	knee
 兮	xī	(particle in old Chinese similar to 啊)
 熄	xī	to extinguish / to put out (fire) / to quench
 
->xi1an2	traditional	95
+>xi1an2	traditional	99
 segments xi1 an2
-西	xī	the West / abbr. for Spain 西班牙 / Spanish
+西	xī	west
 溪	xī	creek / rivulet
+谿	xī	variant of 溪
 誒	xī	sigh (to express regret)
 吸	xī	to breathe / to suck in / to absorb
 腊	xī	dried meat / also pr.
@@ -1037,8 +1039,7 @@ segments xi1 an2
 唏	xī	sound of sobbing
 錫	xī	tin (chemistry) / to bestow / to confer
 厀	xī	old variant of 膝
-兮	xī	(particle in old Chinese similar to 啊)
-熄	xī	to extinguish / to put out (fire) / to quench
+膝	xī	knee
 
 >lvse	simplified	36
 segments lü se
@@ -1048,14 +1049,14 @@ segments lü se
 绿色食品	lǜ sè shí pǐn	clean, unadulterated food product / organic food
 绿色通道	lǜ sè tōng dào	green channel (customs clearance without document or cargo inspe…
 绿	lǜ	green / (slang) (derived from 綠帽子|绿帽子) to cheat on (one's spouse…
-驴	lǘ	variant of 驢|驴
+驴	lǘ	donkey
 旅	lǚ	trip / travel / to travel
 律	lǜ	law
 率	lǜ	(bound form) ratio; rate; proportion
 铝	lǚ	aluminum (chemistry)
 吕	lǚ	pitchpipe, pitch standard, one of the twelve semitones in the tr…
 
->lvse	traditional	36
+>lvse	traditional	37
 segments lü se
 綠色	lǜ sè	green
 綠色和平	lǜ sè hé píng	Greenpeace (environmental network)
@@ -1064,11 +1065,11 @@ segments lü se
 綠色通道	lǜ sè tōng dào	green channel (customs clearance without document or cargo inspe…
 綠	lǜ	green / (slang) (derived from 綠帽子|绿帽子) to cheat on (one's spouse…
 馿	lǘ	variant of 驢|驴
+驢	lǘ	donkey
 旅	lǚ	trip / travel / to travel
 律	lǜ	law
 率	lǜ	(bound form) ratio; rate; proportion
 鋁	lǚ	aluminum (chemistry)
-呂	lǚ	pitchpipe, pitch standard, one of the twelve semitones in the tr…
 
 >lv4se4	simplified	17
 segments lü4 se4
@@ -1108,14 +1109,14 @@ segments lü se
 绿色食品	lǜ sè shí pǐn	clean, unadulterated food product / organic food
 绿色通道	lǜ sè tōng dào	green channel (customs clearance without document or cargo inspe…
 绿	lǜ	green / (slang) (derived from 綠帽子|绿帽子) to cheat on (one's spouse…
-驴	lǘ	variant of 驢|驴
+驴	lǘ	donkey
 旅	lǚ	trip / travel / to travel
 律	lǜ	law
 率	lǜ	(bound form) ratio; rate; proportion
 铝	lǚ	aluminum (chemistry)
 吕	lǚ	pitchpipe, pitch standard, one of the twelve semitones in the tr…
 
->lv'se	traditional	36
+>lv'se	traditional	37
 segments lü se
 綠色	lǜ sè	green
 綠色和平	lǜ sè hé píng	Greenpeace (environmental network)
@@ -1124,11 +1125,11 @@ segments lü se
 綠色通道	lǜ sè tōng dào	green channel (customs clearance without document or cargo inspe…
 綠	lǜ	green / (slang) (derived from 綠帽子|绿帽子) to cheat on (one's spouse…
 馿	lǘ	variant of 驢|驴
+驢	lǘ	donkey
 旅	lǚ	trip / travel / to travel
 律	lǜ	law
 率	lǜ	(bound form) ratio; rate; proportion
 鋁	lǚ	aluminum (chemistry)
-呂	lǚ	pitchpipe, pitch standard, one of the twelve semitones in the tr…
 
 >lv4'se4	simplified	17
 segments lü4 se4
@@ -1198,14 +1199,14 @@ segments lü se
 绿色食品	lǜ sè shí pǐn	clean, unadulterated food product / organic food
 绿色通道	lǜ sè tōng dào	green channel (customs clearance without document or cargo inspe…
 绿	lǜ	green / (slang) (derived from 綠帽子|绿帽子) to cheat on (one's spouse…
-驴	lǘ	variant of 驢|驴
+驴	lǘ	donkey
 旅	lǚ	trip / travel / to travel
 律	lǜ	law
 率	lǜ	(bound form) ratio; rate; proportion
 铝	lǚ	aluminum (chemistry)
 吕	lǚ	pitchpipe, pitch standard, one of the twelve semitones in the tr…
 
->Lvse	traditional	36
+>Lvse	traditional	37
 segments lü se
 綠色	lǜ sè	green
 綠色和平	lǜ sè hé píng	Greenpeace (environmental network)
@@ -1214,11 +1215,11 @@ segments lü se
 綠色通道	lǜ sè tōng dào	green channel (customs clearance without document or cargo inspe…
 綠	lǜ	green / (slang) (derived from 綠帽子|绿帽子) to cheat on (one's spouse…
 馿	lǘ	variant of 驢|驴
+驢	lǘ	donkey
 旅	lǚ	trip / travel / to travel
 律	lǜ	law
 率	lǜ	(bound form) ratio; rate; proportion
 鋁	lǚ	aluminum (chemistry)
-呂	lǚ	pitchpipe, pitch standard, one of the twelve semitones in the tr…
 
 >lv4se	simplified	17
 segments lü4 se
@@ -1264,14 +1265,14 @@ segments lü se4
 绿色食品	lǜ sè shí pǐn	clean, unadulterated food product / organic food
 绿色通道	lǜ sè tōng dào	green channel (customs clearance without document or cargo inspe…
 绿	lǜ	green / (slang) (derived from 綠帽子|绿帽子) to cheat on (one's spouse…
-驴	lǘ	variant of 驢|驴
+驴	lǘ	donkey
 旅	lǚ	trip / travel / to travel
 律	lǜ	law
 率	lǜ	(bound form) ratio; rate; proportion
 铝	lǚ	aluminum (chemistry)
 吕	lǚ	pitchpipe, pitch standard, one of the twelve semitones in the tr…
 
->lvse4	traditional	36
+>lvse4	traditional	37
 segments lü se4
 綠色	lǜ sè	green
 綠色和平	lǜ sè hé píng	Greenpeace (environmental network)
@@ -1280,11 +1281,11 @@ segments lü se4
 綠色通道	lǜ sè tōng dào	green channel (customs clearance without document or cargo inspe…
 綠	lǜ	green / (slang) (derived from 綠帽子|绿帽子) to cheat on (one's spouse…
 馿	lǘ	variant of 驢|驴
+驢	lǘ	donkey
 旅	lǚ	trip / travel / to travel
 律	lǜ	law
 率	lǜ	(bound form) ratio; rate; proportion
 鋁	lǚ	aluminum (chemistry)
-呂	lǚ	pitchpipe, pitch standard, one of the twelve semitones in the tr…
 
 >lv1se4	simplified	0
 segments lü1 se4
@@ -1295,7 +1296,7 @@ segments lü1 se4
 >lvse1	simplified	31
 segments lü se1
 绿	lǜ	green / (slang) (derived from 綠帽子|绿帽子) to cheat on (one's spouse…
-驴	lǘ	variant of 驢|驴
+驴	lǘ	donkey
 旅	lǚ	trip / travel / to travel
 律	lǜ	law
 率	lǜ	(bound form) ratio; rate; proportion
@@ -1307,10 +1308,11 @@ segments lü se1
 侣	lǚ	companion
 氯	lǜ	chlorine (chemistry)
 
->lvse1	traditional	31
+>lvse1	traditional	32
 segments lü se1
 綠	lǜ	green / (slang) (derived from 綠帽子|绿帽子) to cheat on (one's spouse…
 馿	lǘ	variant of 驢|驴
+驢	lǘ	donkey
 旅	lǚ	trip / travel / to travel
 律	lǜ	law
 率	lǜ	(bound form) ratio; rate; proportion
@@ -1320,7 +1322,6 @@ segments lü se1
 履	lǚ	shoe / to tread on
 穭	lǚ	wild grain
 侶	lǚ	companion
-氯	lǜ	chlorine (chemistry)
 
 >lv4se1	simplified	12
 segments lü4 se1
@@ -1363,11 +1364,11 @@ segments xian sheng
 显生代	xiǎn shēng dài	Phanerozoic, geological eon lasting since the Cambrian 寒武紀|寒武纪,…
 先声夺人	xiān shēng duó rén	to gain the upper hand by a show of strength
 显生宙	xiǎn shēng zhòu	Phanerozoic, geological eon lasting since the Cambrian 寒武紀|寒武纪,…
-咸	xián	all / everyone / each
+咸	xián	all / salted
 县	xiàn	county / (Japan) prefecture
 嫌	xián	to dislike / suspicion / resentment
 
->xiansheng	traditional	95
+>xiansheng	traditional	106
 segments xian sheng
 先生	xiān sheng	teacher / gentleman; sir; mister (Mr.) / husband
 先聲	xiān shēng	herald; precursor; harbinger
@@ -1379,8 +1380,8 @@ segments xian sheng
 先聲奪人	xiān shēng duó rén	to gain the upper hand by a show of strength
 顯生宙	xiǎn shēng zhòu	Phanerozoic, geological eon lasting since the Cambrian 寒武紀|寒武纪,…
 咸	xián	all / everyone / each
+鹹	xián	salted / salty / stingy
 縣	xiàn	county / (Japan) prefecture
-嫌	xián	to dislike / suspicion / resentment
 
 >xian1sheng5	simplified	28
 segments xian1 sheng5
@@ -1391,26 +1392,26 @@ segments xian1 sheng5
 掀	xiān	to lift (a lid) / to rock / to convulse
 西安	xī ān	see 西安市 / see 西安區|西安区
 锡安	xī ān	Zion
-鲜	xiān	fresh / bright (in color) / delicious
+鲜	xiān	fresh / fish
 仚	xiān	old variant of 仙
 佡	xiān	variant of 仙, immortal / light (as a feather)
 孅	xiān	cunning / slender
 忺	xiān	(literary) to want; to desire / (literary) pleased; gratified; h…
 
->xian1sheng5	traditional	28
+>xian1sheng5	traditional	30
 segments xian1 sheng5
 先生	xiān sheng	teacher / gentleman; sir; mister (Mr.) / husband
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
 秈	xiān	common rice
 仙	xiān	immortal
+僊	xiān	variant of 仙
 掀	xiān	to lift (a lid) / to rock / to convulse
 西安	xī ān	see 西安市 / see 西安區|西安区
 錫安	xī ān	Zion
 鮮	xiān	fresh / bright (in color) / delicious
+鱻	xiān	fish / old variant of 鮮|鲜
 仚	xiān	old variant of 仙
 佡	xiān	variant of 仙, immortal / light (as a feather)
-孅	xiān	cunning / slender
-忺	xiān	(literary) to want; to desire / (literary) pleased; gratified; h…
 
 >xian'sheng	simplified	94
 segments xian sheng
@@ -1423,11 +1424,11 @@ segments xian sheng
 显生代	xiǎn shēng dài	Phanerozoic, geological eon lasting since the Cambrian 寒武紀|寒武纪,…
 先声夺人	xiān shēng duó rén	to gain the upper hand by a show of strength
 显生宙	xiǎn shēng zhòu	Phanerozoic, geological eon lasting since the Cambrian 寒武紀|寒武纪,…
-咸	xián	all / everyone / each
+咸	xián	all / salted
 县	xiàn	county / (Japan) prefecture
 嫌	xián	to dislike / suspicion / resentment
 
->xian'sheng	traditional	95
+>xian'sheng	traditional	106
 segments xian sheng
 先生	xiān sheng	teacher / gentleman; sir; mister (Mr.) / husband
 先聲	xiān shēng	herald; precursor; harbinger
@@ -1439,8 +1440,8 @@ segments xian sheng
 先聲奪人	xiān shēng duó rén	to gain the upper hand by a show of strength
 顯生宙	xiǎn shēng zhòu	Phanerozoic, geological eon lasting since the Cambrian 寒武紀|寒武纪,…
 咸	xián	all / everyone / each
+鹹	xián	salted / salty / stingy
 縣	xiàn	county / (Japan) prefecture
-嫌	xián	to dislike / suspicion / resentment
 
 >xian1'sheng5	simplified	28
 segments xian1 sheng5
@@ -1451,26 +1452,26 @@ segments xian1 sheng5
 掀	xiān	to lift (a lid) / to rock / to convulse
 西安	xī ān	see 西安市 / see 西安區|西安区
 锡安	xī ān	Zion
-鲜	xiān	fresh / bright (in color) / delicious
+鲜	xiān	fresh / fish
 仚	xiān	old variant of 仙
 佡	xiān	variant of 仙, immortal / light (as a feather)
 孅	xiān	cunning / slender
 忺	xiān	(literary) to want; to desire / (literary) pleased; gratified; h…
 
->xian1'sheng5	traditional	28
+>xian1'sheng5	traditional	30
 segments xian1 sheng5
 先生	xiān sheng	teacher / gentleman; sir; mister (Mr.) / husband
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
 秈	xiān	common rice
 仙	xiān	immortal
+僊	xiān	variant of 仙
 掀	xiān	to lift (a lid) / to rock / to convulse
 西安	xī ān	see 西安市 / see 西安區|西安区
 錫安	xī ān	Zion
 鮮	xiān	fresh / bright (in color) / delicious
+鱻	xiān	fish / old variant of 鮮|鲜
 仚	xiān	old variant of 仙
 佡	xiān	variant of 仙, immortal / light (as a feather)
-孅	xiān	cunning / slender
-忺	xiān	(literary) to want; to desire / (literary) pleased; gratified; h…
 
 >xian1 sheng5	simplified	28
 segments xian1 sheng5
@@ -1481,26 +1482,26 @@ segments xian1 sheng5
 掀	xiān	to lift (a lid) / to rock / to convulse
 西安	xī ān	see 西安市 / see 西安區|西安区
 锡安	xī ān	Zion
-鲜	xiān	fresh / bright (in color) / delicious
+鲜	xiān	fresh / fish
 仚	xiān	old variant of 仙
 佡	xiān	variant of 仙, immortal / light (as a feather)
 孅	xiān	cunning / slender
 忺	xiān	(literary) to want; to desire / (literary) pleased; gratified; h…
 
->xian1 sheng5	traditional	28
+>xian1 sheng5	traditional	30
 segments xian1 sheng5
 先生	xiān sheng	teacher / gentleman; sir; mister (Mr.) / husband
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
 秈	xiān	common rice
 仙	xiān	immortal
+僊	xiān	variant of 仙
 掀	xiān	to lift (a lid) / to rock / to convulse
 西安	xī ān	see 西安市 / see 西安區|西安区
 錫安	xī ān	Zion
 鮮	xiān	fresh / bright (in color) / delicious
+鱻	xiān	fish / old variant of 鮮|鲜
 仚	xiān	old variant of 仙
 佡	xiān	variant of 仙, immortal / light (as a feather)
-孅	xiān	cunning / slender
-忺	xiān	(literary) to want; to desire / (literary) pleased; gratified; h…
 
 >Xiansheng	simplified	94
 segments xian sheng
@@ -1513,11 +1514,11 @@ segments xian sheng
 显生代	xiǎn shēng dài	Phanerozoic, geological eon lasting since the Cambrian 寒武紀|寒武纪,…
 先声夺人	xiān shēng duó rén	to gain the upper hand by a show of strength
 显生宙	xiǎn shēng zhòu	Phanerozoic, geological eon lasting since the Cambrian 寒武紀|寒武纪,…
-咸	xián	all / everyone / each
+咸	xián	all / salted
 县	xiàn	county / (Japan) prefecture
 嫌	xián	to dislike / suspicion / resentment
 
->Xiansheng	traditional	95
+>Xiansheng	traditional	106
 segments xian sheng
 先生	xiān sheng	teacher / gentleman; sir; mister (Mr.) / husband
 先聲	xiān shēng	herald; precursor; harbinger
@@ -1529,8 +1530,8 @@ segments xian sheng
 先聲奪人	xiān shēng duó rén	to gain the upper hand by a show of strength
 顯生宙	xiǎn shēng zhòu	Phanerozoic, geological eon lasting since the Cambrian 寒武紀|寒武纪,…
 咸	xián	all / everyone / each
+鹹	xián	salted / salty / stingy
 縣	xiàn	county / (Japan) prefecture
-嫌	xián	to dislike / suspicion / resentment
 
 >xian1sheng	simplified	30
 segments xian1 sheng
@@ -1543,11 +1544,11 @@ segments xian1 sheng
 掀	xiān	to lift (a lid) / to rock / to convulse
 西安	xī ān	see 西安市 / see 西安區|西安区
 锡安	xī ān	Zion
-鲜	xiān	fresh / bright (in color) / delicious
+鲜	xiān	fresh / fish
 仚	xiān	old variant of 仙
 佡	xiān	variant of 仙, immortal / light (as a feather)
 
->xian1sheng	traditional	30
+>xian1sheng	traditional	32
 segments xian1 sheng
 先生	xiān sheng	teacher / gentleman; sir; mister (Mr.) / husband
 先聲	xiān shēng	herald; precursor; harbinger
@@ -1555,132 +1556,132 @@ segments xian1 sheng
 先聲奪人	xiān shēng duó rén	to gain the upper hand by a show of strength
 秈	xiān	common rice
 仙	xiān	immortal
+僊	xiān	variant of 仙
 掀	xiān	to lift (a lid) / to rock / to convulse
 西安	xī ān	see 西安市 / see 西安區|西安区
 錫安	xī ān	Zion
 鮮	xiān	fresh / bright (in color) / delicious
-仚	xiān	old variant of 仙
-佡	xiān	variant of 仙, immortal / light (as a feather)
+鱻	xiān	fish / old variant of 鮮|鲜
 
 >xian2sheng	simplified	20
 segments xian2 sheng
-咸	xián	all / everyone / each
+咸	xián	all / salted
 嫌	xián	to dislike / suspicion / resentment
 弦	xián	bow string / string of musical instrument / watchspring
-闲	xián	enclosure / (variant of 閒|闲) idle / unoccupied
+闲	xián	enclosure / idle
 絃	xián	variant of 弦 / bow string / string of musical instrument
 贤	xián	worthy or virtuous person / honorific used for a person of the s…
 㵪	xián	variant of 涎
 䕭	xián	a kind of vegetable
 伭	xián	(literary) cruel; ruthless / (literary) dark red; black
-娴	xián	variant of 嫻|娴
+娴	xián	elegant / refined / to be skilled at
 憪	xián	composed, contented
 挦	xián	to pull out (esp. hair or feathers) / to pick / to pluck
 
->xian2sheng	traditional	20
+>xian2sheng	traditional	27
 segments xian2 sheng
 咸	xián	all / everyone / each
+鹹	xián	salted / salty / stingy
 嫌	xián	to dislike / suspicion / resentment
 弦	xián	bow string / string of musical instrument / watchspring
 閑	xián	enclosure / (variant of 閒|闲) idle / unoccupied
+閒	xián	idle / unoccupied / leisure
 絃	xián	variant of 弦 / bow string / string of musical instrument
 賢	xián	worthy or virtuous person / honorific used for a person of the s…
 㵪	xián	variant of 涎
 䕭	xián	a kind of vegetable
 伭	xián	(literary) cruel; ruthless / (literary) dark red; black
 嫺	xián	variant of 嫻|娴
-憪	xián	composed, contented
-撏	xián	to pull out (esp. hair or feathers) / to pick / to pluck
 
 >xiansheng5	simplified	88
 segments xian sheng5
 先生	xiān sheng	teacher / gentleman; sir; mister (Mr.) / husband
 洗	xiǎn	used in 洗馬|洗马
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
-咸	xián	all / everyone / each
+咸	xián	all / salted
 县	xiàn	county / (Japan) prefecture
 嫌	xián	to dislike / suspicion / resentment
 见	xiàn	to appear / also written 現|现
 弦	xián	bow string / string of musical instrument / watchspring
-线	xiàn	variant of 線|线
+线	xiàn	thread / string / wire
 秈	xiān	common rice
 险	xiǎn	danger / dangerous / rugged
 狝	xiǎn	to hunt in autumn (archaic)
 
->xiansheng5	traditional	89
+>xiansheng5	traditional	100
 segments xian sheng5
 先生	xiān sheng	teacher / gentleman; sir; mister (Mr.) / husband
 洗	xiǎn	used in 洗馬|洗马
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
 咸	xián	all / everyone / each
+鹹	xián	salted / salty / stingy
 縣	xiàn	county / (Japan) prefecture
 嫌	xián	to dislike / suspicion / resentment
 見	xiàn	to appear / also written 現|现
 弦	xián	bow string / string of musical instrument / watchspring
 綫	xiàn	variant of 線|线
+線	xiàn	thread / string / wire
 秈	xiān	common rice
-險	xiǎn	danger / dangerous / rugged
-獮	xiǎn	to hunt in autumn (archaic)
 
 >xian2sheng5	simplified	20
 segments xian2 sheng5
-咸	xián	all / everyone / each
+咸	xián	all / salted
 嫌	xián	to dislike / suspicion / resentment
 弦	xián	bow string / string of musical instrument / watchspring
-闲	xián	enclosure / (variant of 閒|闲) idle / unoccupied
+闲	xián	enclosure / idle
 絃	xián	variant of 弦 / bow string / string of musical instrument
 贤	xián	worthy or virtuous person / honorific used for a person of the s…
 㵪	xián	variant of 涎
 䕭	xián	a kind of vegetable
 伭	xián	(literary) cruel; ruthless / (literary) dark red; black
-娴	xián	variant of 嫻|娴
+娴	xián	elegant / refined / to be skilled at
 憪	xián	composed, contented
 挦	xián	to pull out (esp. hair or feathers) / to pick / to pluck
 
->xian2sheng5	traditional	20
+>xian2sheng5	traditional	27
 segments xian2 sheng5
 咸	xián	all / everyone / each
+鹹	xián	salted / salty / stingy
 嫌	xián	to dislike / suspicion / resentment
 弦	xián	bow string / string of musical instrument / watchspring
 閑	xián	enclosure / (variant of 閒|闲) idle / unoccupied
+閒	xián	idle / unoccupied / leisure
 絃	xián	variant of 弦 / bow string / string of musical instrument
 賢	xián	worthy or virtuous person / honorific used for a person of the s…
 㵪	xián	variant of 涎
 䕭	xián	a kind of vegetable
 伭	xián	(literary) cruel; ruthless / (literary) dark red; black
 嫺	xián	variant of 嫻|娴
-憪	xián	composed, contented
-撏	xián	to pull out (esp. hair or feathers) / to pick / to pluck
 
 >xiansheng2	simplified	88
 segments xian sheng2
 线绳	xiàn shéng	cotton rope; cord
 洗	xiǎn	used in 洗馬|洗马
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
-咸	xián	all / everyone / each
+咸	xián	all / salted
 县	xiàn	county / (Japan) prefecture
 嫌	xián	to dislike / suspicion / resentment
 见	xiàn	to appear / also written 現|现
 弦	xián	bow string / string of musical instrument / watchspring
-线	xiàn	variant of 線|线
+线	xiàn	thread / string / wire
 秈	xiān	common rice
 险	xiǎn	danger / dangerous / rugged
 狝	xiǎn	to hunt in autumn (archaic)
 
->xiansheng2	traditional	89
+>xiansheng2	traditional	100
 segments xian sheng2
 線繩	xiàn shéng	cotton rope; cord
 洗	xiǎn	used in 洗馬|洗马
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
 咸	xián	all / everyone / each
+鹹	xián	salted / salty / stingy
 縣	xiàn	county / (Japan) prefecture
 嫌	xián	to dislike / suspicion / resentment
 見	xiàn	to appear / also written 現|现
 弦	xián	bow string / string of musical instrument / watchspring
 綫	xiàn	variant of 線|线
+線	xiàn	thread / string / wire
 秈	xiān	common rice
-險	xiǎn	danger / dangerous / rugged
-獮	xiǎn	to hunt in autumn (archaic)
 
 >xian1sheng2	simplified	27
 segments xian1 sheng2
@@ -1690,27 +1691,27 @@ segments xian1 sheng2
 掀	xiān	to lift (a lid) / to rock / to convulse
 西安	xī ān	see 西安市 / see 西安區|西安区
 锡安	xī ān	Zion
-鲜	xiān	fresh / bright (in color) / delicious
+鲜	xiān	fresh / fish
 仚	xiān	old variant of 仙
 佡	xiān	variant of 仙, immortal / light (as a feather)
 孅	xiān	cunning / slender
 忺	xiān	(literary) to want; to desire / (literary) pleased; gratified; h…
 憸	xiān	artful / flattering
 
->xian1sheng2	traditional	27
+>xian1sheng2	traditional	29
 segments xian1 sheng2
 先	xiān	beforehand; first; earlier / at first; originally / for the time…
 秈	xiān	common rice
 仙	xiān	immortal
+僊	xiān	variant of 仙
 掀	xiān	to lift (a lid) / to rock / to convulse
 西安	xī ān	see 西安市 / see 西安區|西安区
 錫安	xī ān	Zion
 鮮	xiān	fresh / bright (in color) / delicious
+鱻	xiān	fish / old variant of 鮮|鲜
 仚	xiān	old variant of 仙
 佡	xiān	variant of 仙, immortal / light (as a feather)
 孅	xiān	cunning / slender
-忺	xiān	(literary) to want; to desire / (literary) pleased; gratified; h…
-憸	xiān	artful / flattering
 
 >tutuoyu	simplified	31
 segments tu tuo yu
@@ -1721,13 +1722,13 @@ segments tu tuo yu
 图	tú	diagram / picture / drawing
 涂	tú	to apply (paint etc) / to smear / to daub
 土	tǔ	earth / dust / clay
-兔	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
 突	tū	to dash / to move forward quickly / to bulge
 途	tú	way / route / road
 
->tutuoyu	traditional	31
+>tutuoyu	traditional	33
 segments tu tuo yu
 土魠魚	tǔ tuō yú	(Tw) Spanish mackerel
 𩵚魠魚	tǔ tuō yú	variant of 土魠魚|土𱇏鱼
@@ -1735,12 +1736,12 @@ segments tu tuo yu
 禿	tū	bald (lacking hair or feathers) / barren; bare; denuded / blunt…
 圖	tú	diagram / picture / drawing
 塗	tú	to apply (paint etc) / to smear / to daub
+涂	tú	variant of 途
 土	tǔ	earth / dust / clay
 兎	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
-突	tū	to dash / to move forward quickly / to bulge
-途	tú	way / route / road
 
 >tu3tuo1yu2	simplified	6
 segments tu3 tuo1 yu2
@@ -1769,13 +1770,13 @@ segments tu tuo yu
 图	tú	diagram / picture / drawing
 涂	tú	to apply (paint etc) / to smear / to daub
 土	tǔ	earth / dust / clay
-兔	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
 突	tū	to dash / to move forward quickly / to bulge
 途	tú	way / route / road
 
->tu'tuo'yu	traditional	31
+>tu'tuo'yu	traditional	33
 segments tu tuo yu
 土魠魚	tǔ tuō yú	(Tw) Spanish mackerel
 𩵚魠魚	tǔ tuō yú	variant of 土魠魚|土𱇏鱼
@@ -1783,12 +1784,12 @@ segments tu tuo yu
 禿	tū	bald (lacking hair or feathers) / barren; bare; denuded / blunt…
 圖	tú	diagram / picture / drawing
 塗	tú	to apply (paint etc) / to smear / to daub
+涂	tú	variant of 途
 土	tǔ	earth / dust / clay
 兎	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
-突	tū	to dash / to move forward quickly / to bulge
-途	tú	way / route / road
 
 >tu3'tuo1'yu2	simplified	6
 segments tu3 tuo1 yu2
@@ -1835,13 +1836,13 @@ segments tu tuo yu
 图	tú	diagram / picture / drawing
 涂	tú	to apply (paint etc) / to smear / to daub
 土	tǔ	earth / dust / clay
-兔	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
 突	tū	to dash / to move forward quickly / to bulge
 途	tú	way / route / road
 
->Tutuoyu	traditional	31
+>Tutuoyu	traditional	33
 segments tu tuo yu
 土魠魚	tǔ tuō yú	(Tw) Spanish mackerel
 𩵚魠魚	tǔ tuō yú	variant of 土魠魚|土𱇏鱼
@@ -1849,12 +1850,12 @@ segments tu tuo yu
 禿	tū	bald (lacking hair or feathers) / barren; bare; denuded / blunt…
 圖	tú	diagram / picture / drawing
 塗	tú	to apply (paint etc) / to smear / to daub
+涂	tú	variant of 途
 土	tǔ	earth / dust / clay
 兎	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
-突	tū	to dash / to move forward quickly / to bulge
-途	tú	way / route / road
 
 >tu3tuoyu	simplified	6
 segments tu3 tuo yu
@@ -1877,15 +1878,16 @@ segments tu3 tuo yu
 >tu4tuoyu	simplified	5
 segments tu4 tuo yu
 吐	tù	to vomit / to throw up
-兔	tù	variant of 兔
+兔	tù	rabbit
 堍	tù	side of bridge
 菟	tù	dodder (Cuscuta sinensis, a parasitic vine with seeds having med…
 鵵	tù	Scops semitorques
 
->tu4tuoyu	traditional	5
+>tu4tuoyu	traditional	6
 segments tu4 tuo yu
 吐	tù	to vomit / to throw up
 兎	tù	variant of 兔
+兔	tù	rabbit
 堍	tù	side of bridge
 菟	tù	dodder (Cuscuta sinensis, a parasitic vine with seeds having med…
 鵵	tù	Scops semitorques
@@ -1899,13 +1901,13 @@ segments tu tuo1 yu2
 图	tú	diagram / picture / drawing
 涂	tú	to apply (paint etc) / to smear / to daub
 土	tǔ	earth / dust / clay
-兔	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
 突	tū	to dash / to move forward quickly / to bulge
 途	tú	way / route / road
 
->tutuo1yu2	traditional	31
+>tutuo1yu2	traditional	33
 segments tu tuo1 yu2
 土魠魚	tǔ tuō yú	(Tw) Spanish mackerel
 𩵚魠魚	tǔ tuō yú	variant of 土魠魚|土𱇏鱼
@@ -1913,25 +1915,26 @@ segments tu tuo1 yu2
 禿	tū	bald (lacking hair or feathers) / barren; bare; denuded / blunt…
 圖	tú	diagram / picture / drawing
 塗	tú	to apply (paint etc) / to smear / to daub
+涂	tú	variant of 途
 土	tǔ	earth / dust / clay
 兎	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
-突	tū	to dash / to move forward quickly / to bulge
-途	tú	way / route / road
 
 >tu4tuo1yu2	simplified	5
 segments tu4 tuo1 yu2
 吐	tù	to vomit / to throw up
-兔	tù	variant of 兔
+兔	tù	rabbit
 堍	tù	side of bridge
 菟	tù	dodder (Cuscuta sinensis, a parasitic vine with seeds having med…
 鵵	tù	Scops semitorques
 
->tu4tuo1yu2	traditional	5
+>tu4tuo1yu2	traditional	6
 segments tu4 tuo1 yu2
 吐	tù	to vomit / to throw up
 兎	tù	variant of 兔
+兔	tù	rabbit
 堍	tù	side of bridge
 菟	tù	dodder (Cuscuta sinensis, a parasitic vine with seeds having med…
 鵵	tù	Scops semitorques
@@ -1945,13 +1948,13 @@ segments tu tuo1 yu
 图	tú	diagram / picture / drawing
 涂	tú	to apply (paint etc) / to smear / to daub
 土	tǔ	earth / dust / clay
-兔	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
 突	tū	to dash / to move forward quickly / to bulge
 途	tú	way / route / road
 
->tutuo1yu	traditional	31
+>tutuo1yu	traditional	33
 segments tu tuo1 yu
 土魠魚	tǔ tuō yú	(Tw) Spanish mackerel
 𩵚魠魚	tǔ tuō yú	variant of 土魠魚|土𱇏鱼
@@ -1959,12 +1962,12 @@ segments tu tuo1 yu
 禿	tū	bald (lacking hair or feathers) / barren; bare; denuded / blunt…
 圖	tú	diagram / picture / drawing
 塗	tú	to apply (paint etc) / to smear / to daub
+涂	tú	variant of 途
 土	tǔ	earth / dust / clay
 兎	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
-突	tū	to dash / to move forward quickly / to bulge
-途	tú	way / route / road
 
 >tutuo2yu	simplified	29
 segments tu tuo2 yu
@@ -1973,7 +1976,7 @@ segments tu tuo2 yu
 图	tú	diagram / picture / drawing
 涂	tú	to apply (paint etc) / to smear / to daub
 土	tǔ	earth / dust / clay
-兔	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
 突	tū	to dash / to move forward quickly / to bulge
@@ -1981,20 +1984,20 @@ segments tu tuo2 yu
 屠	tú	to slaughter (animals for food) / to massacre
 㻬	tú	a kind of jade
 
->tutuo2yu	traditional	29
+>tutuo2yu	traditional	31
 segments tu tuo2 yu
 吐	tǔ	to spit / to send out (silk from a silkworm, bolls from cotton f…
 禿	tū	bald (lacking hair or feathers) / barren; bare; denuded / blunt…
 圖	tú	diagram / picture / drawing
 塗	tú	to apply (paint etc) / to smear / to daub
+涂	tú	variant of 途
 土	tǔ	earth / dust / clay
 兎	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
 突	tū	to dash / to move forward quickly / to bulge
 途	tú	way / route / road
-屠	tú	to slaughter (animals for food) / to massacre
-㻬	tú	a kind of jade
 
 >tu3tuoyu2	simplified	6
 segments tu3 tuo yu2
@@ -2037,13 +2040,13 @@ segments tu tuo yu2
 图	tú	diagram / picture / drawing
 涂	tú	to apply (paint etc) / to smear / to daub
 土	tǔ	earth / dust / clay
-兔	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
 突	tū	to dash / to move forward quickly / to bulge
 途	tú	way / route / road
 
->tutuoyu2	traditional	31
+>tutuoyu2	traditional	33
 segments tu tuo yu2
 土魠魚	tǔ tuō yú	(Tw) Spanish mackerel
 𩵚魠魚	tǔ tuō yú	variant of 土魠魚|土𱇏鱼
@@ -2051,12 +2054,12 @@ segments tu tuo yu2
 禿	tū	bald (lacking hair or feathers) / barren; bare; denuded / blunt…
 圖	tú	diagram / picture / drawing
 塗	tú	to apply (paint etc) / to smear / to daub
+涂	tú	variant of 途
 土	tǔ	earth / dust / clay
 兎	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
-突	tū	to dash / to move forward quickly / to bulge
-途	tú	way / route / road
 
 >tutuoyu3	simplified	29
 segments tu tuo yu3
@@ -2065,7 +2068,7 @@ segments tu tuo yu3
 图	tú	diagram / picture / drawing
 涂	tú	to apply (paint etc) / to smear / to daub
 土	tǔ	earth / dust / clay
-兔	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
 突	tū	to dash / to move forward quickly / to bulge
@@ -2073,20 +2076,20 @@ segments tu tuo yu3
 屠	tú	to slaughter (animals for food) / to massacre
 㻬	tú	a kind of jade
 
->tutuoyu3	traditional	29
+>tutuoyu3	traditional	31
 segments tu tuo yu3
 吐	tǔ	to spit / to send out (silk from a silkworm, bolls from cotton f…
 禿	tū	bald (lacking hair or feathers) / barren; bare; denuded / blunt…
 圖	tú	diagram / picture / drawing
 塗	tú	to apply (paint etc) / to smear / to daub
+涂	tú	variant of 途
 土	tǔ	earth / dust / clay
 兎	tù	variant of 兔
+兔	tù	rabbit
 痜	tū	old variant of 禿|秃 / bald
 徒	tú	(bound form) disciple; apprentice; believer; (derog.) wrongdoer…
 突	tū	to dash / to move forward quickly / to bulge
 途	tú	way / route / road
-屠	tú	to slaughter (animals for food) / to massacre
-㻬	tú	a kind of jade
 
 >tu3tuo1yu	simplified	6
 segments tu3 tuo1 yu
@@ -2129,13 +2132,13 @@ segments liang song fan
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-凉	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+凉	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 谅	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
 粮	liáng	grain / food / provisions
 
->liangsongfan	traditional	28
+>liangsongfan	traditional	29
 segments liang song fan
 兩餸飯	liǎng sòng fàn	(HK) meal of rice with two dishes
 兩	liǎng	two / both / some
@@ -2144,11 +2147,11 @@ segments liang song fan
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-涼	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+涼	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 諒	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
-糧	liáng	grain / food / provisions
+樑	liáng	variant of 梁
 
 >liang3song4fan4	simplified	8
 segments liang3 song4 fan4
@@ -2181,13 +2184,13 @@ segments liang song fan
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-凉	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+凉	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 谅	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
 粮	liáng	grain / food / provisions
 
->liang'song'fan	traditional	28
+>liang'song'fan	traditional	29
 segments liang song fan
 兩餸飯	liǎng sòng fàn	(HK) meal of rice with two dishes
 兩	liǎng	two / both / some
@@ -2196,11 +2199,11 @@ segments liang song fan
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-涼	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+涼	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 諒	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
-糧	liáng	grain / food / provisions
+樑	liáng	variant of 梁
 
 >liang3'song4'fan4	simplified	8
 segments liang3 song4 fan4
@@ -2255,13 +2258,13 @@ segments liang song fan
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-凉	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+凉	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 谅	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
 粮	liáng	grain / food / provisions
 
->Liangsongfan	traditional	28
+>Liangsongfan	traditional	29
 segments liang song fan
 兩餸飯	liǎng sòng fàn	(HK) meal of rice with two dishes
 兩	liǎng	two / both / some
@@ -2270,11 +2273,11 @@ segments liang song fan
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-涼	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+涼	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 諒	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
-糧	liáng	grain / food / provisions
+樑	liáng	variant of 梁
 
 >liang3songfan	simplified	8
 segments liang3 song fan
@@ -2335,13 +2338,13 @@ segments liang song4 fan4
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-凉	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+凉	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 谅	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
 粮	liáng	grain / food / provisions
 
->liangsong4fan4	traditional	28
+>liangsong4fan4	traditional	29
 segments liang song4 fan4
 兩餸飯	liǎng sòng fàn	(HK) meal of rice with two dishes
 兩	liǎng	two / both / some
@@ -2350,11 +2353,11 @@ segments liang song4 fan4
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-涼	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+涼	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 諒	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
-糧	liáng	grain / food / provisions
+樑	liáng	variant of 梁
 
 >liang4song4fan4	simplified	11
 segments liang4 song4 fan4
@@ -2393,13 +2396,13 @@ segments liang song4 fan
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-凉	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+凉	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 谅	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
 粮	liáng	grain / food / provisions
 
->liangsong4fan	traditional	28
+>liangsong4fan	traditional	29
 segments liang song4 fan
 兩餸飯	liǎng sòng fàn	(HK) meal of rice with two dishes
 兩	liǎng	two / both / some
@@ -2408,11 +2411,11 @@ segments liang song4 fan
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-涼	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+涼	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 諒	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
-糧	liáng	grain / food / provisions
+樑	liáng	variant of 梁
 
 >liangsong1fan	simplified	27
 segments liang song1 fan
@@ -2422,14 +2425,14 @@ segments liang song1 fan
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-凉	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+凉	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 谅	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
 粮	liáng	grain / food / provisions
 良	liáng	good / very / very much
 
->liangsong1fan	traditional	27
+>liangsong1fan	traditional	28
 segments liang song1 fan
 兩	liǎng	two / both / some
 輛	liàng	classifier for vehicles
@@ -2437,12 +2440,12 @@ segments liang song1 fan
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-涼	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+涼	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 諒	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
+樑	liáng	variant of 梁
 糧	liáng	grain / food / provisions
-良	liáng	good / very / very much
 
 >liang3songfan4	simplified	8
 segments liang3 song fan4
@@ -2495,13 +2498,13 @@ segments liang song fan4
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-凉	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+凉	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 谅	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
 粮	liáng	grain / food / provisions
 
->liangsongfan4	traditional	28
+>liangsongfan4	traditional	29
 segments liang song fan4
 兩餸飯	liǎng sòng fàn	(HK) meal of rice with two dishes
 兩	liǎng	two / both / some
@@ -2510,11 +2513,11 @@ segments liang song fan4
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-涼	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+涼	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 諒	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
-糧	liáng	grain / food / provisions
+樑	liáng	variant of 梁
 
 >liangsongfan1	simplified	27
 segments liang song fan1
@@ -2524,14 +2527,14 @@ segments liang song fan1
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-凉	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+凉	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 谅	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
 粮	liáng	grain / food / provisions
 良	liáng	good / very / very much
 
->liangsongfan1	traditional	27
+>liangsongfan1	traditional	28
 segments liang song fan1
 兩	liǎng	two / both / some
 輛	liàng	classifier for vehicles
@@ -2539,12 +2542,12 @@ segments liang song fan1
 亮	liàng	bright; light / to shine; to flash / loud and clear
 晾	liàng	to dry in the air / (fig.) to cold-shoulder
 量	liáng	to measure
-涼	liáng	the five Liang of the Sixteen Kingdoms, namely: Former Liang 前涼|…
+涼	liáng	cool / cold
 里昂	lǐ áng	Lyon, French city on the Rhône
 諒	liàng	to show understanding / to excuse / to presume
 梁	liáng	roof beam / beam (structure) / bridge
+樑	liáng	variant of 梁
 糧	liáng	grain / food / provisions
-良	liáng	good / very / very much
 
 >liang3song4fan	simplified	8
 segments liang3 song4 fan
@@ -2599,7 +2602,7 @@ segments shi4
 誓	shì	oath / vow / to swear
 士	shì	member of the senior ministerial class (old) / scholar (old) / b…
 似	shì	used in 似的
-视	shì	variant of 視|视
+视	shì	(literary, or bound form) to look at
 世	shì	life / age / generation
 饰	shì	decoration / ornament / to decorate
 
@@ -2607,7 +2610,7 @@ segments shi4
 segments ta
 他	tā	(third-person singular) (since the early 20th century, usu. male…
 她	tā	she
-它	tā	it
+它	tā	it / it (pronoun for an animal)
 塔	tǎ	pagoda (abbr. for 塔婆, a loanword from Sanskrit stūpa); tower; py…
 TA	tā	he or she
 塌	tā	to collapse / to droop / to settle down
@@ -2639,9 +2642,9 @@ segments shi
 十	shí	ten / 10
 使	shǐ	to make / to cause / to enable
 试	shì	to test / to try / experiment
-诗	shī	abbr. for Shijing 詩經|诗经, the Book of Songs
+诗	shī	poem / poetry / verse
 事	shì	matter / thing / item
-时	shí	old variant of 時|时
+时	shí	(bound form) time; hour; period; season / (after a numeral) o'cl…
 什	shí	ten (used in fractions, writing checks etc) / assorted / miscell…
 拾	shí	to pick up / to collate or arrange / ten (banker's anti-fraud nu…
 史	shǐ	history / annals / title of an official historian in ancient Chi…
@@ -2695,7 +2698,7 @@ segments lüe
 
 >niha	simplified	39
 segments ni ha
-你	nǐ	you (informal, as opposed to courteous 您)
+你	nǐ	you (informal, as opposed to courteous 您) / you (Note: In Taiwan…
 呢	ní	dense wool fabric (used for coats and jackets)
 你好	nǐ hǎo	hello; hi
 泥孩	ní hái	clay doll
@@ -2706,18 +2709,18 @@ segments ni ha
 腻	nì	greasy / soft / unctuous
 逆	nì	contrary / opposite / backwards
 衵	nì	women's undergarments
-昵	nì	variant of 暱|昵
+昵	nì	familiar / intimate / to approach
 
 >j	simplified	8564
 segments j
 叫	jiào	to shout / to call / to order
 今天	jīn tiān	today / the present time; now
-家	jiā	used in 傢伙|家伙 and 傢俱|家俱
+家	jiā	home / used in 傢伙|家伙 and 傢俱|家俱
 就	jiù	(after a suppositional clause) in that case; then / (after a cla…
 给	jǐ	(bound form) to supply; to provide / (literary) sufficient; abun…
 觉得	jué de	to think that ...; to feel that ... / to feel (uncomfortable etc)
 九	jiǔ	nine / 9
-几	jī	small table
+几	jī	small table / (literary) almost
 进	jìn	to go forward / to advance / to go in
 姐姐	jiě jie	older sister
 介绍	jiè shào	to introduce (sb to sb) / to give a presentation / to present (s…
@@ -2731,11 +2734,11 @@ segments s
 谁	shéi	who / also pr.
 时候	shí hou	time / length of time / moment
 说话	shuō huà	to speak / to say / to talk
-岁	suì	variant of 歲|岁, year / years old
+岁	suì	classifier for years (of age) / years old
 水	shuǐ	water / (after a name) ... River / to swim (used mostly in 會水|会水…
 睡觉	shuì jiào	to go to bed / to sleep
 三	sān	three / 3
-书	shū	abbr. for 書經|书经
+书	shū	book / letter / document
 少	shǎo	few / less / to lack
 
 >womenshi	simplified	23
@@ -2766,7 +2769,7 @@ segments xie xie
 谢	xiè	to thank / (bound form) to apologize / (bound form) to decline;…
 屑	xiè	bits / fragments / crumbs
 叶	xié	to be in harmony
-邪	xié	old variant of 邪
+邪	xié	demonic / iniquitous / nefarious
 
 >gongzuo	simplified	56
 segments gong zuo
@@ -2809,7 +2812,7 @@ segments ming tian
 螟	míng	boring insect / snout moth's larva (Aphomia gullaris or Plodia i…
 鸣	míng	to cry (of birds, animals and insects) / to make a sound / to vo…
 眳	míng	space between the eyebrows and the eyelashes
-冥	míng	old variant of 冥
+冥	míng	dark / deep / stupid
 暝	míng	dark
 朙	míng	old variant of 明
 
@@ -2835,12 +2838,12 @@ segments zhong wen
 中文标准交换码	zhōng wén biāo zhǔn jiāo huàn mǎ	CSIC, Chinese standard interchange code used from 1992
 重文轻武	zhòng wén qīng wǔ	to value letters and belittle arms (idiom); to stress civil matt…
 重	zhòng	heavy / serious / to attach importance to
-钟	zhōng	handleless cup; goblet / (bound form) to concentrate (one's affe…
+钟	zhōng	a (large) bell (CL:架) / handleless cup; goblet
 中	zhōng	within; among; in / middle; center / while (doing sth); during
 终	zhōng	end / finish
 忠	zhōng	loyal; devoted; faithful
-冢	zhǒng	mound / burial mound / senior (i.e. eldest child or senior in ra…
-众	zhòng	abbr. for 眾議院|众议院, House of Representatives
+冢	zhǒng	mound / burial mound (variant of 冢)
+众	zhòng	(bound form) crowd; multitude / (bound form) many; numerous
 肿	zhǒng	to swell / swelling / swollen
 
 >suanfa	simplified	10
@@ -2945,3 +2948,48 @@ segments fan guo
 犯	fàn	to violate / to offend / to assault
 反	fǎn	contrary / in reverse / inside out or upside down
 饭	fàn	cooked rice / meal / (loanword) fan
+
+>shu1	simplified	283
+segments shu1
+书	shū	book / letter / document
+输	shū	to lose; to be beaten / (bound form) to transport / (literary) t…
+叔	shū	uncle / father's younger brother / husband's younger brother
+梳	shū	to comb / (bound form) a comb
+淑	shū	(bound form) (of women) gentle; kind; lovely; admirable / (used…
+舒	shū	to stretch / to unfold / to relax
+橾	shū	the hole in the center of a wheel accommodating the axle (archai…
+倏	shū	sudden / abrupt / Taiwan pr.
+姝	shū	(literary) (of a woman) beautiful / (literary) beautiful woman;…
+尗	shū	old variant of 菽 / old variant of 叔
+忬	shū	old variant of 舒 / old variant of 紓|纾
+抒	shū	to express / to give expression to / to relieve
+
+>hou4	simplified	235
+segments hou4
+厚	hòu	thick / deep or profound / kind
+后	hòu	back / empress
+候	hòu	to wait / to inquire after / to watch
+侯	hòu	used in 閩侯|闽侯 (the name of a place in Fujian)
+垕	hòu	thick
+堠	hòu	mounds for beacons
+豞	hòu	grunting of pigs
+逅	hòu	used in 邂逅
+郈	hòu	surname Hou / place name
+鄇	hòu	place name
+鲎	hòu	horseshoe crab
+鲘	hòu	see 鱯|鳠
+
+>hou4	traditional	237
+segments hou4
+厚	hòu	thick / deep or profound / kind
+后	hòu	empress / queen / (archaic) monarch
+後	hòu	back / behind / rear
+候	hòu	to wait / to inquire after / to watch
+侯	hòu	used in 閩侯|闽侯 (the name of a place in Fujian)
+垕	hòu	thick
+堠	hòu	mounds for beacons
+豞	hòu	grunting of pigs
+逅	hòu	used in 邂逅
+郈	hòu	surname Hou / place name
+鄇	hòu	place name
+鱟	hòu	horseshoe crab

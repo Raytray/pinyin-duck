@@ -53,6 +53,31 @@ class KeyRoutingTest {
         assertEquals(KeyRouting.Outcome.MoveByPage(1), KeyRouting.route(KeyEvent.KEYCODE_DPAD_DOWN))
     }
 
+    // --- while the Candidate detail bubble is open ---------------------------------
+
+    @Test
+    fun backAndEscapeOnlyCloseAnOpenDetail() {
+        // #11: both are consumed and close the bubble, nothing else; the second press is the
+        // ordinary one.
+        assertEquals(KeyRouting.Outcome.CloseDetail, KeyRouting.route(KeyEvent.KEYCODE_BACK, detailOpen = true))
+        assertEquals(KeyRouting.Outcome.CloseDetail, KeyRouting.route(KeyEvent.KEYCODE_ESCAPE, detailOpen = true))
+    }
+
+    @Test
+    fun withTheDetailClosedBackIsStillTheSystemsAndEscapeStillCancels() {
+        assertNull(KeyRouting.route(KeyEvent.KEYCODE_BACK, detailOpen = false))
+        assertEquals(KeyRouting.Outcome.Cancel, KeyRouting.route(KeyEvent.KEYCODE_ESCAPE, detailOpen = false))
+    }
+
+    @Test
+    fun otherKeysRouteTheSameWhileTheDetailIsOpen() {
+        for (keyCode in listOf(KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_DEL, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_LEFT)) {
+            assertEquals(KeyRouting.route(keyCode), KeyRouting.route(keyCode, detailOpen = true))
+        }
+        assertEquals(KeyRouting.route(KeyEvent.KEYCODE_A, 'a'), KeyRouting.route(KeyEvent.KEYCODE_A, 'a', detailOpen = true))
+        assertNull(KeyRouting.route(KeyEvent.KEYCODE_VOLUME_UP, detailOpen = true))
+    }
+
     // --- letters ---------------------------------------------------------------
 
     @Test

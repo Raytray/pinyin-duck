@@ -39,6 +39,11 @@ describe('buildParityCases', () => {
   const cases = buildParityCases();
   const keys = cases.map((c) => `${c.query}\t${c.script}`);
 
+  it('pins 后 hòu in both scripts, where it is one candidate in one and two in the other', () => {
+    expect(keys).toContain('hou4\tsimplified');
+    expect(keys).toContain('hou4\ttraditional');
+  });
+
   it('pins no query twice', () => {
     expect(new Set(keys).size).toBe(keys.length);
   });

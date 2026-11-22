@@ -31,13 +31,14 @@ test('renders traditional characters after the script toggle', async ({ page }) 
   await expect(scriptToggle(page)).toContainText('繁體 (Traditional)');
 
   await editor(page).pressSequentially('xiexie');
-  await expectCandidates(page, ['謝謝', '泄瀉', '寫', '些', '鞋']);
+  // 洩瀉 shares 泄泻 with 泄瀉, so it is a candidate of its own only in traditional script.
+  await expectCandidates(page, ['謝謝', '泄瀉', '洩瀉', '寫', '些']);
   await expectGlosses(page, [
     'to thank / thanks / thank you',
     '(TCM) to have diarrhea',
+    'variant of 泄瀉|泄泻',
     'to write',
     'classifier indicating a small amount or small number greater tha…',
-    'shoe',
   ]);
   await editor(page).press(' ');
 
@@ -142,12 +143,21 @@ test('credits the dictionary sources and their licenses', async ({ page }) => {
     ['CC-CEDICT', 'https://www.mdbg.net/chinese/dictionary?page=cc-cedict'],
     ['FrequencyWords (OpenSubtitles 2018)', 'https://github.com/hermitdave/FrequencyWords'],
     ['HSK 2012 word list', 'https://github.com/gigacool/hanyu-shuiping-kaoshi'],
+    ['English Wiktionary', 'https://en.wiktionary.org/'],
+    ['HanDeDict', 'https://github.com/gugray/HanDeDict'],
   ]) {
     await expect(credits.getByRole('link', { name, exact: true })).toHaveAttribute('href', href);
   }
   await expect(credits).toContainText('MDBG');
   await expect(credits).toContainText('Hermit Dave');
   await expect(credits).toContainText('gigacool');
+  // Part of speech: the dump date and commit they were taken from, and what was taken.
+  await expect(credits).toContainText('Wiktionary contributors');
+  await expect(credits).toContainText('dump 2026-10-01');
+  await expect(credits).toContainText('HanDeDict contributors');
+  await expect(credits).toContainText('commit 0760a107');
+  await expect(credits).toContainText('CC BY-SA 2.0 DE / 3.0, adapted under 4.0');
+  await expect(credits.getByText('word-class tags only, mapped')).toHaveCount(2);
 
   await credits.getByRole('button', { name: 'Close credits' }).click();
   await expect(credits).toBeHidden();
@@ -160,15 +170,16 @@ test('credits the dictionary sources and their licenses', async ({ page }) => {
   await expectCandidates(page, ['谢谢', '泄泻', '写', '些', '鞋']);
 });
 
-// "fafang" has 19 traditional candidates but 18 simplified ones (发 stands for both 發
-// and 髮), so the last traditional page is one longer than the last simplified page.
+// "fafang" has 23 traditional candidates but 18 simplified ones (one simplified candidate
+// can stand for several headwords, such as 发 for 發 and 髮), so the last traditional
+// candidate is past the end of the simplified list.
 async function highlightLastTraditionalFafang(page: Page) {
   await scriptToggle(page).click();
   await editor(page).pressSequentially('fafang');
-  for (let i = 0; i < 3; i++) await editor(page).press(']');
-  for (let i = 0; i < 3; i++) await editor(page).press('ArrowRight');
-  await expectCandidates(page, ['栰', '茷', '醱', '鍅']);
-  await expect(page.locator('.candidate-hanzi').nth(3)).toHaveText('鍅');
+  for (let i = 0; i < 4; i++) await editor(page).press(']');
+  for (let i = 0; i < 2; i++) await editor(page).press('ArrowRight');
+  await expectCandidates(page, ['茷', '醱', '鍅']);
+  await expect(page.locator('.candidate-hanzi').nth(2)).toHaveText('鍅');
 }
 
 test('a script toggle mid-composition goes back to the first candidate for punctuation', async ({

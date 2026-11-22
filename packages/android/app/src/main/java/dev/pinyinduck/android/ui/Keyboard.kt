@@ -2,6 +2,7 @@ package dev.pinyinduck.android.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,22 +18,31 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridLayoutInfo
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.ViewConfiguration
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -52,6 +62,13 @@ data class KeyboardCallbacks(
     val onToggleScript: () -> Unit,
     val onToggleExpanded: () -> Unit,
     val onClear: () -> Unit,
+    /**
+     * A long press on a strip candidate or a card in the Expanded candidate list: open the
+     * Candidate detail bubble for it, or switch it there.
+     */
+    val onShowDetail: (Int) -> Unit = {},
+    /** Close the Candidate detail bubble, e.g. after a tap on the app area. */
+    val onCloseDetail: () -> Unit = {},
 )
 
 /**
@@ -75,6 +92,7 @@ data class KeyboardCallbacks(
 fun PinyinDuckKeyboard(
     state: KeyboardUiState,
     callbacks: KeyboardCallbacks,
+    modifier: Modifier = Modifier,
 ) {
     // The globe/hide icons are drawn over the keyboard rather than reserving space, and
     // their touch targets are taller than the gesture navigation bar inset reports, so
@@ -87,7 +105,7 @@ fun PinyinDuckKeyboard(
 
     Column(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 // The background is drawn before the padding, so the keyboard colour reaches
                 // into the strip below the keys rather than leaving the window background there.
@@ -249,8 +267,10 @@ private fun CandidateStrip(
                             val index = start + offset
                             StripCandidate(
                                 candidate = candidate,
+                                index = index,
                                 selected = index == state.selectedIndex,
                                 onClick = { callbacks.onSelectCandidate(index) },
+                                onLongClick = { callbacks.onShowDetail(index) },
                             )
                         }
                 }
@@ -278,16 +298,18 @@ private fun CandidateStrip(
 @Composable
 private fun RowScope.StripCandidate(
     candidate: Candidate,
+    index: Int,
     selected: Boolean,
     onClick: () -> Unit,
-) {
+    onLongClick: () -> Unit,
+) = DetailLongPressTimeout {
     Row(
         modifier =
             Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (selected) DuckColors.Accent.copy(alpha = 0.18f) else Color.Transparent)
-                .clickable(onClick = onClick)
+                .opensCandidateDetail(index, onClick = onClick, onLongClick = onLongClick)
                 .padding(horizontal = 5.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -310,6 +332,51 @@ private fun RowScope.StripCandidate(
 }
 
 /**
+ * A candidate that commits on tap and opens its Candidate detail on long press: a strip
+ * candidate or a card in the Expanded candidate list.
+ *
+ * TalkBack users get the detail as a named custom action as well (#11), since a timed press is
+ * not something they can discover; the long-click label names the same thing for the
+ * double-tap-hold. It is also the bubble's [detailAnchor]. Call it inside
+ * [DetailLongPressTimeout] for the long press to take [DETAIL_LONG_PRESS_MILLIS].
+ */
+private fun Modifier.opensCandidateDetail(
+    index: Int,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+): Modifier =
+    semantics {
+        customActions =
+            listOf(
+                CustomAccessibilityAction("Show details") {
+                    onLongClick()
+                    true
+                },
+            )
+    }.detailAnchor(index)
+        .combinedClickable(onLongClickLabel = "Show details", onLongClick = onLongClick, onClick = onClick)
+
+/** How long a press on a candidate takes to open its Candidate detail (#5): about half a second. */
+internal const val DETAIL_LONG_PRESS_MILLIS = 450L
+
+/**
+ * Gives [content]'s long presses [DETAIL_LONG_PRESS_MILLIS] instead of the platform's timeout,
+ * which is 400 or 500 ms depending on the Android version. Scoped to one candidate so the keys
+ * keep the platform's.
+ */
+@Composable
+private fun DetailLongPressTimeout(content: @Composable () -> Unit) {
+    val platform = LocalViewConfiguration.current
+    val configuration =
+        remember(platform) {
+            object : ViewConfiguration by platform {
+                override val longPressTimeoutMillis = DETAIL_LONG_PRESS_MILLIS
+            }
+        }
+    CompositionLocalProvider(LocalViewConfiguration provides configuration, content = content)
+}
+
+/**
  * The full candidate list with the English definitions.
  *
  * This is the point of the app: `你` and `泥` both read `nǐ`/`ní` and mean nothing alike, so
@@ -321,6 +388,11 @@ private fun RowScope.StripCandidate(
  * closed by touch at all; and paging through a scrollable viewport meant scrolling within a
  * page as well as between pages. The session fetches up to [PinyinDuckSession.FETCH_LIMIT]
  * candidates, so scrolling them is what keeps all of them reachable.
+ *
+ * While a Candidate detail bubble is open the list shrinks to about a row, scrolled to the card
+ * the bubble is for, so the keyboard is shorter and the bubble has room above it (#22); it comes
+ * back to full height when the bubble closes. The insets stay at the full-height top
+ * meanwhile (see [KeyboardWindow]), so the host app does not move.
  */
 @Composable
 private fun ExpandedCandidates(
@@ -346,9 +418,19 @@ private fun ExpandedCandidates(
 
         Spacer(modifier = Modifier.height(4.dp))
 
+        val gridState = rememberLazyGridState()
+        val detailIndex = state.detailIndex
+        LaunchedEffect(detailIndex) {
+            // The list has just shrunk under the bubble; keep the card it is for in view.
+            if (detailIndex != null) {
+                withFrameNanos {}
+                if (!gridState.layoutInfo.showsWhole(detailIndex)) gridState.scrollToItem(detailIndex)
+            }
+        }
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
-            modifier = Modifier.height(196.dp),
+            state = gridState,
+            modifier = Modifier.height(if (state.detailOpen) EXPANDED_LIST_HEIGHT_UNDER_DETAIL else EXPANDED_LIST_HEIGHT),
         ) {
             // No explicit key: `Candidate.id` is `"$simplified-$pinyinNumbers"` and the
             // dictionary is keyed by traditional headword, so 幹/乾/干 all produce the same id.
@@ -357,27 +439,46 @@ private fun ExpandedCandidates(
             itemsIndexed(items = state.candidates) { index, candidate ->
                 CandidateCard(
                     candidate = candidate,
+                    index = index,
                     selected = index == state.selectedIndex,
                     onClick = { callbacks.onSelectCandidate(index) },
+                    onLongClick = { callbacks.onShowDetail(index) },
                 )
             }
         }
     }
 }
 
+/** The Expanded candidate list's height: three rows of cards, give or take. */
+private val EXPANDED_LIST_HEIGHT = 196.dp
+
+/**
+ * Its height while the Candidate detail bubble is open: about one row, so the bubble gets the
+ * rest (#22). At full height a landscape phone has no room above the keyboard at all.
+ */
+private val EXPANDED_LIST_HEIGHT_UNDER_DETAIL = 80.dp
+
+/** Whether the item at [index] is laid out with no part of it scrolled off. */
+private fun LazyGridLayoutInfo.showsWhole(index: Int): Boolean {
+    val item = visibleItemsInfo.firstOrNull { it.index == index } ?: return false
+    return item.offset.y >= viewportStartOffset && item.offset.y + item.size.height <= viewportEndOffset
+}
+
 @Composable
 private fun CandidateCard(
     candidate: Candidate,
+    index: Int,
     selected: Boolean,
     onClick: () -> Unit,
-) {
+    onLongClick: () -> Unit,
+) = DetailLongPressTimeout {
     Column(
         modifier =
             Modifier
                 .padding(3.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(if (selected) DuckColors.Accent.copy(alpha = 0.16f) else DuckColors.Key)
-                .clickable(onClick = onClick)
+                .opensCandidateDetail(index, onClick = onClick, onLongClick = onLongClick)
                 .padding(horizontal = 10.dp, vertical = 7.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

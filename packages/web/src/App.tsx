@@ -23,6 +23,8 @@ export const App: React.FC = () => {
     currentPage,
     totalPages,
     selectCandidate,
+    detail,
+    toggleDetail,
     nextPage,
     prevPage,
     handleKeyDown,
@@ -64,6 +66,8 @@ export const App: React.FC = () => {
             downloadProgress={downloadProgress}
             entryCount={entryCount}
             onSelectCandidate={selectCandidate}
+            detail={detail}
+            onToggleDetail={toggleDetail}
             onNextPage={nextPage}
             onPrevPage={prevPage}
             onSetSelectedIndex={setSelectedIndex}

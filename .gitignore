@@ -32,6 +32,10 @@ packages/core/.cache/
 # rather than timing out on a missing asset.
 packages/web/public/dictionary.btree
 
+# The Candidate detail file built alongside it with the same build id (ADR 0002), and read
+# by the detail parity generator. Its gzip copy is under packages/web/src/generated/ below.
+packages/web/public/detail.bin
+
 # Android build state (packages/android)
 packages/android/.gradle/
 packages/android/build/

@@ -10,6 +10,8 @@ interface Source {
   license: string;
   licenseUrl: string;
   url: string;
+  /** Which edition was used and how, for a source adapted rather than used whole. */
+  note?: string;
 }
 
 /** Keep in step with DATA_LICENSES.md, which has the full notices. */
@@ -34,6 +36,22 @@ const SOURCES: Source[] = [
     license: 'MIT',
     licenseUrl: 'https://github.com/gigacool/hanyu-shuiping-kaoshi/blob/master/LICENSE',
     url: 'https://github.com/gigacool/hanyu-shuiping-kaoshi',
+  },
+  {
+    name: 'English Wiktionary',
+    author: 'Wiktionary contributors',
+    license: 'CC BY-SA 4.0',
+    licenseUrl: CC_BY_SA,
+    url: 'https://en.wiktionary.org/',
+    note: 'dump 2026-10-01 via kaikki.org (wiktextract) · word-class tags only, mapped',
+  },
+  {
+    name: 'HanDeDict',
+    author: 'HanDeDict contributors, published by Gábor L Ugray',
+    license: 'CC BY-SA 2.0 DE / 3.0, adapted under 4.0',
+    licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/de/',
+    url: 'https://github.com/gugray/HanDeDict',
+    note: 'commit 0760a107 · word-class tags only, mapped',
   },
 ];
 
@@ -97,6 +115,7 @@ export const Credits: React.FC = () => {
                   {source.license}
                 </a>
               </span>
+              {source.note && <span>{source.note}</span>}
             </li>
           ))}
         </ul>

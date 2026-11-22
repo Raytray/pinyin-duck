@@ -329,6 +329,12 @@ export class RimeDictWriter {
   unencodableCount = 0;
   /** Duplicate `(text, code)` rows dropped. */
   duplicateCount = 0;
+  /**
+   * Entries that are candidates only in the other script: a simplified candidate standing
+   * for several headwords (后 hòu for 後 and 后) is one row in simplified script and one row
+   * per headword in traditional script.
+   */
+  otherScriptCount = 0;
 
   private block: CodeEntry[] = [];
   private blockKey: string | null = null;
@@ -349,6 +355,10 @@ export class RimeDictWriter {
    * homophone cluster while still ordering each menu correctly.
    */
   add(entry: StoredEntry): void {
+    if (entry.onlyIn && entry.onlyIn !== this.script) {
+      this.otherScriptCount++;
+      return;
+    }
     if (!rimeText(entry, this.script)) {
       this.skippedCount++;
       return;
