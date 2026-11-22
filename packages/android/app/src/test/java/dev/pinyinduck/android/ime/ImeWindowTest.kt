@@ -7,6 +7,7 @@ import android.view.ContextThemeWrapper
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.inputmethod.EditorInfo
 import dev.pinyinduck.android.R
+import dev.pinyinduck.android.engine.Candidate
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -136,7 +137,7 @@ class ImeWindowTest {
     fun whileTheDetailIsOpenTheWholeWindowIsTouchableAndTheInsetsStayPut() {
         layOut(width = 1080, height = 2200, keyboardTop = 1400)
 
-        service.callbacks().onShowDetail(0)
+        openDetail()
         val insets = computeInsets()
 
         assertEquals(1400, insets.contentTopInsets)
@@ -148,7 +149,7 @@ class ImeWindowTest {
     fun closingTheDetailHandsTheAppAreaBackToTheApp() {
         layOut(width = 1080, height = 2200, keyboardTop = 1400)
 
-        service.callbacks().onShowDetail(0)
+        openDetail()
         service.callbacks().onCloseDetail()
 
         assertEquals(Rect(0, 1400, 1080, 2200), computeInsets().touchableRegion.bounds)
@@ -159,7 +160,7 @@ class ImeWindowTest {
     @Test
     fun hidingTheKeyboardClosesTheDetail() {
         // Otherwise the next show would open with the whole window swallowing the app's touches.
-        service.callbacks().onShowDetail(0)
+        openDetail()
 
         service.onFinishInputView(true)
 
@@ -168,7 +169,7 @@ class ImeWindowTest {
 
     @Test
     fun aNewFieldClosesTheDetail() {
-        service.callbacks().onShowDetail(0)
+        openDetail()
 
         service.onStartInput(EditorInfo(), false)
 
@@ -194,6 +195,17 @@ class ImeWindowTest {
         view.right = width
         view.bottom = height
         service.onKeyboardTop(keyboardTop)
+    }
+
+    /**
+     * Opens the bubble by setting the state the service draws from.
+     *
+     * The window tests keep the dictionary out, so there are no candidates to long-press;
+     * `CandidateDetailServiceTest` opens it the real way.
+     */
+    private fun openDetail() {
+        val candidate = Candidate("猫", "猫", "猫", "貓", "māo", "mao1", "cat", 0, "mao", "")
+        service.uiState = service.uiState.copy(candidates = listOf(candidate), detail = OpenDetail(0, candidate, null))
     }
 
     private fun computeInsets() = InputMethodService.Insets().also { service.onComputeInsets(it) }

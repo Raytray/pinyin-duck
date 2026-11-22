@@ -1,6 +1,7 @@
 package dev.pinyinduck.android.ime
 
 import android.content.res.AssetManager
+import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
 import android.util.Log
 import android.view.Gravity
@@ -28,6 +29,8 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import dev.pinyinduck.android.data.DictionaryLoader
 import dev.pinyinduck.android.data.OpenedDictionary
+import dev.pinyinduck.android.engine.DetailSubject
+import dev.pinyinduck.android.engine.candidateDetail
 import dev.pinyinduck.android.ui.KeyAction
 import dev.pinyinduck.android.ui.KeyboardCallbacks
 import dev.pinyinduck.android.ui.KeyboardWindow
@@ -374,6 +377,19 @@ class PinyinDuckImeService :
         super.onFinishInputView(finishingInput)
     }
 
+    override fun onWindowHidden() {
+        // Belt and braces beside onFinishInputView: the window can go without the input view
+        // finishing, and a bubble left open would make the whole window touchable on next show.
+        closeDetail()
+        super.onWindowHidden()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        // The bubble is anchored to where a candidate was, which a rotation moves (#11).
+        closeDetail()
+        super.onConfigurationChanged(newConfig)
+    }
+
     override fun onStartInput(
         info: EditorInfo?,
         restarting: Boolean,
@@ -387,7 +403,7 @@ class PinyinDuckImeService :
         fieldPolicy = FieldPolicy.forInputType(info?.inputType ?: 0)
         session?.direct = fieldPolicy.direct
         // A new field also closes the Candidate detail bubble (#11).
-        uiState = uiState.copy(shift = false, expanded = false, layout = fieldPolicy.layout, detailIndex = null)
+        uiState = uiState.copy(shift = false, expanded = false, layout = fieldPolicy.layout, detail = null)
     }
 
     override fun onFinishInput() {
@@ -438,6 +454,7 @@ class PinyinDuckImeService :
                 keyCode = keyCode,
                 unicode = event.unicodeChar.toChar(),
                 shift = event.isShiftPressed,
+                detailOpen = uiState.detailOpen,
             ) ?: return super.onKeyDown(keyCode, event)
 
         when (outcome) {
@@ -447,8 +464,32 @@ class PinyinDuckImeService :
                 session.moveSelectionByPage(outcome.pages, KeyRouting.PAGE_SIZE)
             KeyRouting.Outcome.Enter -> session.enter()
             KeyRouting.Outcome.Cancel -> session.cancelComposition()
+            KeyRouting.Outcome.CloseDetail -> {
+                closeDetail()
+                swallowKeyUp = keyCode
+            }
         }
         return true
+    }
+
+    /**
+     * The key whose release belongs to a press that only closed the Candidate detail bubble.
+     *
+     * The framework hides the keyboard on Back's *release* (and, from API 33, synthesises the
+     * pair from the back gesture), so consuming only the press would close the bubble and then
+     * hide the keyboard as well. The release is consumed too, once.
+     */
+    private var swallowKeyUp: Int? = null
+
+    override fun onKeyUp(
+        keyCode: Int,
+        event: KeyEvent,
+    ): Boolean {
+        if (swallowKeyUp == keyCode) {
+            swallowKeyUp = null
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
     }
 
     /**
@@ -467,15 +508,43 @@ class PinyinDuckImeService :
             onKey = ::handleKey,
             onSelectCandidate = { session?.selectCandidate(it) },
             onToggleScript = { session?.toggleScript() },
-            onToggleExpanded = { uiState = uiState.copy(expanded = !uiState.expanded) },
+            onToggleExpanded = ::toggleExpanded,
             onClear = { session?.cancelComposition() },
-            onShowDetail = { uiState = uiState.copy(detailIndex = it) },
+            onShowDetail = ::openDetail,
             onCloseDetail = ::closeDetail,
         )
 
+    /**
+     * Opens the Candidate detail bubble for the candidate at [index], or switches it there.
+     *
+     * The detail is read here, on the main thread: [candidateDetail] touches only the mapped
+     * pages of the candidate's own records, a few KB at most. A record that cannot be read
+     * still opens the bubble, which then says so, rather than a long press doing nothing.
+     */
+    private fun openDetail(index: Int) {
+        val candidate = uiState.candidates.getOrNull(index) ?: return
+        val view =
+            dictionary?.let { opened ->
+                runCatching { candidateDetail(DetailSubject.of(candidate), uiState.script, opened.detail) }
+                    .onFailure { Log.w(LOG_TAG, "could not read the detail of ${candidate.hanzi}", it) }
+                    .getOrNull()
+            }
+        uiState = uiState.copy(detail = OpenDetail(index, candidate, view))
+    }
+
+    /**
+     * Opens or closes the Expanded candidate list.
+     *
+     * Either way the bubble's anchor (a strip candidate, or a card in the list) leaves the
+     * screen, so an open detail closes.
+     */
+    private fun toggleExpanded() {
+        uiState = uiState.copy(expanded = !uiState.expanded, detail = null)
+    }
+
     /** Closes the Candidate detail bubble; a no-op when it is already closed. */
     private fun closeDetail() {
-        if (uiState.detailOpen) uiState = uiState.copy(detailIndex = null)
+        if (uiState.detailOpen) uiState = uiState.copy(detail = null)
     }
 
     private fun handleKey(action: KeyAction) {
@@ -499,20 +568,31 @@ class PinyinDuckImeService :
             KeyAction.Shift -> uiState = uiState.copy(shift = !uiState.shift)
             is KeyAction.SwitchTo -> uiState = uiState.copy(layout = action.layout, shift = false)
             KeyAction.ToggleScript -> session.toggleScript()
-            KeyAction.ToggleExpanded -> uiState = uiState.copy(expanded = !uiState.expanded)
+            KeyAction.ToggleExpanded -> toggleExpanded()
             KeyAction.Clear -> session.cancelComposition()
         }
     }
 
     private fun syncFromSession() {
         val session = session ?: return
+        val previous = uiState
+        // Anything that changed the composition closes the Candidate detail bubble (#11): a
+        // letter, a tone, backspace, a commit (Space, a tapped candidate) or a cancel, and also
+        // a script switch, since the bubble would otherwise show a candidate the strip no
+        // longer does. Each of those re-ranks, so the candidates list is a new one; moving the
+        // highlight does not, and leaves the bubble open.
+        val compositionChanged =
+            session.buffer != previous.buffer ||
+                session.candidates !== previous.candidates ||
+                session.script != previous.script
         uiState =
-            uiState.copy(
+            previous.copy(
                 buffer = session.buffer,
                 candidates = session.candidates,
                 total = session.total,
                 selectedIndex = session.selectedIndex,
                 script = session.script,
+                detail = if (compositionChanged) null else previous.detail,
             )
     }
 

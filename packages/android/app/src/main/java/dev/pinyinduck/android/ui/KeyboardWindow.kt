@@ -1,33 +1,34 @@
 package dev.pinyinduck.android.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.paneTitle
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.pinyinduck.android.ime.KeyboardUiState
+import dev.pinyinduck.android.ime.OpenDetail
 import kotlin.math.roundToInt
 
 /** The keyboard itself, inside [KeyboardWindow]. */
@@ -35,15 +36,6 @@ const val KEYBOARD_TAG = "keyboard"
 
 /** The empty, transparent space above the keyboard: the app shows through it. */
 const val APP_AREA_TAG = "appArea"
-
-/** The Candidate detail bubble. */
-const val DETAIL_BUBBLE_TAG = "detailBubble"
-
-/** The bubble's scrolling content. */
-const val DETAIL_CONTENT_TAG = "detailContent"
-
-/** The bubble's ✕. */
-const val DETAIL_CLOSE_TAG = "detailClose"
 
 /**
  * Everything drawn in the full-height IME window.
@@ -61,7 +53,8 @@ const val DETAIL_CLOSE_TAG = "detailClose"
  * The bubble lives in the space above the keyboard and nowhere else, so its height is capped
  * at that space and it can never cover a key; its content scrolls when it is taller. On a
  * landscape phone that space may be only ~100–150 dp, which is why the content scrolls rather
- * than being sized to fit.
+ * than being sized to fit. Horizontally it sits over whatever opened it, an element marked with
+ * [detailAnchor], clamped to the window.
  *
  * @param onKeyboardTop where the keyboard's top edge landed, in window pixels. The service
  *   reports it to the window manager as the keyboard's insets.
@@ -72,93 +65,108 @@ fun KeyboardWindow(
     callbacks: KeyboardCallbacks,
     onKeyboardTop: (Int) -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-            contentAlignment = Alignment.BottomCenter,
-        ) {
-            if (state.detailOpen) {
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .testTag(APP_AREA_TAG)
-                            .pointerInput(Unit) { detectTapGestures { callbacks.onCloseDetail() } },
-                )
-                StubDetailBubble(onClose = callbacks.onCloseDetail)
-            }
-        }
+    val anchors = remember { DetailAnchors() }
+    ReturnFocusOnClose(state, anchors)
 
-        PinyinDuckKeyboard(
-            state = state,
-            callbacks = callbacks,
-            modifier =
-                Modifier
-                    .testTag(KEYBOARD_TAG)
-                    .onGloballyPositioned { onKeyboardTop(it.boundsInWindow().top.roundToInt()) },
-        )
+    CompositionLocalProvider(LocalDetailAnchors provides anchors) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            var areaLeft by remember { mutableFloatStateOf(0f) }
+            BoxWithConstraints(
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .onGloballyPositioned { areaLeft = it.boundsInRoot().left },
+                contentAlignment = Alignment.BottomStart,
+            ) {
+                val detail = state.detail
+                if (detail != null) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .testTag(APP_AREA_TAG)
+                                .pointerInput(Unit) { detectTapGestures { callbacks.onCloseDetail() } },
+                    )
+                    val width = minOf(maxWidth - BUBBLE_MARGIN * 2, BUBBLE_MAX_WIDTH)
+                    val density = LocalDensity.current
+                    val left =
+                        with(density) {
+                            bubbleLeft(
+                                anchor = anchors.boundsOf(detail.index),
+                                areaLeft = areaLeft,
+                                areaWidth = maxWidth.toPx(),
+                                bubbleWidth = width.toPx(),
+                                margin = BUBBLE_MARGIN.toPx(),
+                            )
+                        }
+                    CandidateDetailBubble(
+                        detail = detail,
+                        onUse = { callbacks.onSelectCandidate(detail.index) },
+                        onClose = callbacks.onCloseDetail,
+                        modifier =
+                            Modifier
+                                .offset { IntOffset(left.roundToInt(), 0) }
+                                .padding(vertical = 6.dp)
+                                .width(width),
+                    )
+                }
+            }
+
+            PinyinDuckKeyboard(
+                state = state,
+                callbacks = callbacks,
+                modifier =
+                    Modifier
+                        .testTag(KEYBOARD_TAG)
+                        .onGloballyPositioned { onKeyboardTop(it.boundsInWindow().top.roundToInt()) },
+            )
+        }
     }
+}
+
+/** The bubble's widest, so that on a phone it visibly belongs to one candidate. */
+private val BUBBLE_MAX_WIDTH = 320.dp
+
+/** The least space between the bubble and either edge of the window. */
+private val BUBBLE_MARGIN = 10.dp
+
+/**
+ * Where the bubble's left edge goes, in pixels from the left of the space above the keyboard.
+ *
+ * Centred over the [anchor] and then clamped, so a bubble for the first or last candidate stays
+ * inside the window. Without an anchor yet (the first frame), it is centred in the window.
+ */
+internal fun bubbleLeft(
+    anchor: Rect?,
+    areaLeft: Float,
+    areaWidth: Float,
+    bubbleWidth: Float,
+    margin: Float,
+): Float {
+    val centre = anchor?.let { (it.left + it.right) / 2 - areaLeft } ?: (areaWidth / 2)
+    val max = (areaWidth - margin - bubbleWidth).coerceAtLeast(margin)
+    return (centre - bubbleWidth / 2).coerceIn(margin, max)
 }
 
 /**
- * The placeholder Candidate detail bubble.
+ * Hands focus back to the candidate the bubble was opened from, once it closes (#11).
  *
- * Fixed content, deliberately taller than the space a landscape phone has above the keyboard,
- * so the spike shows the bubble clamping and scrolling on device. The real detail replaces the
- * placeholder lines in the bubble slice (#21); the placement and the close paths stay.
+ * Only when that candidate is still where it was: a bubble closed by committing it, or by a key
+ * that re-ranked the strip, has nothing to return to, and focusing whatever now sits at the
+ * same index would be a different candidate.
  */
 @Composable
-private fun StubDetailBubble(onClose: () -> Unit) {
-    Column(
-        modifier =
-            Modifier
-                .testTag(DETAIL_BUBBLE_TAG)
-                .semantics { paneTitle = "Candidate detail" }
-                .padding(horizontal = 10.dp, vertical = 6.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(DuckColors.SpecialKey)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "Candidate detail",
-                color = DuckColors.PrimaryText,
-                fontSize = 15.sp,
-                modifier = Modifier.weight(1f),
-            )
-            Box(
-                modifier =
-                    Modifier
-                        .testTag(DETAIL_CLOSE_TAG)
-                        .size(34.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable(onClickLabel = "Close", onClick = onClose),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(text = "✕", color = DuckColors.PrimaryText, fontSize = 15.sp)
-            }
-        }
-        Column(
-            modifier =
-                Modifier
-                    .testTag(DETAIL_CONTENT_TAG)
-                    .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            repeat(PLACEHOLDER_LINES) { line ->
-                Text(
-                    text = "Placeholder line ${line + 1}",
-                    color = DuckColors.SecondaryText,
-                    fontSize = 13.sp,
-                )
-            }
+private fun ReturnFocusOnClose(
+    state: KeyboardUiState,
+    anchors: DetailAnchors,
+) {
+    val last = remember { arrayOfNulls<OpenDetail>(1) }
+    LaunchedEffect(state.detail) {
+        val closed = last[0]
+        last[0] = state.detail
+        if (state.detail == null && closed != null && state.candidates.getOrNull(closed.index) == closed.candidate) {
+            anchors.focus(closed.index)
         }
     }
 }
-
-/** Enough placeholder lines to overflow the bubble on any phone, so scrolling is visible. */
-private const val PLACEHOLDER_LINES = 20

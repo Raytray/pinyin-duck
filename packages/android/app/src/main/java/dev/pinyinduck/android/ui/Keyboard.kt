@@ -34,6 +34,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -255,6 +258,7 @@ private fun CandidateStrip(
                             val index = start + offset
                             StripCandidate(
                                 candidate = candidate,
+                                index = index,
                                 selected = index == state.selectedIndex,
                                 onClick = { callbacks.onSelectCandidate(index) },
                                 onLongClick = { callbacks.onShowDetail(index) },
@@ -285,6 +289,7 @@ private fun CandidateStrip(
 @Composable
 private fun RowScope.StripCandidate(
     candidate: Candidate,
+    index: Int,
     selected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -295,8 +300,18 @@ private fun RowScope.StripCandidate(
                 .weight(1f)
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (selected) DuckColors.Accent.copy(alpha = 0.18f) else Color.Transparent)
-                // Long press opens the Candidate detail; the label is what TalkBack offers in
-                // place of a timed press.
+                // Long press opens the Candidate detail. TalkBack users get it as a named
+                // custom action as well (#11), since a timed press is not something they can
+                // discover; the long-click label names the same thing for the double-tap-hold.
+                .semantics {
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction("Show details") {
+                                onLongClick()
+                                true
+                            },
+                        )
+                }.detailAnchor(index)
                 .combinedClickable(onLongClickLabel = "Show details", onLongClick = onLongClick, onClick = onClick)
                 .padding(horizontal = 5.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,

@@ -46,6 +46,14 @@ object KeyRouting {
 
         /** Abandon the composition. */
         data object Cancel : Outcome
+
+        /**
+         * Close the Candidate detail bubble and do nothing else.
+         *
+         * Back and Esc while the bubble is open (#11): the press is consumed, so the second
+         * one is the ordinary Back (hide the keyboard) or Esc (cancel the composition).
+         */
+        data object CloseDetail : Outcome
     }
 
     /**
@@ -55,12 +63,24 @@ object KeyRouting {
      * rather than consume, or the app behind the keyboard would never receive it.
      *
      * [unicode] is `KeyEvent.getUnicodeChar()`; [shift] is that event's shift state, since a
-     * shifted letter still types a pinyin letter.
+     * shifted letter still types a pinyin letter. [detailOpen] is whether the Candidate detail
+     * bubble is open, which only changes what Back and Esc mean.
      */
     fun route(
         keyCode: Int,
         unicode: Char = 0.toChar(),
         shift: Boolean = false,
+        detailOpen: Boolean = false,
+    ): Outcome? =
+        when {
+            detailOpen && (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) -> Outcome.CloseDetail
+            else -> routeComposing(keyCode, unicode, shift)
+        }
+
+    private fun routeComposing(
+        keyCode: Int,
+        unicode: Char,
+        shift: Boolean,
     ): Outcome? =
         when (keyCode) {
             KeyEvent.KEYCODE_SPACE -> Outcome.Act(KeyAction.Space)
