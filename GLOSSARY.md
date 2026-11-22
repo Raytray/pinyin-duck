@@ -50,6 +50,20 @@ One choice offered for a pinyin query: Hanzi in the active script, a reading, an
 In simplified script one candidate can stand for several headwords that share a simplified form.
 _Avoid_: Suggestion, result
 
+**Sentence candidate**:
+A candidate made of several dictionary words, one after another, covering the query from its
+start as far as they can be built with confidence; any pinyin left over stays to compose next.
+Each word keeps its own reading and gloss, so the learner can see how it was built. Still a
+sentence candidate when it is only a two-word phrase; a single word that stops short of the
+end is a prefix word, not a sentence candidate.
+_Avoid_: Phrase candidate, composed candidate, prediction
+
+**Fixed word**:
+A word the learner has chosen in place of another inside a sentence candidate, covering the
+same pinyin. The rest of the sentence is rebuilt around it, and it stays chosen while the
+learner keeps composing.
+_Avoid_: Pinned word, locked word, override
+
 **Expanded candidate list**:
 The full list of candidates for the current query, each with its reading and short gloss,
 opened from the keyboard in place of the paged candidate strip.
