@@ -15,7 +15,8 @@ playwright/.cache/
 coverage/
 packages/core/coverage/
 
-# Downloaded frequency and HSK sources, re-fetchable with build:dict. Pinned by URL and
+# Downloaded sources (frequency, HSK, HanDeDict, and the OpenSubtitles text for the bigram
+# table), re-fetchable with build:dict and build:bigrams. Pinned by URL and
 # SHA-256 in packages/core/scripts/sources.ts, so a copy here is always checked. CC-CEDICT
 # is not here: it is committed under packages/core/data/.
 packages/core/.cache/
@@ -35,6 +36,11 @@ packages/web/public/dictionary.btree
 # The Candidate detail file built alongside it with the same build id (ADR 0002), and read
 # by the detail parity generator. Its gzip copy is under packages/web/src/generated/ below.
 packages/web/public/detail.bin
+
+# The bigram table for Sentence candidates, from `npm run build:bigrams`, which counts it from
+# the 173MB OpenSubtitles download (cached in packages/core/.cache/). Optional at runtime; the
+# Android build copies it when present. Its gzip copy is under packages/web/src/generated/.
+packages/web/public/bigrams.bin
 
 # Android build state (packages/android)
 packages/android/.gradle/

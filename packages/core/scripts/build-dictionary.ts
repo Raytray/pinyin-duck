@@ -50,8 +50,8 @@ import { detailRecords, entrySenseDefinitions, isCommonLine } from './build-deta
 import { partOfSpeechSources } from './part-of-speech.js';
 
 const PACKAGE_DIR = path.resolve(__dirname, '..');
-const CACHE_DIR = path.join(PACKAGE_DIR, '.cache');
-const OUT_DIR = path.resolve(__dirname, '../../web/public');
+export const CACHE_DIR = path.join(PACKAGE_DIR, '.cache');
+export const OUT_DIR = path.resolve(__dirname, '../../web/public');
 const DEFAULT_OUT = path.join(OUT_DIR, 'dictionary.btree');
 /**
  * The web app imports the compressed copy from here, so Vite gives its production URL
@@ -166,7 +166,7 @@ export function sha256(text: string): string {
  * A committed file or a download that does not match is an error, not a warning: it means
  * the bytes are no longer what this commit was built and tested against.
  */
-async function readPinned(source: PinnedSource, useCache: boolean): Promise<string> {
+export async function readPinned(source: PinnedSource, useCache: boolean): Promise<string> {
   if ('file' in source) return readVendored(source);
 
   const { url, cacheName } = source;
@@ -518,7 +518,7 @@ export function encodeDictionary(rows: DictionaryRow[]): { bytes: Uint8Array; bu
  * Writes `bytes` to `outPath` and a gzip copy to `compressedOutPath`, returning each path
  * with its size.
  */
-function writeWithGzip(bytes: Uint8Array, outPath: string, compressedOutPath: string): [string, number][] {
+export function writeWithGzip(bytes: Uint8Array, outPath: string, compressedOutPath: string): [string, number][] {
   const payload = Buffer.from(bytes);
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, payload);
