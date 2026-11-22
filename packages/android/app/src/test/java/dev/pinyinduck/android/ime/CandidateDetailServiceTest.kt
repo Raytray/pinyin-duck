@@ -288,6 +288,96 @@ class CandidateDetailServiceTest {
         assertEquals("", service.uiState.buffer)
     }
 
+    // --- from the Expanded candidate list (#22) ---------------------------------------
+
+    @Test
+    fun longPressingACardOpensItsDetailAndLeavesTheListOpen() {
+        type("mao")
+        service.callbacks().onToggleExpanded()
+        val cat = indexOf("猫")
+
+        service.callbacks().onShowDetail(cat)
+
+        assertEquals(cat, service.uiState.detail?.index)
+        assertTrue("the list closed under the bubble", service.uiState.expanded)
+    }
+
+    @Test
+    fun longPressingAnotherCardSwitchesTheDetailAndTheListStaysOpen() {
+        type("mao")
+        service.callbacks().onToggleExpanded()
+        service.callbacks().onShowDetail(0)
+
+        service.callbacks().onShowDetail(3)
+
+        assertEquals(service.uiState.candidates[3], service.uiState.detail?.candidate)
+        assertTrue(service.uiState.expanded)
+    }
+
+    @Test
+    fun tappingACardCommitsItAndClosesTheDetail() {
+        type("mao")
+        service.callbacks().onToggleExpanded()
+        service.callbacks().onShowDetail(0)
+
+        service.callbacks().onSelectCandidate(2)
+
+        assertFalse(service.uiState.detailOpen)
+        assertEquals("", service.uiState.buffer)
+    }
+
+    @Test
+    fun backClosesOnlyTheDetailAndLeavesTheListOpen() {
+        type("mao")
+        service.callbacks().onToggleExpanded()
+        service.callbacks().onShowDetail(0)
+
+        assertTrue(service.onKeyDown(KeyEvent.KEYCODE_BACK, keyEvent(KeyEvent.KEYCODE_BACK)))
+        assertTrue(service.onKeyUp(KeyEvent.KEYCODE_BACK, keyEvent(KeyEvent.KEYCODE_BACK, action = KeyEvent.ACTION_UP)))
+
+        assertFalse(service.uiState.detailOpen)
+        assertTrue(service.uiState.expanded)
+        assertEquals("mao", service.uiState.buffer)
+    }
+
+    @Test
+    fun escapeClosesOnlyTheDetailAndLeavesTheListOpen() {
+        type("mao")
+        service.callbacks().onToggleExpanded()
+        service.callbacks().onShowDetail(0)
+
+        assertTrue(service.onKeyDown(KeyEvent.KEYCODE_ESCAPE, keyEvent(KeyEvent.KEYCODE_ESCAPE)))
+
+        assertFalse(service.uiState.detailOpen)
+        assertTrue(service.uiState.expanded)
+        assertEquals("mao", service.uiState.buffer)
+    }
+
+    @Test
+    fun anOutsideTapClosesOnlyTheDetailAndLeavesTheListOpen() {
+        type("mao")
+        service.callbacks().onToggleExpanded()
+        service.callbacks().onShowDetail(0)
+
+        service.callbacks().onCloseDetail()
+
+        assertFalse(service.uiState.detailOpen)
+        assertTrue(service.uiState.expanded)
+    }
+
+    @Test
+    fun collapsingTheListClosesItsDetail() {
+        // The card it was anchored to is no longer on screen.
+        type("mao")
+        service.callbacks().onToggleExpanded()
+        service.callbacks().onShowDetail(0)
+
+        service.callbacks().onToggleExpanded()
+
+        assertFalse(service.uiState.detailOpen)
+        assertFalse(service.uiState.expanded)
+    }
+
     // --- helpers ------------------------------------------------------------------
 
     private fun indexOf(hanzi: String): Int =

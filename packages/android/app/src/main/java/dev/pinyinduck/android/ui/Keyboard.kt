@@ -56,7 +56,10 @@ data class KeyboardCallbacks(
     val onToggleScript: () -> Unit,
     val onToggleExpanded: () -> Unit,
     val onClear: () -> Unit,
-    /** A long press on a strip candidate: open the Candidate detail bubble for it. */
+    /**
+     * A long press on a strip candidate or a card in the Expanded candidate list: open the
+     * Candidate detail bubble for it, or switch it there.
+     */
     val onShowDetail: (Int) -> Unit = {},
     /** Close the Candidate detail bubble, e.g. after a tap on the app area. */
     val onCloseDetail: () -> Unit = {},
@@ -382,8 +385,10 @@ private fun ExpandedCandidates(
             itemsIndexed(items = state.candidates) { index, candidate ->
                 CandidateCard(
                     candidate = candidate,
+                    index = index,
                     selected = index == state.selectedIndex,
                     onClick = { callbacks.onSelectCandidate(index) },
+                    onLongClick = { callbacks.onShowDetail(index) },
                 )
             }
         }
@@ -393,8 +398,10 @@ private fun ExpandedCandidates(
 @Composable
 private fun CandidateCard(
     candidate: Candidate,
+    index: Int,
     selected: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
 ) {
     Column(
         modifier =
@@ -402,7 +409,18 @@ private fun CandidateCard(
                 .padding(3.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(if (selected) DuckColors.Accent.copy(alpha = 0.16f) else DuckColors.Key)
-                .clickable(onClick = onClick)
+                // The same Candidate detail as the strip's, by long press or, for TalkBack, the
+                // named custom action (#11 addendum).
+                .semantics {
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction("Show details") {
+                                onLongClick()
+                                true
+                            },
+                        )
+                }.detailAnchor(index)
+                .combinedClickable(onLongClickLabel = "Show details", onLongClick = onLongClick, onClick = onClick)
                 .padding(horizontal = 10.dp, vertical = 7.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
