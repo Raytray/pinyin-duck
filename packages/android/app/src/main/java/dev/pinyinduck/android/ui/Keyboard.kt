@@ -391,8 +391,8 @@ private fun DetailLongPressTimeout(content: @Composable () -> Unit) {
  *
  * While a Candidate detail bubble is open the list shrinks to about a row, scrolled to the card
  * the bubble is for, so the keyboard is shorter and the bubble has room above it (#22); it comes
- * back to full height when the bubble closes. The keyboard reports its new top either way, so
- * the insets follow it.
+ * back to full height when the bubble closes. The insets stay at the full-height top
+ * meanwhile (see [KeyboardWindow]), so the host app does not move.
  */
 @Composable
 private fun ExpandedCandidates(

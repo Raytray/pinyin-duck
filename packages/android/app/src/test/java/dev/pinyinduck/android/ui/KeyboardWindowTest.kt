@@ -455,23 +455,25 @@ class KeyboardWindowTest {
     }
 
     @Test
-    fun theExpandedListShrinksWhileTheBubbleIsOpenAndComesBackWhenItCloses() {
+    fun theExpandedListShrinksUnderTheBubbleButTheInsetsStayAtTheKeyboardTop() {
+        // #16: the host app never resizes or pans because the bubble opened, so the insets
+        // keep the top the keyboard had before the list gave way.
         var detail by mutableStateOf<OpenDetail?>(null)
         val recorder = Recorder()
         show(recorder, candidates = FOUR, detailState = { detail }, expanded = true)
         val closedTop = compose.onNodeWithTag(KEYBOARD_TAG).getBoundsInRoot().top
+        assertEquals(topInPx(closedTop), recorder.keyboardTop)
 
         detail = OpenDetail(1, FOUR[1], CAT_VIEW)
         compose.waitForIdle()
         val openTop = compose.onNodeWithTag(KEYBOARD_TAG).getBoundsInRoot().top
         assertTrue("the keyboard top stayed at $openTop", openTop > closedTop)
-        assertEquals("the insets follow the shorter keyboard", topInPx(openTop), recorder.keyboardTop)
+        assertEquals("the insets moved when the bubble opened", topInPx(closedTop), recorder.keyboardTop)
 
         detail = null
         compose.waitForIdle()
-        val restoredTop = compose.onNodeWithTag(KEYBOARD_TAG).getBoundsInRoot().top
-        assertEquals(closedTop, restoredTop)
-        assertEquals("the insets follow it back", topInPx(restoredTop), recorder.keyboardTop)
+        assertEquals(closedTop, compose.onNodeWithTag(KEYBOARD_TAG).getBoundsInRoot().top)
+        assertEquals("the insets moved when the bubble closed", topInPx(closedTop), recorder.keyboardTop)
     }
 
     private fun topInPx(top: Dp) = with(compose.density) { top.toPx().toInt() }
