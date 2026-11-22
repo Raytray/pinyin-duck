@@ -18,8 +18,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridLayoutInfo
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -385,6 +388,11 @@ private fun DetailLongPressTimeout(content: @Composable () -> Unit) {
  * closed by touch at all; and paging through a scrollable viewport meant scrolling within a
  * page as well as between pages. The session fetches up to [PinyinDuckSession.FETCH_LIMIT]
  * candidates, so scrolling them is what keeps all of them reachable.
+ *
+ * While a Candidate detail bubble is open the list shrinks to about a row, scrolled to the card
+ * the bubble is for, so the keyboard is shorter and the bubble has room above it (#22); it comes
+ * back to full height when the bubble closes. The keyboard reports its new top either way, so
+ * the insets follow it.
  */
 @Composable
 private fun ExpandedCandidates(
@@ -410,9 +418,19 @@ private fun ExpandedCandidates(
 
         Spacer(modifier = Modifier.height(4.dp))
 
+        val gridState = rememberLazyGridState()
+        val detailIndex = state.detailIndex
+        LaunchedEffect(detailIndex) {
+            // The list has just shrunk under the bubble; keep the card it is for in view.
+            if (detailIndex != null) {
+                withFrameNanos {}
+                if (!gridState.layoutInfo.showsWhole(detailIndex)) gridState.scrollToItem(detailIndex)
+            }
+        }
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
-            modifier = Modifier.height(196.dp),
+            state = gridState,
+            modifier = Modifier.height(if (state.detailOpen) EXPANDED_LIST_HEIGHT_UNDER_DETAIL else EXPANDED_LIST_HEIGHT),
         ) {
             // No explicit key: `Candidate.id` is `"$simplified-$pinyinNumbers"` and the
             // dictionary is keyed by traditional headword, so 幹/乾/干 all produce the same id.
@@ -429,6 +447,21 @@ private fun ExpandedCandidates(
             }
         }
     }
+}
+
+/** The Expanded candidate list's height: three rows of cards, give or take. */
+private val EXPANDED_LIST_HEIGHT = 196.dp
+
+/**
+ * Its height while the Candidate detail bubble is open: about one row, so the bubble gets the
+ * rest (#22). At full height a landscape phone has no room above the keyboard at all.
+ */
+private val EXPANDED_LIST_HEIGHT_UNDER_DETAIL = 80.dp
+
+/** Whether the item at [index] is laid out with no part of it scrolled off. */
+private fun LazyGridLayoutInfo.showsWhole(index: Int): Boolean {
+    val item = visibleItemsInfo.firstOrNull { it.index == index } ?: return false
+    return item.offset.y >= viewportStartOffset && item.offset.y + item.size.height <= viewportEndOffset
 }
 
 @Composable

@@ -29,6 +29,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.pinyinduck.android.engine.Candidate
 import dev.pinyinduck.android.engine.DetailGroup
@@ -432,25 +433,48 @@ class KeyboardWindowTest {
     }
 
     @Test
-    fun withTheExpandedListOpenTheBubbleStaysAboveTheTallerKeyboardAndScrolls() {
-        // The list makes the keyboard taller, so the same window leaves less room above it.
+    fun inAShortWindowTheExpandedListMakesRoomForTheBubbleAndItScrolls() {
+        // Without the list giving way, a landscape phone has no room at all above it (#22).
         val view = DetailView(counterpart = null, groups = listOf(group(senses = (1..20).map { "sense $it" })))
         show(
             Recorder(),
             candidates = FOUR,
             detail = OpenDetail(3, FOUR[3], view),
-            windowHeight = EXPANDED_SHORT_WINDOW_HEIGHT,
+            windowHeight = SHORT_WINDOW_HEIGHT,
             expanded = true,
         )
 
         val bubble = compose.onNodeWithTag(DETAIL_BUBBLE_TAG).getBoundsInRoot()
         val keyboard = compose.onNodeWithTag(KEYBOARD_TAG).getBoundsInRoot()
-        assertTrue("there is no room above the keyboard (top ${keyboard.top})", keyboard.top > 100.dp)
+        assertTrue("the bubble is only ${bubble.bottom - bubble.top} tall", bubble.bottom - bubble.top >= 100.dp)
         assertTrue("bubble top ${bubble.top} is above the window", bubble.top >= 0.dp)
         assertTrue("bubble bottom ${bubble.bottom} is below the keyboard top ${keyboard.top}", bubble.bottom <= keyboard.top)
+        compose.onNode(inStrip("四")).assertIsDisplayed()
         compose.onNode(inBubble("sense 20")).assertIsNotDisplayed()
         compose.onNode(inBubble("sense 20")).performScrollTo().assertIsDisplayed()
     }
+
+    @Test
+    fun theExpandedListShrinksWhileTheBubbleIsOpenAndComesBackWhenItCloses() {
+        var detail by mutableStateOf<OpenDetail?>(null)
+        val recorder = Recorder()
+        show(recorder, candidates = FOUR, detailState = { detail }, expanded = true)
+        val closedTop = compose.onNodeWithTag(KEYBOARD_TAG).getBoundsInRoot().top
+
+        detail = OpenDetail(1, FOUR[1], CAT_VIEW)
+        compose.waitForIdle()
+        val openTop = compose.onNodeWithTag(KEYBOARD_TAG).getBoundsInRoot().top
+        assertTrue("the keyboard top stayed at $openTop", openTop > closedTop)
+        assertEquals("the insets follow the shorter keyboard", topInPx(openTop), recorder.keyboardTop)
+
+        detail = null
+        compose.waitForIdle()
+        val restoredTop = compose.onNodeWithTag(KEYBOARD_TAG).getBoundsInRoot().top
+        assertEquals(closedTop, restoredTop)
+        assertEquals("the insets follow it back", topInPx(restoredTop), recorder.keyboardTop)
+    }
+
+    private fun topInPx(top: Dp) = with(compose.density) { top.toPx().toInt() }
 
     @Test
     fun theBubbleFollowsTheCardWhenItSwitchesWithinTheExpandedList() {
@@ -565,12 +589,6 @@ class KeyboardWindowTest {
          * ~100-150 dp #11 expects there.
          */
         const val SHORT_WINDOW_HEIGHT = 500
-
-        /**
-         * About 140 dp above the keyboard with the Expanded candidate list open, which makes the
-         * keyboard roughly 500 dp tall. (A landscape phone has no room at all then; see #22.)
-         */
-        const val EXPANDED_SHORT_WINDOW_HEIGHT = 640
 
         fun candidate(
             hanzi: String,

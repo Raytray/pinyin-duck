@@ -53,7 +53,8 @@ const val APP_AREA_TAG = "appArea"
  * The bubble lives in the space above the keyboard and nowhere else, so its height is capped
  * at that space and it can never cover a key; its content scrolls when it is taller. On a
  * landscape phone that space may be only ~100–150 dp, which is why the content scrolls rather
- * than being sized to fit. Horizontally it sits over whatever opened it, an element marked with
+ * than being sized to fit, and why the Expanded candidate list shrinks while the bubble is open
+ * (#22): at full height it leaves no space at all. Horizontally it sits over whatever opened it, an element marked with
  * [detailAnchor], clamped to the window.
  *
  * @param onKeyboardTop where the keyboard's top edge landed, in window pixels. The service
