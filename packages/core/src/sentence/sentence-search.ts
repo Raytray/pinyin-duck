@@ -23,11 +23,11 @@
  * Kotlin engine ports this and the parity golden pins the two to the same output.
  */
 
-import type { ScriptType } from '../types.js';
+import type { FixedWord, ScriptType } from '../types.js';
 import type { BTreeDictionary } from '../data/btree-dictionary.js';
 import type { StoredEntry } from '../data/btree-codec.js';
 import type { BigramTable } from '../bigram/bigram-codec.js';
-import { syllableToneEnds, type ToneConstraint } from '../parser/pinyin.js';
+import { cleanPinyin, syllableToneEnds, type ToneConstraint } from '../parser/pinyin.js';
 import { DEFAULT_MAX_MATCHES } from '../index/ranking.js';
 import { queryBoundaries } from './lattice.js';
 
@@ -94,6 +94,8 @@ export interface SentenceResult {
   covered: number;
   /** True when the sentence covers (or, by completion, completes) the whole query. */
   full: boolean;
+  /** True when the sentence holds at least one fixed word, which makes it the edited sentence. */
+  fixed: boolean;
 }
 
 export interface SentenceSearchOptions {
@@ -103,6 +105,8 @@ export interface SentenceSearchOptions {
   /** Turns prefix completion of the last word off. */
   exactOnly?: boolean;
   maxMatches?: number;
+  /** Words the learner fixed on their spans; see `SearchOptions.fixedWords`. */
+  fixedWords?: readonly FixedWord[];
 }
 
 /** The cost charged per word: the dictionary's base word cost plus the extra bias. */
@@ -147,6 +151,53 @@ function fitsTones(entry: StoredEntry, start: number, toneFilter: readonly ToneC
     if (!syllable || syllable.tone !== constraint.tone) return false;
   }
   return true;
+}
+
+/** A fixed word the query can hold, resolved to its stored entry. */
+interface HeldWord {
+  entry: StoredEntry;
+  start: number;
+  end: number;
+}
+
+/**
+ * Resolves the fixed words the query can hold, sorted by start. One is held when both ends
+ * of its span are lattice nodes (or, for a completed last word, the span runs to the end of
+ * the query and the key is longer), its entry is stored under that key and shown in the
+ * active script, and the typed tones allow it. A fixed word skips
+ * `MIN_SENTENCE_WORD_FREQUENCY`: the learner chose it. One that overlaps a word held
+ * earlier in the list is ignored.
+ */
+function holdFixedWords(
+  dictionary: BTreeDictionary,
+  fixedWords: readonly FixedWord[],
+  lattice: { toneless: string; nodes: boolean[]; end: number },
+  options: { script: ScriptType; toneFilter: readonly ToneConstraint[]; exactOnly?: boolean }
+): HeldWord[] {
+  const { toneless, nodes, end } = lattice;
+  const n = toneless.length;
+  const held: HeldWord[] = [];
+  for (const { start, end: stop, word } of fixedWords) {
+    if (!Number.isInteger(start) || !Number.isInteger(stop) || start < 0 || stop <= start || stop > n) continue;
+    if (start > end || (start !== 0 && !nodes[start])) continue;
+    if (held.some((other) => start < other.end && stop > other.start)) continue;
+    const span = toneless.slice(start, stop);
+    const key = cleanPinyin(word.pinyinNumbers);
+    const exact = key === span && stop <= end && nodes[stop];
+    const completes = !options.exactOnly && stop === n && key.length > span.length && key.startsWith(span);
+    if (!exact && !completes) continue;
+    let entry: StoredEntry | undefined;
+    for (const stored of dictionary.lookupExact(key)) {
+      if (stored.onlyIn && stored.onlyIn !== options.script) continue;
+      if (stored.simplified !== word.simplified || stored.traditional !== word.traditional) continue;
+      if (stored.pinyinNumbers !== word.pinyinNumbers) continue;
+      entry = stored;
+      break;
+    }
+    if (!entry || !fitsTones(entry, start, options.toneFilter)) continue;
+    held.push({ entry, start, end: stop });
+  }
+  return held.sort((a, b) => a.start - b.start);
 }
 
 /** Keeps the best entry per displayed Hanzi, in the order `compareScored` ranks them. */
@@ -207,6 +258,14 @@ export function findSentence(
   const cost = wordCost(dictionary);
   const penalty = bigrams ? BIGRAM_BACKOFF_PENALTY : 0;
   const maxBigram = bigrams ? bigrams.scoreOffset : 0;
+  // Fixed words force their edge: no other word may start, end or lie inside their span,
+  // so every path past a fixed word's start goes through it, and the best path is found
+  // before and after it as usual.
+  const held = holdFixedWords(dictionary, options.fixedWords ?? [], { toneless, nodes, end }, options);
+  const heldAt = new Map(held.map((word) => [word.start, word]));
+  const insideHeld = (i: number) => held.some((word) => i > word.start && i < word.end);
+  /** The first fixed word starting after `i`, where every other edge from `i` must stop. */
+  const nextHeldStart = (i: number) => held.find((word) => word.start > i)?.start ?? Infinity;
 
   // Edges by start node, in the fixed order: shorter spans first, then completions, each
   // span in `compareScored` order.
@@ -230,7 +289,10 @@ export function findSentence(
     if (!nodes[i] && i !== 0) continue;
     if (!reached[i]) continue;
     // Edges are built only from nodes a path reaches, so an unreachable stretch costs no lookups.
-    for (let j = i + 1; j <= end; j++) {
+    const fixedHere = heldAt.get(i);
+    if (fixedHere) addEdges(i, [fixedHere.entry], fixedHere.end);
+    const stop = fixedHere || insideHeld(i) ? -1 : Math.min(end, nextHeldStart(i));
+    for (let j = i + 1; j <= stop; j++) {
       if (!nodes[j]) continue;
       addEdges(i, collapse(dictionary.lookupExact(toneless.slice(i, j)), script, i, toneFilter), j);
     }
@@ -240,7 +302,7 @@ export function findSentence(
     // scanning it walks every key under that letter (2,138 Hanzi for `z`), which made those
     // keystrokes the slowest. Completion starts once the tail holds a vowel, so `kaf` still
     // gives 咖啡; the bare initial stays to compose, after a partial sentence if there is one.
-    if (!options.exactOnly && i > 0 && HAS_VOWEL.test(tail)) {
+    if (!options.exactOnly && i > 0 && stop >= 0 && nextHeldStart(i) === Infinity && HAS_VOWEL.test(tail)) {
       // A completion of the last word: a key that starts with the rest of the query and runs past it.
       const found: StoredEntry[] = [];
       let scanned = 0;
@@ -302,14 +364,18 @@ export function findSentence(
     return best;
   };
 
-  let final: State | null = pick(incoming[n], 2);
+  // An edited sentence keeps the learner's choice even when it is a single word.
+  const minWords = held.length > 0 ? 1 : 2;
+  // A path ending before the last fixed word does not hold it.
+  const lastHeldEnd = held.length > 0 ? held[held.length - 1].end : 0;
+  let final: State | null = pick(incoming[n], minWords);
   let full = final !== null;
   if (!final) {
     let furthest = n - 1;
     while (furthest > 0 && incoming[furthest].length === 0) furthest--;
-    if (furthest > 0) {
+    if (furthest > 0 && furthest >= lastHeldEnd) {
       const best = pick(incoming[furthest], 1);
-      if (best && best.words >= 2) final = best;
+      if (best && best.words >= minWords) final = best;
     }
     full = false;
   }
@@ -319,5 +385,5 @@ export function findSentence(
   for (let state: State | null = final; state; state = state.previous) {
     words.unshift({ entry: state.edge.entry, start: state.edge.start, end: state.edge.end });
   }
-  return { words, score: final.score, covered: final.edge.end, full };
+  return { words, score: final.score, covered: final.edge.end, full, fixed: held.length > 0 };
 }

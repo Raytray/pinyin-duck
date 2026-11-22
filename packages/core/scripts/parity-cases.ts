@@ -9,7 +9,7 @@
  * each position, apostrophes and spaces between syllables, and in both scripts.
  */
 
-import type { ScriptType } from '../src/types.js';
+import type { FixedWord, ScriptType } from '../src/types.js';
 
 export interface ParityCase {
   readonly query: string;
@@ -134,6 +134,102 @@ export const SENTENCE_CASES: readonly SentenceCase[] = [
     words: ['我', '想', '喝', '咖啡'],
     remaining: 'qqq',
     pins: 'a partial sentence leaves the rest composing',
+  },
+];
+
+/** A fixed word on `[start, end)` of the toneless query, by its forms and numbered reading. */
+function fixed(start: number, end: number, simplified: string, pinyinNumbers: string, traditional = simplified): FixedWord {
+  return { start, end, word: { simplified, traditional, pinyinNumbers } };
+}
+
+/**
+ * The Fixed word acceptance cases (issues #37 and #42), pinned in simplified script with the
+ * bigram table loaded. The edited sentence must be the first candidate, built from `words`,
+ * leaving `remaining` to compose. `generate-android-parity.ts` writes them, with the span
+ * alternatives cases below, to `fixed-word-parity.tsv`.
+ */
+export interface FixedWordCase {
+  readonly query: string;
+  readonly fixedWords: readonly FixedWord[];
+  readonly words: readonly string[];
+  readonly remaining: string;
+  /** Why the case is here. */
+  readonly pins: string;
+}
+
+export const FIXED_WORD_CASES: readonly FixedWordCase[] = [
+  {
+    query: 'woxianghekafei',
+    fixedWords: [fixed(7, 9, '喝', 'he1')],
+    words: ['我', '想', '喝', '咖啡'],
+    remaining: '',
+    pins: 'a fixed word on its span',
+  },
+  {
+    query: 'woxianghekafei',
+    fixedWords: [fixed(7, 9, '河', 'he2')],
+    words: ['我', '向', '河', '咖啡'],
+    remaining: '',
+    pins: 'the neighbours of a fixed word may change: 向 → 河 beats 想 → 河',
+  },
+  {
+    query: 'woxianghekafei',
+    fixedWords: [fixed(7, 9, '河', 'he2'), fixed(2, 7, '像', 'xiang4')],
+    words: ['我', '像', '河', '咖啡'],
+    remaining: '',
+    pins: 'two fixed words held at once, listed out of order',
+  },
+  {
+    query: 'woxianghekafeiqqq',
+    fixedWords: [fixed(7, 9, '和', 'he2')],
+    words: ['我', '想', '和', '咖啡'],
+    remaining: 'qqq',
+    pins: 'a fixed word inside a partial sentence',
+  },
+  {
+    query: 'woxianghekafei',
+    fixedWords: [fixed(7, 9, '涸', 'he2')],
+    words: ['我', '想', '涸', '咖啡'],
+    remaining: '',
+    pins: 'a fixed word with no frequency skips minSentenceWordFrequency',
+  },
+  {
+    query: 'woshi',
+    fixedWords: [fixed(0, 2, '卧', 'wo4', '臥')],
+    words: ['卧', '是'],
+    remaining: '',
+    pins: 'the edited sentence comes first, ahead of the word 卧室 that covers the query',
+  },
+];
+
+/**
+ * The span alternatives cases: what a word menu offers for `span` of `query`. `tone`, when
+ * set, is the only tone every alternative may carry; `includes` must be offered and
+ * `excludes` must not.
+ */
+export interface AlternativesCase {
+  readonly query: string;
+  readonly span: { readonly start: number; readonly end: number };
+  readonly tone?: number;
+  readonly includes: readonly string[];
+  readonly excludes?: readonly string[];
+  readonly pins: string;
+}
+
+export const ALTERNATIVES_CASES: readonly AlternativesCase[] = [
+  {
+    query: 'woxiang he4 kafei',
+    span: { start: 7, end: 9 },
+    tone: 4,
+    includes: ['和', '喝', '贺'],
+    excludes: ['河', '合'],
+    pins: 'a tone typed in the span keeps only the hè readings',
+  },
+  {
+    query: 'woxianghekafei',
+    span: { start: 7, end: 9 },
+    includes: ['和', '喝', '河', '涸'],
+    pins: 'every entry for the span, rare words included',
   },
 ];
 

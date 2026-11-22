@@ -13,7 +13,8 @@ import * as path from 'path';
 import { BTreeDictionary } from '../src/data/btree-dictionary.js';
 import { BigramTable } from '../src/bigram/bigram-codec.js';
 import { LazyPinyinSearchEngine } from '../src/index/lazy-search.js';
-import { SENTENCE_CASES } from './parity-cases.js';
+import { ALTERNATIVES_CASES, FIXED_WORD_CASES, SENTENCE_CASES } from './parity-cases.js';
+import { syllableToneEnds } from '../src/parser/pinyin.js';
 
 const PUBLIC = path.resolve(__dirname, '../../web/public');
 const DICTIONARY_PATH = path.join(PUBLIC, 'dictionary.btree');
@@ -58,6 +59,47 @@ describe('Sentence candidate acceptance cases (real dictionary, bigrams loaded)'
       expect(sentences.length).toBeLessThanOrEqual(1);
       for (const sentence of sentences) {
         expect(candidates.filter((candidate) => candidate.hanzi === sentence.hanzi)).toHaveLength(1);
+      }
+    });
+  }
+});
+
+describe('Fixed word acceptance cases (real dictionary, bigrams loaded)', () => {
+  let engine: LazyPinyinSearchEngine;
+
+  beforeAll(() => {
+    const dictionary = open(DICTIONARY_PATH, 'npm run build:dict', (bytes) => BTreeDictionary.open(bytes));
+    const bigrams = open(BIGRAMS_PATH, 'npm run build:bigrams', (bytes) => BigramTable.open(bytes));
+    engine = new LazyPinyinSearchEngine(dictionary, { bigrams });
+  });
+
+  for (const testCase of FIXED_WORD_CASES) {
+    const fixedNames = testCase.fixedWords.map(({ word }) => word.simplified).join(', ');
+    it(`${testCase.query} with ${fixedNames} fixed: ${testCase.words.join('')} first (${testCase.pins})`, () => {
+      const { candidates } = engine.search(testCase.query, { limit: 50, fixedWords: testCase.fixedWords });
+      const [first] = candidates;
+      expect(first.words?.map((word) => word.hanzi)).toEqual(testCase.words);
+      expect(first.remainingPinyin).toBe(testCase.remaining);
+      for (const { start, end, word } of testCase.fixedWords) {
+        expect(first.words?.find((each) => each.span?.start === start && each.span?.end === end)?.pinyinNumbers).toBe(
+          word.pinyinNumbers
+        );
+      }
+      expect(candidates.filter((candidate) => candidate.hanzi === first.hanzi)).toHaveLength(1);
+    });
+  }
+
+  for (const testCase of ALTERNATIVES_CASES) {
+    it(`alternatives for [${testCase.span.start}, ${testCase.span.end}) of ${testCase.query} (${testCase.pins})`, () => {
+      const alternatives = engine.alternativesForSpan(testCase.query, testCase.span);
+      const hanzi = alternatives.map((candidate) => candidate.hanzi);
+      expect(new Set(hanzi).size).toBe(hanzi.length);
+      for (const word of testCase.includes) expect(hanzi).toContain(word);
+      for (const word of testCase.excludes ?? []) expect(hanzi).not.toContain(word);
+      if (testCase.tone !== undefined) {
+        for (const candidate of alternatives) {
+          expect(syllableToneEnds(candidate.pinyinNumbers).map(({ tone }) => tone)).toEqual([testCase.tone]);
+        }
       }
     });
   }
