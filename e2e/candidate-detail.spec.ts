@@ -212,6 +212,16 @@ test.describe('what the detail shows', () => {
     await expect(senses(page)).toHaveText(['cat']);
   });
 
+  test('a short detail shows in full, even with a page of rows below it', async ({ page }) => {
+    await gotoApp(page);
+    await composeMao(page);
+    await editor(page).press('Tab');
+    await expect(senses(page)).toHaveCount(3);
+
+    const box = await detail(page).evaluate((el) => ({ clientHeight: el.clientHeight, scrollHeight: el.scrollHeight }));
+    expect(box.clientHeight).toBe(box.scrollHeight);
+  });
+
   test('a long detail has a max height and scrolls on its own', async ({ page }) => {
     await gotoApp(page);
     await composeMao(page);
@@ -227,6 +237,8 @@ test.describe('what the detail shows', () => {
     expect(box.overflowY).toBe('auto');
     expect(box.maxHeight).not.toBe('none');
     expect(box.scrollHeight).toBeGreaterThan(box.clientHeight);
+    // It scrolls because it reached its max height, not because the rows below squeezed it.
+    expect(box.clientHeight).toBeGreaterThanOrEqual(parseFloat(box.maxHeight) - 1);
 
     // Scrolling the detail scrolls it, not the page, and keeps the composition going.
     await detail(page).hover();

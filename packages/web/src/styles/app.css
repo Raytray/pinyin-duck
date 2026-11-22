@@ -458,6 +458,7 @@ body {
 /* Candidate detail: the highlighted row's inline accordion. Senses are never capped, so it
    has a max height and scrolls on its own rather than stretching the popup. */
 .candidate-detail {
+  flex-shrink: 0;
   max-height: 260px;
   overflow-y: auto;
   overscroll-behavior: contain;
