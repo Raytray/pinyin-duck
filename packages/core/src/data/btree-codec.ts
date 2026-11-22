@@ -9,7 +9,7 @@
  *
  * Layout:
  *
- *   header (28 bytes) | page directory (pageCount * 8 bytes) | pages
+ *   header (32 bytes) | page directory (pageCount * 8 bytes) | pages
  *
  * Header:
  *   0  4 bytes  magic "PDBT"
@@ -20,6 +20,10 @@
  *  16  u32      rootPageId
  *  20  u32      directoryOffset
  *  24  u32      buildId, which the Candidate detail file built alongside must match
+ *  28  u32      baseWordCost: the scaled ln(corpus total), on the same scale as a row's
+ *               frequency (100000 / ln(1 + corpus max) per nat). Sentence candidates charge
+ *               it per word, so a path's score is a scaled log-probability (see
+ *               `sentence/sentence-search.ts`)
  *
  * Each directory entry is a byte offset and length, so a page can be sliced out of the
  * asset in memory (the web app) or read from a mapped file (Android). Pages are stored in ascending page id
@@ -64,9 +68,10 @@ export const BTREE_MAGIC = 'PDBT';
 /**
  * Format 2 keys entries by headword and caseless reading (ADR 0001), so rows gained the
  * entry ids they stand for, a script marker and the header's build id (ADR 0002).
+ * Format 3 adds the header's base word cost, which Sentence candidates score with.
  */
-export const BTREE_FORMAT_VERSION = 2;
-export const HEADER_SIZE = 28;
+export const BTREE_FORMAT_VERSION = 3;
+export const HEADER_SIZE = 32;
 /** Where the header holds the build id. */
 export const BUILD_ID_OFFSET = 24;
 
@@ -123,6 +128,11 @@ export interface BTreeHeader {
   directoryOffset: number;
   /** Identifies the build, so a Candidate detail file from another build is refused. */
   buildId: number;
+  /**
+   * The scaled ln(corpus total) the build computed, charged per word by the Sentence
+   * candidate search. Zero in a tree built without a frequency corpus.
+   */
+  baseWordCost: number;
 }
 
 export interface PageLocation {
@@ -414,6 +424,7 @@ export function encodeHeader(header: BTreeHeader): Uint8Array {
   writer.u32(header.rootPageId);
   writer.u32(header.directoryOffset);
   writer.u32(header.buildId);
+  writer.u32(header.baseWordCost);
   return writer.toUint8Array();
 }
 
@@ -441,6 +452,7 @@ export function decodeHeader(bytes: Uint8Array): BTreeHeader {
     rootPageId: reader.u32(),
     directoryOffset: reader.u32(),
     buildId: reader.u32(),
+    baseWordCost: reader.u32(),
   };
 }
 
