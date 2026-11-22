@@ -46,6 +46,14 @@ export interface SmokeCase {
    * candidate list is not the interesting result.
    */
   expect?: string[];
+  /**
+   * Candidates that must not appear anywhere in the menu.
+   *
+   * Pins something being dropped, such as librime's sentence candidate, which the Lua filter
+   * removes. A top-of-menu pin alone would still pass if the dropped candidate came back
+   * further down.
+   */
+  expectAbsent?: string[];
   /** Fragments the first candidate's comment must contain. */
   expectComment?: string[];
   /**
@@ -148,7 +156,18 @@ export const SMOKE_CASES: SmokeCase[] = [
     schema: SCHEMA_IDS.simplified,
     expect: ['你好', '你', '呢', '尼', '妮'],
     why: 'a two-syllable code with the delimiter omitted, which is how a learner types it; ' +
-      'the full word 你好 outranks the single-syllable candidates that share its first syllable',
+      'the full word 你好 outranks the single-syllable candidates that share its first syllable; ' +
+      'it is also the control for the sentence filter, showing an exact word is not dropped',
+  },
+  {
+    query: 'woxianghekafei',
+    schema: SCHEMA_IDS.simplified,
+    expect: ['我'],
+    expectComment: ['I; me'],
+    expectAbsent: ['我祥和咖啡'],
+    why: 'script_translator ignores enable_sentence: false and offers its own unglossed ' +
+      'sentence 我祥和咖啡 first; the Lua filter drops sentence candidates, so Rime stays one ' +
+      'word at a time and the first candidate is the glossed word 我',
   },
   {
     query: 'nihao2',
@@ -408,6 +427,18 @@ export function evaluateSmoke(
       } else {
         const mismatch = listMismatch(testCase.expect, actual.slice(0, testCase.expect.length));
         if (mismatch) problems.push({ subject, message: `${mismatch} — ${testCase.why}` });
+      }
+    }
+
+    for (const text of testCase.expectAbsent ?? []) {
+      const position = actual.indexOf(text);
+      if (position !== -1) {
+        problems.push({
+          subject,
+          message:
+            `${JSON.stringify(text)} is in the menu at position ${position} but the case pins ` +
+            `it as absent — ${testCase.why}`,
+        });
       }
     }
 
