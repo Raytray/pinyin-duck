@@ -75,7 +75,7 @@ export const SOURCES = {
     sha256: '8e0c65b5c4c8aefada38a17ecb5112ce0e09216378e587e63dda544f240b2972',
   },
   handedict: {
-    // gugray/HanDeDict, the daily export of 2026-11-21T02:30:01Z. Only its word-class tags are used.
+    // gugray/HanDeDict, the daily export of 2026-11-21T02:30:01Z. Only its part-of-speech abbreviations are used.
     // The hash is of the text, which `fetch` decodes without the file's leading byte order mark.
     url: 'https://raw.githubusercontent.com/gugray/HanDeDict/0760a107064d0b682989c7bdfe6449fa157b7dcb/handedict.u8',
     cacheName: 'handedict.u8',

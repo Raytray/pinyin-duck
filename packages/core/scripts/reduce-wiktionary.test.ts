@@ -93,7 +93,7 @@ describe('wiktionaryRows', () => {
     expect(wiktionaryRows(record('書', 'noun', []))).toEqual([]);
   });
 
-  it('skips headers that carry no word class: characters, proper names and symbols', () => {
+  it('skips headers that carry no part of speech: characters, proper names and symbols', () => {
     for (const pos of ['character', 'name', 'symbol', 'punct', 'romanization']) {
       expect(wiktionaryRows(record('書', pos, ['shū']))).toEqual([]);
     }

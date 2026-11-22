@@ -1,6 +1,6 @@
 /**
  * Reduces the English Wiktionary wiktextract dump to the part-of-speech rows the dictionary
- * build reads: one (traditional, simplified, reading, part of speech) row per Chinese POS
+ * build reads: one (traditional, simplified, reading, part of speech) row per Chinese part-of-speech
  * section and Standard Mandarin reading.
  *
  * kaikki.org only serves its latest extraction, so the result is committed as
@@ -43,11 +43,11 @@ export interface WiktionaryRow {
 }
 
 /**
- * Headers that are not a word class: a pointer to another page, the per-character
+ * Headers that are not a part of speech: a pointer to another page, the per-character
  * "Definitions" section, proper names (a Proper noun sense covers them, #8) and symbols.
  * Leaving them out keeps the committed file about a quarter smaller.
  */
-const NOT_A_WORD_CLASS: ReadonlySet<string> = new Set([
+const NOT_A_PART_OF_SPEECH: ReadonlySet<string> = new Set([
   'soft-redirect',
   'character',
   'name',
@@ -69,7 +69,7 @@ function isStandardPinyin(tags: readonly string[]): boolean {
 /** The rows one wiktextract record gives. */
 export function wiktionaryRows(record: WiktextractRecord): WiktionaryRow[] {
   const { word, pos } = record;
-  if (record.lang_code !== 'zh' || !word || !pos || NOT_A_WORD_CLASS.has(pos)) return [];
+  if (record.lang_code !== 'zh' || !word || !pos || NOT_A_PART_OF_SPEECH.has(pos)) return [];
   const simplified = (record.forms ?? [])
     .filter((form) => form.form && form.tags?.includes('Simplified-Chinese'))
     .map((form) => form.form!);

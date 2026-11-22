@@ -237,7 +237,7 @@ test.describe('what the detail shows', () => {
 });
 
 test.describe('loading the detail file', () => {
-  test('is fetched once, on the first expand, and held after', async ({ page }) => {
+  test('is fetched once, when the first Candidate detail opens, and held after', async ({ page }) => {
     const requests = await watchDetailRequests(page);
     await gotoApp(page);
     await composeMao(page);
@@ -292,7 +292,7 @@ test.describe('loading the detail file', () => {
     expect(requests.count).toBe(1);
   });
 
-  test('an HTTP error keeps the short gloss, offers no retry, and the next expand tries again', async ({ page }) => {
+  test('an HTTP error keeps the short gloss, offers no retry, and the next open tries again', async ({ page }) => {
     const requests = await watchDetailRequests(page, async (route, n) => {
       if (n === 1) await route.fulfill({ status: 404, body: 'Not Found' });
       else await route.continue();

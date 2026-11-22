@@ -1,7 +1,7 @@
 /**
  * The web app's one copy of the Candidate detail file (ADR 0002).
  *
- * Nothing is fetched until the first expand asks for it. Every candidate that asks while
+ * Nothing is fetched until the first Candidate detail opens. Every candidate that asks while
  * the fetch is in flight waits on that same fetch, and once it arrives the file is held in
  * memory for the rest of the session. A failed load (offline, HTTP error, a file from
  * another build) is not kept: the next request tries again.

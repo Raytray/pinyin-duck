@@ -15,7 +15,7 @@ function entry(traditional: string, simplified: string, pinyinNumbers: string) {
 const HANDEDICT_HEADER = '﻿# HanDeDict\n# Lizenz: CC-BY-SA 3.0\n\n';
 
 describe('partOfSpeechSources from HanDeDict', () => {
-  it('maps the word-class tag of each sense, in source order without duplicates', () => {
+  it('maps the part of speech of each sense, in source order without duplicates', () => {
     const lookup = partOfSpeechLookup(
       '',
       HANDEDICT_HEADER +
@@ -27,7 +27,7 @@ describe('partOfSpeechSources from HanDeDict', () => {
     expect(lookup(entry('上邊', '上边', 'shang4 bian5'))).toEqual(['adverb', 'noun']);
   });
 
-  it('maps Zähl to measure word and drops proper names, P, A and unknown tags', () => {
+  it('maps Zähl to measure word and drops proper names, P, A and unknown abbreviations', () => {
     const lookup = partOfSpeechLookup(
       '',
       HANDEDICT_HEADER +
@@ -73,7 +73,7 @@ describe('partOfSpeechSources from HanDeDict', () => {
     expect(lookup(entry('綠', '绿', 'lu:4'))).toEqual(['adjective']);
   });
 
-  it('ignores the word classes of example phrases', () => {
+  it('ignores the parts of speech of example phrases', () => {
     const lookup = partOfSpeechLookup('', HANDEDICT_HEADER + '里 里 [li3] /Nachbarschaft (S); Bsp.: 鄰里 邻里 -- Nachbarschaft (S)/Meile (Zähl)/\n');
 
     expect(lookup(entry('里', '里', 'li3'))).toEqual(['noun', 'measure word']);
@@ -108,7 +108,7 @@ describe('partOfSpeechSources from Wiktionary', () => {
     expect(lookup(entry('你好', '你好', 'ni3 hao3'))).toEqual(['idiom', 'interjection']);
   });
 
-  it('maps every word class it has a label for and drops the rest', () => {
+  it('maps every part of speech it has a label for and drops the rest', () => {
     const rows = [
       ['noun', 'noun'],
       ['verb', 'verb'],
