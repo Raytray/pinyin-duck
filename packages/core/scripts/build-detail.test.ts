@@ -187,8 +187,17 @@ describe('detailRecords', () => {
     expect(records.map((record) => record.heading)).toEqual(['後', '后', '']);
   });
 
-  it('leaves the part-of-speech field empty', () => {
+  it('leaves the part-of-speech field empty when no source tags the entry', () => {
     expect(recordOf('書 书 [shu1] /book/').partsOfSpeech).toEqual([]);
+  });
+
+  it('fills the part-of-speech field of each entry from the lookup', () => {
+    const entries = collectEntries('後 后 [hou4] /back/\n后 后 [hou4] /empress/\n書 书 [shu1] /book/');
+    const records = detailRecords(entries, entryGloss, (entry) =>
+      entry.traditional === '後' ? ['noun', 'adverb'] : entry.traditional === '書' ? ['noun'] : []
+    );
+
+    expect(records.map((record) => record.partsOfSpeech)).toEqual([['noun', 'adverb'], [], ['noun']]);
   });
 
   it('leaves brackets that hold no reading as text', () => {

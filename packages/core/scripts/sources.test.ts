@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { SOURCES, type DownloadedSource } from './sources';
+import { SOURCES, type DownloadedSource, type VendoredSource } from './sources';
 
 /**
  * The real pins. A source that drifts back to a moving URL still builds, and builds a
@@ -27,6 +27,7 @@ describe('SOURCES', () => {
   it('pins the GitHub sources to full commit SHAs', () => {
     expect(SOURCES.frequency.url).toMatch(/\/FrequencyWords\/[0-9a-f]{40}\//);
     expect(SOURCES.hsk.url).toMatch(/\/hanyu-shuiping-kaoshi\/[0-9a-f]{40}\//);
+    expect(SOURCES.handedict.url).toMatch(/\/gugray\/HanDeDict\/[0-9a-f]{40}\//);
   });
 
   it('caches every downloaded source under its own name', () => {
@@ -37,9 +38,22 @@ describe('SOURCES', () => {
   // Checked here as well as at build time, so a checkout that rewrote the file (a line
   // ending conversion, an editor's trailing-newline fix) fails the unit tests rather than
   // only the first build:dict.
-  it('commits the CC-CEDICT edition its pin names', () => {
-    const file = path.resolve(__dirname, '..', SOURCES.cedict.file);
+  const vendored = sources.filter((entry): entry is [string, VendoredSource] => 'file' in entry[1]);
+
+  it('commits CC-CEDICT and the reduced Wiktionary rows', () => {
+    expect(vendored.map(([name]) => name).sort()).toEqual(['cedict', 'wiktionaryPos']);
+  });
+
+  it.each(vendored)('commits the %s edition its pin names', (_name, source) => {
+    const file = path.resolve(__dirname, '..', source.file);
     const hash = createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-    expect(hash).toBe(SOURCES.cedict.sha256);
+    expect(hash).toBe(source.sha256);
+  });
+
+  it('names the dump the reduced Wiktionary rows came from in their header', () => {
+    const text = fs.readFileSync(path.resolve(__dirname, '..', SOURCES.wiktionaryPos.file), 'utf8');
+    expect(text).toMatch(/^# source https:\/\/kaikki\.org\/\S+$/m);
+    expect(text).toMatch(/^# dump \d{4}-\d{2}-\d{2} \(enwiktionary\), extracted \d{4}-\d{2}-\d{2}$/m);
+    expect(text).toMatch(/^# sha256 [0-9a-f]{64}$/m);
   });
 });
