@@ -29,6 +29,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.pinyinduck.android.engine.Candidate
 import dev.pinyinduck.android.engine.DetailGroup
@@ -117,6 +118,20 @@ class KeyboardWindowTest {
 
         assertEquals(listOf(1), recorder.details)
         assertEquals("a long press must not also commit", emptyList<Int>(), recorder.selected)
+    }
+
+    @Test
+    fun aStripCandidateOpensItsDetailAfterAboutHalfASecond() {
+        // #5: ~450 ms, whatever the platform's own timeout (400 or 500 ms by version).
+        val recorder = Recorder()
+        show(recorder, candidates = listOf(candidate("他"), candidate("她")))
+
+        hold("她", SHORT_OF_LONG_PRESS_MS)
+        assertEquals("a 420 ms press is still a tap", listOf(1), recorder.selected)
+        assertEquals(emptyList<Int>(), recorder.details)
+
+        hold("她", PAST_LONG_PRESS_MS)
+        assertEquals(listOf(1), recorder.details)
     }
 
     @Test
@@ -362,6 +377,19 @@ class KeyboardWindowTest {
     }
 
     @Test
+    fun aCardInTheExpandedListOpensItsDetailAfterAboutHalfASecond() {
+        val recorder = Recorder()
+        show(recorder, candidates = listOf(candidate("他"), candidate("她")), expanded = true)
+
+        hold("她", SHORT_OF_LONG_PRESS_MS)
+        assertEquals("a 420 ms press is still a tap", listOf(1), recorder.selected)
+        assertEquals(emptyList<Int>(), recorder.details)
+
+        hold("她", PAST_LONG_PRESS_MS)
+        assertEquals(listOf(1), recorder.details)
+    }
+
+    @Test
     fun aTapOnACardInTheExpandedListStillCommitsIt() {
         val recorder = Recorder()
         show(recorder, candidates = listOf(candidate("他"), candidate("她")), expanded = true)
@@ -405,25 +433,50 @@ class KeyboardWindowTest {
     }
 
     @Test
-    fun withTheExpandedListOpenTheBubbleStaysAboveTheTallerKeyboardAndScrolls() {
-        // The list makes the keyboard taller, so the same window leaves less room above it.
+    fun inAShortWindowTheExpandedListMakesRoomForTheBubbleAndItScrolls() {
+        // Without the list giving way, a landscape phone has no room at all above it (#22).
         val view = DetailView(counterpart = null, groups = listOf(group(senses = (1..20).map { "sense $it" })))
         show(
             Recorder(),
             candidates = FOUR,
             detail = OpenDetail(3, FOUR[3], view),
-            windowHeight = EXPANDED_SHORT_WINDOW_HEIGHT,
+            windowHeight = SHORT_WINDOW_HEIGHT,
             expanded = true,
         )
 
         val bubble = compose.onNodeWithTag(DETAIL_BUBBLE_TAG).getBoundsInRoot()
         val keyboard = compose.onNodeWithTag(KEYBOARD_TAG).getBoundsInRoot()
-        assertTrue("there is no room above the keyboard (top ${keyboard.top})", keyboard.top > 100.dp)
+        assertTrue("the bubble is only ${bubble.bottom - bubble.top} tall", bubble.bottom - bubble.top >= 100.dp)
         assertTrue("bubble top ${bubble.top} is above the window", bubble.top >= 0.dp)
         assertTrue("bubble bottom ${bubble.bottom} is below the keyboard top ${keyboard.top}", bubble.bottom <= keyboard.top)
+        compose.onNode(inStrip("四")).assertIsDisplayed()
         compose.onNode(inBubble("sense 20")).assertIsNotDisplayed()
         compose.onNode(inBubble("sense 20")).performScrollTo().assertIsDisplayed()
     }
+
+    @Test
+    fun theExpandedListShrinksUnderTheBubbleButTheInsetsStayAtTheKeyboardTop() {
+        // #16: the host app never resizes or pans because the bubble opened, so the insets
+        // keep the top the keyboard had before the list gave way.
+        var detail by mutableStateOf<OpenDetail?>(null)
+        val recorder = Recorder()
+        show(recorder, candidates = FOUR, detailState = { detail }, expanded = true)
+        val closedTop = compose.onNodeWithTag(KEYBOARD_TAG).getBoundsInRoot().top
+        assertEquals(topInPx(closedTop), recorder.keyboardTop)
+
+        detail = OpenDetail(1, FOUR[1], CAT_VIEW)
+        compose.waitForIdle()
+        val openTop = compose.onNodeWithTag(KEYBOARD_TAG).getBoundsInRoot().top
+        assertTrue("the keyboard top stayed at $openTop", openTop > closedTop)
+        assertEquals("the insets moved when the bubble opened", topInPx(closedTop), recorder.keyboardTop)
+
+        detail = null
+        compose.waitForIdle()
+        assertEquals(closedTop, compose.onNodeWithTag(KEYBOARD_TAG).getBoundsInRoot().top)
+        assertEquals("the insets moved when the bubble closed", topInPx(closedTop), recorder.keyboardTop)
+    }
+
+    private fun topInPx(top: Dp) = with(compose.density) { top.toPx().toInt() }
 
     @Test
     fun theBubbleFollowsTheCardWhenItSwitchesWithinTheExpandedList() {
@@ -464,6 +517,19 @@ class KeyboardWindowTest {
     }
 
     // --- helpers ------------------------------------------------------------------
+
+    /** Presses the node showing [text] for [millis] and lets go. */
+    private fun hold(
+        text: String,
+        millis: Long,
+    ) {
+        compose.onNodeWithText(text).performTouchInput {
+            down(center)
+            advanceEventTime(millis)
+            up()
+        }
+        compose.waitForIdle()
+    }
 
     /** A node with [text] inside the bubble. */
     private fun inBubble(text: String) = within(DETAIL_BUBBLE_TAG, text)
@@ -516,17 +582,15 @@ class KeyboardWindowTest {
     private companion object {
         const val TALL_WINDOW_HEIGHT = 800
 
+        /** Either side of the bubble's 450 ms long press. */
+        const val SHORT_OF_LONG_PRESS_MS = 420L
+        const val PAST_LONG_PRESS_MS = 480L
+
         /**
          * Roughly a landscape phone: about 140 dp above a ~360 dp keyboard, inside the
          * ~100-150 dp #11 expects there.
          */
         const val SHORT_WINDOW_HEIGHT = 500
-
-        /**
-         * About 140 dp above the keyboard with the Expanded candidate list open, which makes the
-         * keyboard roughly 500 dp tall. (A landscape phone has no room at all then; see #22.)
-         */
-        const val EXPANDED_SHORT_WINDOW_HEIGHT = 640
 
         fun candidate(
             hanzi: String,

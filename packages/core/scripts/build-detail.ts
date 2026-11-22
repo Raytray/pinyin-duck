@@ -168,10 +168,8 @@ function sameTag(a: DetailTag, b: DetailTag): boolean {
 
 /** One entry's record, without the glosses that depend on other entries. */
 function parseEntry(entry: DictionaryEntry, partsOfSpeech: PartOfSpeech[]): DetailRecord {
-  const senses: DetailSense[] = [];
   const tags: DetailTag[] = [];
   const measureWords: CrossRef[] = [];
-  const seenSenses = new Set<string>();
 
   // Tags and measure words in file order; senses common lines first.
   for (const line of entry.lines) {
@@ -188,19 +186,38 @@ function parseEntry(entry: DictionaryEntry, partsOfSpeech: PartOfSpeech[]): Deta
       }
     }
   }
+  const senses: DetailSense[] = entrySenseDefinitions(entry).map(({ proper, text }) => ({ proper, text }));
+  return { heading: '', senses, tags, measureWords, partsOfSpeech };
+}
+
+/** A sense as written in CC-CEDICT, with its parsed text and whether it is a Proper noun sense. */
+export interface SenseDefinition {
+  definition: string;
+  text: RichText;
+  proper: boolean;
+}
+
+/**
+ * An entry's senses, as its Candidate detail lists them: definitions from its common lines
+ * first, then from its proper-noun lines, each in file order, with exact duplicates, tags
+ * and measure words left out.
+ */
+export function entrySenseDefinitions(entry: DictionaryEntry): SenseDefinition[] {
   const ordered = [...entry.lines.filter(isCommonLine), ...entry.lines.filter((l) => !isCommonLine(l))];
+  const senses: SenseDefinition[] = [];
+  const seen = new Set<string>();
   for (const line of ordered) {
     const proper = !isCommonLine(line);
     for (const raw of line.definitions) {
       const definition = raw.trim();
-      if (!definition || seenSenses.has(definition)) continue;
+      if (!definition || seen.has(definition)) continue;
       const parsed = classifyDefinition(definition);
       if (parsed.type !== 'sense') continue;
-      seenSenses.add(definition);
-      senses.push({ proper, text: parsed.text });
+      seen.add(definition);
+      senses.push({ definition, text: parsed.text, proper });
     }
   }
-  return { heading: '', senses, tags, measureWords, partsOfSpeech };
+  return senses;
 }
 
 /**
@@ -208,7 +225,7 @@ function parseEntry(entry: DictionaryEntry, partsOfSpeech: PartOfSpeech[]): Deta
  *
  * `shortGloss` is the short gloss the dictionary gives an entry, which a variant-only
  * entry's variant tags carry for their target ("Variant of 念 niàn: to read aloud").
- * `partsOfSpeech` gives an entry's part-of-speech labels (see `partOfSpeechLookup`).
+ * `partsOfSpeech` gives an entry's part-of-speech labels (see `partOfSpeechSources`).
  */
 export function detailRecords(
   entries: DictionaryEntry[],

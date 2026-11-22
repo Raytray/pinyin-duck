@@ -179,7 +179,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   }, [allCandidates, currentPage, pageSize]);
 
   // One loader per dictionary, because the detail file must come from the same build. It
-  // fetches nothing until the first expand.
+  // fetches nothing until the first Candidate detail opens.
   const detailLoader = useMemo(
     () => (dictionary ? createDetailLoader({ url: detailUrl, buildId: dictionary.buildId }) : null),
     [dictionary, detailUrl]
@@ -210,7 +210,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   /**
    * Opens or closes the detail. Given a row, opens that row's detail instead, unless it is
    * already the one open. Every opening asks for the detail file, so after a failed load the
-   * next expand tries again; moving the highlight while it is open does not.
+   * next open tries again; moving the highlight while it is open does not.
    */
   const toggleDetail = useCallback(
     (indexOnPage: number = selectedIndex) => {

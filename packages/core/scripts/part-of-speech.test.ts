@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { partOfSpeechLookup } from './part-of-speech';
+import { partOfSpeechSources } from './part-of-speech';
+
+/** The labels `partOfSpeechSources` chooses for each entry, [] when none. */
+function partOfSpeechLookup(wiktionary: string, handeDict: string) {
+  const sources = partOfSpeechSources(wiktionary, handeDict);
+  return (subject: ReturnType<typeof entry>) => sources(subject)?.labels ?? [];
+}
 
 /** An entry as the lookup sees it: headword and tone-numbered reading. */
 function entry(traditional: string, simplified: string, pinyinNumbers: string) {
@@ -8,8 +14,8 @@ function entry(traditional: string, simplified: string, pinyinNumbers: string) {
 
 const HANDEDICT_HEADER = '﻿# HanDeDict\n# Lizenz: CC-BY-SA 3.0\n\n';
 
-describe('partOfSpeechLookup from HanDeDict', () => {
-  it('maps the word-class tag of each sense, in source order without duplicates', () => {
+describe('partOfSpeechSources from HanDeDict', () => {
+  it('maps the part of speech of each sense, in source order without duplicates', () => {
     const lookup = partOfSpeechLookup(
       '',
       HANDEDICT_HEADER +
@@ -21,7 +27,7 @@ describe('partOfSpeechLookup from HanDeDict', () => {
     expect(lookup(entry('上邊', '上边', 'shang4 bian5'))).toEqual(['adverb', 'noun']);
   });
 
-  it('maps Zähl to measure word and drops proper names, P, A and unknown tags', () => {
+  it('maps Zähl to measure word and drops proper names, P, A and unknown abbreviations', () => {
     const lookup = partOfSpeechLookup(
       '',
       HANDEDICT_HEADER +
@@ -31,6 +37,22 @@ describe('partOfSpeechLookup from HanDeDict', () => {
 
     expect(lookup(entry('個', '个', 'ge4'))).toEqual(['measure word', 'adjective']);
     expect(lookup(entry('上', '上', 'shang4'))).toEqual([]);
+  });
+
+  it('maps Präp to preposition and proverbs, sayings and phrases to idiom', () => {
+    const lookup = partOfSpeechLookup(
+      '',
+      HANDEDICT_HEADER +
+        '在 在 [zai4] /in, an (Präp)/\n' +
+        '畫蛇添足 画蛇添足 [hua4 she2 tian1 zu2] /des Guten zuviel tun (Sprichw)/\n' +
+        '馬馬虎虎 马马虎虎 [ma3 ma3 hu1 hu1] /so lala (Redew)/\n' +
+        '你好 你好 [ni3 hao3] /Guten Tag (Phrase)/\n'
+    );
+
+    expect(lookup(entry('在', '在', 'zai4'))).toEqual(['preposition']);
+    expect(lookup(entry('畫蛇添足', '画蛇添足', 'hua4 she2 tian1 zu2'))).toEqual(['idiom']);
+    expect(lookup(entry('馬馬虎虎', '马马虎虎', 'ma3 ma3 hu1 hu1'))).toEqual(['idiom']);
+    expect(lookup(entry('你好', '你好', 'ni3 hao3'))).toEqual(['idiom']);
   });
 
   it('joins on headword and reading, ignoring capitals and the neutral tone', () => {
@@ -51,7 +73,7 @@ describe('partOfSpeechLookup from HanDeDict', () => {
     expect(lookup(entry('綠', '绿', 'lu:4'))).toEqual(['adjective']);
   });
 
-  it('ignores the word classes of example phrases', () => {
+  it('ignores the parts of speech of example phrases', () => {
     const lookup = partOfSpeechLookup('', HANDEDICT_HEADER + '里 里 [li3] /Nachbarschaft (S); Bsp.: 鄰里 邻里 -- Nachbarschaft (S)/Meile (Zähl)/\n');
 
     expect(lookup(entry('里', '里', 'li3'))).toEqual(['noun', 'measure word']);
@@ -63,7 +85,7 @@ function wiktionary(...rows: string[]): string {
   return ['# Part of speech of Chinese entries in the English Wiktionary', '# sha256 00', ...rows, ''].join('\n');
 }
 
-describe('partOfSpeechLookup from Wiktionary', () => {
+describe('partOfSpeechSources from Wiktionary', () => {
   it('maps the part-of-speech headers of the entry, in page order without duplicates', () => {
     const lookup = partOfSpeechLookup(
       wiktionary(
@@ -86,7 +108,7 @@ describe('partOfSpeechLookup from Wiktionary', () => {
     expect(lookup(entry('你好', '你好', 'ni3 hao3'))).toEqual(['idiom', 'interjection']);
   });
 
-  it('maps every word class it has a label for and drops the rest', () => {
+  it('maps every part of speech it has a label for and drops the rest', () => {
     const rows = [
       ['noun', 'noun'],
       ['verb', 'verb'],
@@ -123,7 +145,7 @@ describe('partOfSpeechLookup from Wiktionary', () => {
   });
 });
 
-describe('partOfSpeechLookup with both sources', () => {
+describe('partOfSpeechSources with both sources', () => {
   it('takes every label from Wiktionary when it has any for the entry, else from HanDeDict, never merged', () => {
     const lookup = partOfSpeechLookup(
       wiktionary('學生\t学生\txuésheng\tnoun', '中國\t中国\tZhōngguó\tname'),

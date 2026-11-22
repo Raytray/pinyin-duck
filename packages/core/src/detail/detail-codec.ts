@@ -126,7 +126,7 @@ export interface DetailRecord {
   tags: DetailTag[];
   /** In first-seen order. */
   measureWords: CrossRef[];
-  /** Empty until the part-of-speech data is joined in; the field is reserved for it. */
+  /** From Wiktionary, else HanDeDict (`scripts/part-of-speech.ts`); empty when neither gives any. */
   partsOfSpeech: PartOfSpeech[];
 }
 
@@ -183,7 +183,7 @@ function writeRecord(writer: ByteWriter, record: DetailRecord): void {
   writer.varint(record.measureWords.length);
   for (const ref of record.measureWords) writeCrossRef(writer, ref);
   writer.varint(record.partsOfSpeech.length);
-  for (const pos of record.partsOfSpeech) writer.u8(PARTS_OF_SPEECH.indexOf(pos));
+  for (const partOfSpeech of record.partsOfSpeech) writer.u8(PARTS_OF_SPEECH.indexOf(partOfSpeech));
 }
 
 /** Encodes the records, indexed by entry id, as a detail file stamped with `buildId`. */
@@ -242,9 +242,9 @@ function readRecord(reader: ByteReader): DetailRecord {
   const partsOfSpeech: PartOfSpeech[] = [];
   for (let i = reader.varint(); i > 0; i--) {
     const code = reader.u8();
-    const pos = PARTS_OF_SPEECH[code];
-    if (pos === undefined) throw malformedDetailFile(`unknown part of speech ${code}`);
-    partsOfSpeech.push(pos);
+    const partOfSpeech = PARTS_OF_SPEECH[code];
+    if (partOfSpeech === undefined) throw malformedDetailFile(`unknown part of speech ${code}`);
+    partsOfSpeech.push(partOfSpeech);
   }
   return { heading, senses, tags, measureWords, partsOfSpeech };
 }
@@ -280,8 +280,8 @@ export class DetailFile {
     const buildId = view.getUint32(12, true);
     if (buildId !== expectedBuildId) {
       throw new Error(
-        `The Candidate detail file comes from build ${hex(buildId)}, but the dictionary from ` +
-          `build ${hex(expectedBuildId)}. Rebuild both with "npm run build:dict".`
+        `The Candidate detail file comes from build ${formatBuildId(buildId)}, but the dictionary from ` +
+          `build ${formatBuildId(expectedBuildId)}. Rebuild both with "npm run build:dict".`
       );
     }
     const tableEnd = DETAIL_HEADER_SIZE + (entryCount + 1) * 4;
@@ -314,6 +314,7 @@ export class DetailFile {
   }
 }
 
-function hex(id: number): string {
+/** A build id as the build logs and error messages write it: eight hex digits. */
+export function formatBuildId(id: number): string {
   return id.toString(16).padStart(8, '0');
 }

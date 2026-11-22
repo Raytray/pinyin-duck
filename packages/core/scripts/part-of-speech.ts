@@ -2,8 +2,8 @@
  * Part of speech for Candidate detail records, from English Wiktionary and HanDeDict (#8).
  *
  * Both sources are joined to dictionary entries on headword (traditional and simplified) and
- * reading, ignoring capitals (ADR 0001). Each source's tags map to the learner labels in
- * `PARTS_OF_SPEECH`; a tag with no clear label, and every proper-name tag, is dropped.
+ * reading, ignoring capitals (ADR 0001). Each source's part-of-speech names map to the learner
+ * labels in `PARTS_OF_SPEECH`; a name with no clear label, and every proper-name one, is dropped.
  */
 
 import type { PartOfSpeech } from '../src/detail/detail-codec.js';
@@ -17,7 +17,7 @@ export interface PartOfSpeechSubject {
 }
 
 /**
- * HanDeDict's word-class abbreviations (German, undocumented upstream). `P` and `A` are left
+ * HanDeDict's part-of-speech abbreviations (German, undocumented upstream). `P` and `A` are left
  * out because they are ambiguous, `Eig` (Eigenname) because a proper name is a Proper noun
  * sense already.
  */
@@ -29,9 +29,13 @@ export const HANDEDICT_LABELS: Readonly<Record<string, PartOfSpeech>> = {
   Pron: 'pronoun',
   Num: 'numeral',
   Zähl: 'measure word',
+  Präp: 'preposition',
   Konj: 'conjunction',
   Partikel: 'particle',
   Int: 'interjection',
+  Sprichw: 'idiom',
+  Redew: 'idiom',
+  Phrase: 'idiom',
 };
 
 /**
@@ -58,8 +62,8 @@ export const WIKTIONARY_LABELS: Readonly<Record<string, PartOfSpeech>> = {
 /** A CC-CEDICT-format line: `傳統 传统 [chuan2 tong3] /tradition/`. */
 const CEDICT_LINE = /^(\S+) (\S+) \[([^\]]*)\] \/(.*)\/\s*$/;
 
-/** The first item of each parenthesised group, where HanDeDict writes the word class. */
-const TAG_GROUP = /\(([^()]{1,30})\)/g;
+/** A parenthesised annotation, whose first item is where HanDeDict writes the part of speech. */
+const ANNOTATION_GROUP = /\(([^()]{1,30})\)/g;
 
 /** Combining tone marks, as `normalize('NFD')` splits them off a vowel. */
 const TONE_MARKS: Readonly<Record<string, string>> = { '̄': '1', '́': '2', '̌': '3', '̀': '4' };
@@ -111,9 +115,9 @@ function handeDictIndex(content: string): Map<string, PartOfSpeech[]> {
     const [, traditional, simplified, pinyin, body] = match;
     const key = subjectKey(traditional, simplified, pinyin);
     for (const sense of body.split('/')) {
-      // Examples (`; Bsp.: ...`) carry their own glosses, not the sense's word class.
+      // Examples (`; Bsp.: ...`) carry their own glosses, not the sense's part of speech.
       const main = sense.split('; Bsp.:')[0];
-      for (const [, group] of main.matchAll(TAG_GROUP)) {
+      for (const [, group] of main.matchAll(ANNOTATION_GROUP)) {
         const label = HANDEDICT_LABELS[group.split(',')[0].trim()];
         if (label) addLabel(index, key, label);
       }
@@ -127,15 +131,15 @@ function wiktionaryIndex(content: string): Map<string, PartOfSpeech[]> {
   const index = new Map<string, PartOfSpeech[]>();
   for (const line of content.split('\n')) {
     if (!line || line.startsWith('#')) continue;
-    const [traditional, simplified, reading, pos] = line.split('\t');
-    const label = WIKTIONARY_LABELS[pos];
+    const [traditional, simplified, reading, header] = line.split('\t');
+    const label = WIKTIONARY_LABELS[header];
     if (label) addLabel(index, subjectKey(traditional, simplified, reading), label);
   }
   return index;
 }
 
 /** An entry's labels and the one source they came from. */
-export interface TaggedPartsOfSpeech {
+export interface SourcedPartsOfSpeech {
   source: 'Wiktionary' | 'HanDeDict';
   labels: PartOfSpeech[];
 }
@@ -151,7 +155,7 @@ export interface TaggedPartsOfSpeech {
 export function partOfSpeechSources(
   wiktionary: string,
   handeDict: string
-): (entry: PartOfSpeechSubject) => TaggedPartsOfSpeech | undefined {
+): (entry: PartOfSpeechSubject) => SourcedPartsOfSpeech | undefined {
   const fromWiktionary = wiktionaryIndex(wiktionary);
   const fromHandeDict = handeDictIndex(handeDict);
   return (entry) => {
@@ -161,13 +165,4 @@ export function partOfSpeechSources(
     const handeDictLabels = fromHandeDict.get(key);
     return handeDictLabels && { source: 'HanDeDict', labels: handeDictLabels };
   };
-}
-
-/** The part-of-speech labels of an entry, as `partOfSpeechSources` chooses them; [] when none. */
-export function partOfSpeechLookup(
-  wiktionary: string,
-  handeDict: string
-): (entry: PartOfSpeechSubject) => PartOfSpeech[] {
-  const sources = partOfSpeechSources(wiktionary, handeDict);
-  return (entry) => sources(entry)?.labels ?? [];
 }

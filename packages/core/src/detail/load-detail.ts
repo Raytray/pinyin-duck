@@ -1,8 +1,8 @@
 /**
  * Downloads the Candidate detail file and opens it in memory (ADR 0002).
  *
- * The web app fetches it in full on the first expand, through the same gzip-sniffing body
- * reader as the dictionary, and holds it decompressed. A file from another build than the
+ * The web app fetches it in full the first time a Candidate detail opens, through the same
+ * gzip-sniffing body reader as the dictionary, and holds it decompressed. A file from another build than the
  * dictionary is a failed load, like an HTTP error or a truncated download.
  */
 
