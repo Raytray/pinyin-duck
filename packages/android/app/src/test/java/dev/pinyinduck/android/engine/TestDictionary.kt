@@ -28,6 +28,9 @@ object TestDictionary {
 
     val dictionary: BTreeDictionary get() = opened.dictionary
 
+    /** The real `bigrams.bin` built beside the dictionary (`npm run build:bigrams`), if any. */
+    val bigrams: BigramTable? get() = opened.bigrams
+
     /** The real `detail.bin` built alongside the dictionary, opened from beside it. */
     val detail: DetailFile get() = opened.detail
 

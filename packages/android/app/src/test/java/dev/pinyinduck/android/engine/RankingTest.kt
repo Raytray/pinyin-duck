@@ -90,6 +90,82 @@ class RankingTest {
         )
     }
 
+    @Test
+    fun aWordThatCompletesTheQueryRanksAboveOneThatLeavesPinyinOver() {
+        // Coverage first (#30): 你 is far more frequent and HSK 1, so it outscores 霓虹灯, but it
+        // leaves "hong" to compose while 霓虹灯 completes "nihong".
+        val hanzi =
+            search(
+                "nihong",
+                row("ni", "你", 98770, hsk = 1),
+                row("nihongdeng", "霓虹灯", 200),
+            )
+        assertEquals(listOf("霓虹灯", "你"), hanzi)
+    }
+
+    @Test
+    fun aFullSentenceLeadsOnlyWhenItBeatsEveryWordCoveringTheQuery() {
+        // 先 + 好 scores 68,327 + 87,105 − 2W = −84,440 against W = 119,936.
+        val sentenceScore = 68327 + 87105 - 2 * WORD_COST
+        val words = arrayOf(row("xian", "先", 68327), row("hao", "好", 87105))
+
+        // No word covers xianhao, so the sentence leads, above the prefix word 先.
+        assertEquals(listOf("先好", "先"), search("xianhao", *words))
+
+        // A word covering the query that scores better as a one-word path keeps the lead, and
+        // the sentence goes right after the words covering the query, above 先.
+        val stronger = row("xianhao", "闲好", sentenceScore + WORD_COST + 1)
+        assertEquals(listOf("闲好", "先好", "先"), search("xianhao", *words, stronger))
+
+        // A tie goes to the word: the bias is toward fewer words.
+        val tied = row("xianhao", "闲好", sentenceScore + WORD_COST)
+        assertEquals(listOf("闲好", "先好", "先"), search("xianhao", *words, tied))
+
+        // One that scores worse yields the lead.
+        val weaker = row("xianhao", "闲好", sentenceScore + WORD_COST - 1)
+        assertEquals(listOf("先好", "闲好", "先"), search("xianhao", *words, weaker))
+    }
+
+    @Test
+    fun aPartialSentenceFallsBackToTheFurthestNodeAndRanksAboveWordsCoveringLess() {
+        // Nothing reaches the end of woxiangqqq, so the best path to the furthest node (我 + 想,
+        // two words) is offered as a partial sentence with qqq left to compose.
+        val engine = engine(row("wo", "我", 99503, hsk = 1), row("wo", "卧", 30000), row("xiang", "想", 83385))
+        val candidates = engine.search("woxiangqqq").candidates
+        assertEquals(listOf("我想", "我", "卧"), candidates.map { it.hanzi })
+        assertEquals("qqq", candidates[0].remainingPinyin)
+        assertEquals(listOf("我", "想"), candidates[0].words?.map { it.hanzi })
+
+        // A path of one word is not a sentence, partial or not.
+        assertEquals(listOf("我", "卧"), engine.search("woqqq").candidates.map { it.hanzi })
+    }
+
+    @Test
+    fun aSentenceShowingTheSameHanziAsAWordIsDropped() {
+        // 中国人 is unlisted (frequency 0) but still a word candidate; 中国 + 人 would show the
+        // same Hanzi, so the word wins and the sentence is not counted.
+        val engine = engine(row("zhongguo", "中国", 58468), row("ren", "人", 83359), row("zhongguoren", "中国人", 0))
+        val result = engine.search("zhongguoren")
+        assertEquals(listOf("中国人"), result.candidates.map { it.hanzi })
+        assertTrue(result.candidates.all { it.words == null })
+        assertEquals(1, result.total)
+    }
+
+    private fun row(
+        key: String,
+        simplified: String,
+        frequency: Int,
+        hsk: Int = 0,
+    ) = SyntheticDictionary.Row(key, simplified, frequency = frequency, hskLevel = hsk)
+
+    private fun engine(vararg rows: SyntheticDictionary.Row) =
+        PinyinDuckEngine(BTreeDictionary.open(ByteArrayPageSource(SyntheticDictionary.encodeRows(rows.toList(), WORD_COST))))
+
+    private fun search(
+        query: String,
+        vararg rows: SyntheticDictionary.Row,
+    ) = engine(*rows).search(query).candidates.map { it.hanzi }
+
     private fun entry(
         simplified: String,
         pinyinClean: String = "shi",
@@ -103,4 +179,9 @@ class RankingTest {
         frequency = frequency,
         hskLevel = hskLevel,
     )
+
+    private companion object {
+        /** The shipped corpus's base word cost. */
+        const val WORD_COST = 119936
+    }
 }

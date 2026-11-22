@@ -16,11 +16,14 @@ From the repository root:
 ```bash
 npm install
 npm run build:dict
+npm run build:bigrams   # optional, ~2 minutes: the bigram table Sentence candidates score with
 cd packages/android
 ./gradlew assembleDebug
 ```
 
 `npm run build:dict` writes `packages/web/public/dictionary.btree` and `detail.bin` beside it, from the same build. Both are gitignored, and the Android build copies them into the APK, so Gradle stops with an error naming that command if either file is missing. At runtime the keyboard refuses a `detail.bin` whose build id differs from the dictionary's, and says to rebuild both.
+
+`npm run build:bigrams` writes `bigrams.bin` to the same folder, and the build copies it too when it is there. It is optional: without it the keyboard still offers Sentence candidates, scored on unigram frequencies alone. A `bigrams.bin` that is there but unreadable fails the load, and the message says to rerun that command.
 
 The APK is written to:
 
@@ -81,7 +84,7 @@ With a hardware keyboard, the arrow keys move the highlighted candidate (up and 
 
 This is a Gradle project, not an npm package. The `package.json` only makes it a member of the root workspace.
 
-Unit tests run on the JVM with Robolectric, so no device or emulator is needed. They read the real `dictionary.btree` and `detail.bin`, so run `npm run build:dict` first.
+Unit tests run on the JVM with Robolectric, so no device or emulator is needed. They read the real `dictionary.btree`, `detail.bin` and `bigrams.bin`, so run `npm run build:dict` and `npm run build:bigrams` first (the parity golden is generated with the bigram table loaded).
 
 ```bash
 cd packages/android
