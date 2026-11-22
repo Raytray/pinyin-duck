@@ -10,17 +10,25 @@
  * - CC-CEDICT is committed: mdbg.net only ever serves the latest edition, so there is no
  *   URL to pin. `packages/core/data/` holds the edition unzipped and byte-for-byte as
  *   MDBG published it; its README says where it came from and under what license.
- * - The two GitHub sources are downloaded from a commit rather than `master`, and cached
+ * - The part-of-speech rows reduced from English Wiktionary are committed too: kaikki.org
+ *   only serves its latest wiktextract dump, and the dump is about 3 GB.
+ *   `scripts/reduce-wiktionary.ts` writes `data/wiktionary-pos.tsv` and says how to move
+ *   to a newer dump; the file's header names the dump's date and SHA-256.
+ * - The three GitHub sources are downloaded from a commit rather than `master`, and cached
  *   in `packages/core/.cache/`.
  *
  * Bumping a source is deliberate:
  *   1. CC-CEDICT: `curl -sL https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz
  *      | gunzip > packages/core/data/cedict_1_0_ts_utf-8_mdbg.txt`, leaving the file
- *      otherwise untouched. For a GitHub source, pick the new commit and update `url`.
+ *      otherwise untouched. Wiktionary: `npm run reduce:wiktionary` on a new dump (see
+ *      `reduce-wiktionary.ts`). For a GitHub source, pick the new commit and update `url`.
  *   2. Update `sha256` below (`sha256sum <file>`) and the edition comment.
  *   3. `npm run build:dict -w @pinyinduck/core -- --no-cache`, then `npm run build:parity`
- *      and commit the regenerated `engine-parity.tsv` with this file. CI tests against
- *      the committed golden and no longer regenerates it, so the two travel together.
+ *      and commit the regenerated `engine-parity.tsv` and `detail-parity.tsv` with this file.
+ *      CI tests against the committed goldens and no longer regenerates them, so they
+ *      travel together.
+ *   4. Wiktionary and HanDeDict are credited with their dump date and commit: update
+ *      DATA_LICENSES.md, the web Credits dialog and the Android settings screen.
  */
 
 /** A source read from a file committed to this repository. */
@@ -59,5 +67,18 @@ export const SOURCES = {
     url: 'https://raw.githubusercontent.com/gigacool/hanyu-shuiping-kaoshi/5875a36415856c456cbc8364fba5306a415a9ebc/hsk.csv',
     cacheName: 'hsk.csv',
     sha256: 'f45235585b14878e93be2eb66cdb1fe635136c3df7fdc311fdcc7e591b0c4f11',
+  },
+  wiktionaryPos: {
+    // English Wiktionary, enwiktionary dump 2026-10-01 extracted by wiktextract 2026-10-30
+    // (kaikki.org raw-wiktextract-data.jsonl.gz), reduced to part-of-speech rows.
+    file: 'data/wiktionary-pos.tsv',
+    sha256: '8e0c65b5c4c8aefada38a17ecb5112ce0e09216378e587e63dda544f240b2972',
+  },
+  handedict: {
+    // gugray/HanDeDict, the daily export of 2026-11-21T02:30:01Z. Only its word-class tags are used.
+    // The hash is of the text, which `fetch` decodes without the file's leading byte order mark.
+    url: 'https://raw.githubusercontent.com/gugray/HanDeDict/0760a107064d0b682989c7bdfe6449fa157b7dcb/handedict.u8',
+    cacheName: 'handedict.u8',
+    sha256: 'a2bae4eb936d3bb8f6488851c49c9249219abd5d003ae5e7907cd56f20533bfc',
   },
 } as const satisfies Record<string, PinnedSource>;
