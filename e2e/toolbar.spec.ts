@@ -143,12 +143,21 @@ test('credits the dictionary sources and their licenses', async ({ page }) => {
     ['CC-CEDICT', 'https://www.mdbg.net/chinese/dictionary?page=cc-cedict'],
     ['FrequencyWords (OpenSubtitles 2018)', 'https://github.com/hermitdave/FrequencyWords'],
     ['HSK 2012 word list', 'https://github.com/gigacool/hanyu-shuiping-kaoshi'],
+    ['English Wiktionary', 'https://en.wiktionary.org/'],
+    ['HanDeDict', 'https://github.com/gugray/HanDeDict'],
   ]) {
     await expect(credits.getByRole('link', { name, exact: true })).toHaveAttribute('href', href);
   }
   await expect(credits).toContainText('MDBG');
   await expect(credits).toContainText('Hermit Dave');
   await expect(credits).toContainText('gigacool');
+  // Part of speech: the dump date and commit they were taken from, and what was taken.
+  await expect(credits).toContainText('Wiktionary contributors');
+  await expect(credits).toContainText('dump 2026-10-01');
+  await expect(credits).toContainText('HanDeDict contributors');
+  await expect(credits).toContainText('commit 0760a107');
+  await expect(credits).toContainText('CC BY-SA 2.0 DE / 3.0, adapted under 4.0');
+  await expect(credits.getByText('word-class tags only, mapped')).toHaveCount(2);
 
   await credits.getByRole('button', { name: 'Close credits' }).click();
   await expect(credits).toBeHidden();

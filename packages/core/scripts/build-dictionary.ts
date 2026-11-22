@@ -17,6 +17,8 @@
  * Beside each it writes the Candidate detail file (`detail.bin`, and `detail.bin.gz` for
  * the web app): every entry's senses, tags and measure words, parsed here (`build-detail.ts`)
  * and found by the entry ids on B+ tree rows. Both files carry the same build id (ADR 0002).
+ * Each record's part of speech comes from English Wiktionary (rows reduced from the
+ * wiktextract dump, committed under packages/core/data/) or HanDeDict (`part-of-speech.ts`).
  *
  * Usage:
  *   npm run build:dict                 # download (cached) and emit the B-tree asset
@@ -28,6 +30,8 @@
  *   CC-CEDICT   https://www.mdbg.net/chinese/export/cedict/ (a dated copy in packages/core/data/)
  *   Frequency   https://github.com/hermitdave/FrequencyWords (2018, zh_cn, 50k)
  *   HSK 2012    https://github.com/gigacool/hanyu-shuiping-kaoshi
+ *   Wiktionary  https://kaikki.org/dictionary/rawdata.html (reduced in packages/core/data/)
+ *   HanDeDict   https://github.com/gugray/HanDeDict
  */
 
 import { createHash } from 'crypto';
@@ -43,6 +47,7 @@ import { BUILD_ID_OFFSET } from '../src/data/btree-codec.js';
 import { encodeDetailFile } from '../src/detail/detail-codec.js';
 import { SOURCES, type PinnedSource, type VendoredSource } from './sources.js';
 import { classifyDefinition, detailRecords, isCommonLine } from './build-detail.js';
+import { partOfSpeechSources } from './part-of-speech.js';
 
 const PACKAGE_DIR = path.resolve(__dirname, '..');
 const CACHE_DIR = path.join(PACKAGE_DIR, '.cache');
@@ -60,10 +65,11 @@ const DEFAULT_OUT = path.join(OUT_DIR, 'dictionary.btree');
 export const DETAIL_FILE_NAME = 'detail.bin';
 const DEFAULT_COMPRESSED_OUT = path.resolve(__dirname, '../../web/src/generated/dictionary.btree.gz');
 
-/** The two sources a build downloads. CC-CEDICT is committed rather than downloaded. */
+/** The sources a build downloads. CC-CEDICT and the Wiktionary rows are committed instead. */
 export const SOURCE_URLS = {
   frequency: SOURCES.frequency.url,
   hsk: SOURCES.hsk.url,
+  handedict: SOURCES.handedict.url,
 } as const;
 
 export interface RawCedictLine {
@@ -550,10 +556,12 @@ async function build(
   const started = Date.now();
   console.log('Building the PinyinDuck dictionary from CC-CEDICT...\n');
 
-  const [cedictContent, frequencyContent, hskContent] = await Promise.all([
+  const [cedictContent, frequencyContent, hskContent, wiktionaryContent, handeDictContent] = await Promise.all([
     readPinned(SOURCES.cedict, useCache),
     readPinned(SOURCES.frequency, useCache),
     readPinned(SOURCES.hsk, useCache),
+    readPinned(SOURCES.wiktionaryPos, useCache),
+    readPinned(SOURCES.handedict, useCache),
   ]);
 
   const { rows, entries, stats } = joinCorpora(cedictContent, frequencyContent, hskContent);
@@ -564,7 +572,15 @@ async function build(
   );
 
   const { bytes, buildId } = encodeDictionary(rows);
-  const detail = encodeDetailFile(detailRecords(entries, entryGloss), buildId);
+  const posSources = partOfSpeechSources(wiktionaryContent, handeDictContent);
+  const posCounts = { Wiktionary: 0, HanDeDict: 0 };
+  const records = detailRecords(entries, entryGloss, (entry) => {
+    const tagged = posSources(entry);
+    if (!tagged) return [];
+    posCounts[tagged.source]++;
+    return tagged.labels;
+  });
+  const detail = encodeDetailFile(records, buildId);
   const detailOutPath = path.join(path.dirname(outPath), DETAIL_FILE_NAME);
   const detailCompressedOutPath = path.join(path.dirname(compressedOutPath), `${DETAIL_FILE_NAME}.gz`);
   const written = [
@@ -577,6 +593,10 @@ async function build(
   console.log(`  emitted ${stats.emitted} rows`);
   console.log(`  coverage ${stats.withFrequency} with frequency, ${stats.withHsk} on the HSK list`);
   console.log(`  coverage ${stats.singleChar} single characters`);
+  console.log(
+    `  part of speech ${posCounts.Wiktionary + posCounts.HanDeDict} of ${entries.length} entries ` +
+      `(${posCounts.Wiktionary} Wiktionary, ${posCounts.HanDeDict} HanDeDict)`
+  );
   console.log(`  build   id ${buildId.toString(16).padStart(8, '0')}`);
   for (const [file, size] of written) {
     console.log(`  wrote   ${file} (${(size / 1048576).toFixed(2)}MB)`);

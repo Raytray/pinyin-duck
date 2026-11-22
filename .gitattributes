@@ -1,3 +1,7 @@
 # The committed CC-CEDICT edition is pinned by SHA-256 and has CRLF line endings, as MDBG
 # publishes it. Never convert them, or the build rejects the checkout.
 packages/core/data/cedict_1_0_ts_utf-8_mdbg.txt -text
+
+# The reduced Wiktionary rows are pinned by SHA-256 too, with LF line endings as the reducer
+# writes them.
+packages/core/data/wiktionary-pos.tsv -text

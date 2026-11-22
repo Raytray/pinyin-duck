@@ -16,9 +16,19 @@
  * - `see X`, `used in X`, `classifier for …` and register labels stay in the sense text.
  * - Every embedded `trad|simp[pinyin]` is stored structured, in senses and tags alike.
  * - A variant-only entry's variant tags carry the target's short gloss.
+ * - Part of speech comes from Wiktionary and HanDeDict (`part-of-speech.ts`, #8), not from
+ *   CC-CEDICT, which has none.
  */
 
-import type { CrossRef, DetailRecord, DetailSense, DetailTag, RichText, TagKind } from '../src/detail/detail-codec.js';
+import type {
+  CrossRef,
+  DetailRecord,
+  DetailSense,
+  DetailTag,
+  PartOfSpeech,
+  RichText,
+  TagKind,
+} from '../src/detail/detail-codec.js';
 import { normalizePinyin } from '../src/parser/pinyin.js';
 import type { DictionaryEntry, RawCedictLine } from './build-dictionary.js';
 
@@ -157,7 +167,7 @@ function sameTag(a: DetailTag, b: DetailTag): boolean {
 }
 
 /** One entry's record, without the glosses that depend on other entries. */
-function parseEntry(entry: DictionaryEntry): DetailRecord {
+function parseEntry(entry: DictionaryEntry, partsOfSpeech: PartOfSpeech[]): DetailRecord {
   const senses: DetailSense[] = [];
   const tags: DetailTag[] = [];
   const measureWords: CrossRef[] = [];
@@ -190,7 +200,7 @@ function parseEntry(entry: DictionaryEntry): DetailRecord {
       senses.push({ proper, text: parsed.text });
     }
   }
-  return { heading: '', senses, tags, measureWords, partsOfSpeech: [] };
+  return { heading: '', senses, tags, measureWords, partsOfSpeech };
 }
 
 /**
@@ -198,10 +208,12 @@ function parseEntry(entry: DictionaryEntry): DetailRecord {
  *
  * `shortGloss` is the short gloss the dictionary gives an entry, which a variant-only
  * entry's variant tags carry for their target ("Variant of 念 niàn: to read aloud").
+ * `partsOfSpeech` gives an entry's part-of-speech labels (see `partOfSpeechLookup`).
  */
 export function detailRecords(
   entries: DictionaryEntry[],
-  shortGloss: (entry: DictionaryEntry) => string
+  shortGloss: (entry: DictionaryEntry) => string,
+  partsOfSpeech: (entry: DictionaryEntry) => PartOfSpeech[] = () => []
 ): DetailRecord[] {
   const records: DetailRecord[] = new Array(entries.length);
   const byReading = new Map<string, DictionaryEntry>();
@@ -209,7 +221,7 @@ export function detailRecords(
   const groupSizes = new Map<string, number>();
   const inFileOrder = [...entries].sort((a, b) => a.fileOrder - b.fileOrder);
   for (const entry of inFileOrder) {
-    records[entry.id] = parseEntry(entry);
+    records[entry.id] = parseEntry(entry, partsOfSpeech(entry));
     const hanzi = `${entry.traditional}|${entry.simplified}`;
     byReading.set(`${hanzi}|${entry.pinyinNumbers}`, entry);
     if (!byHanzi.has(hanzi)) byHanzi.set(hanzi, entry);

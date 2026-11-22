@@ -172,6 +172,14 @@ private fun SettingsScreen(
             name = stringResource(R.string.settings_credit_hsk_name),
             detail = stringResource(R.string.settings_credit_hsk_detail),
         )
+        Credit(
+            name = stringResource(R.string.settings_credit_wiktionary_name),
+            detail = stringResource(R.string.settings_credit_wiktionary_detail),
+        )
+        Credit(
+            name = stringResource(R.string.settings_credit_handedict_name),
+            detail = stringResource(R.string.settings_credit_handedict_detail),
+        )
     }
 }
 
