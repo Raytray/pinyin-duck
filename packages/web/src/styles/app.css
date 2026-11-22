@@ -439,6 +439,63 @@ body {
   max-width: 380px;
 }
 
+/* A Sentence candidate's row: one block per word, pinyin over Hanzi over a one-sense gloss.
+   Long sentences wrap onto further lines rather than widening the popup. */
+.sentence-words {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px 14px;
+  min-width: 0;
+}
+
+.sentence-word,
+.sentence-leftover {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 9em;
+}
+
+.sentence-word-pinyin {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-pinyin);
+  white-space: nowrap;
+}
+
+.sentence-word-hanzi {
+  font-family: var(--font-hanzi);
+  font-size: 1.4rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #0f172a;
+  padding: 0 2px;
+  border-bottom: 2px solid var(--color-primary-light);
+}
+
+.sentence-word-gloss,
+.sentence-leftover-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.sentence-leftover {
+  opacity: 0.55;
+}
+
+.sentence-leftover-pinyin {
+  font-size: 1rem;
+  line-height: 1.68rem;
+  color: var(--color-text-muted);
+  border-bottom: 2px dashed #94a3b8;
+}
+
 .candidate-info {
   flex: none;
   background: none;
@@ -505,6 +562,35 @@ body {
 
 .detail-counterpart {
   font-family: var(--font-hanzi);
+  color: var(--color-text-muted);
+}
+
+.detail-then {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+/* A Sentence candidate's detail: one section per word, one under another. */
+.detail-word {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+.detail-word-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.detail-word-hanzi {
+  font-family: var(--font-hanzi);
+  font-size: 1.3rem;
+}
+
+.detail-more {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
 }
 
