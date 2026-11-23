@@ -1,3 +1,4 @@
+import com.android.build.api.dsl.ManagedVirtualDevice
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
 
@@ -136,6 +137,8 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     sourceSets {
@@ -188,6 +191,29 @@ android {
     }
 
     testOptions {
+        // The device test taps keys and waits on window changes; animations only slow it
+        // down and make "is the keyboard up yet" racier.
+        animationsDisabled = true
+
+        // The emulator the end-to-end test runs on, locally and in CI, through one Gradle
+        // task: `npm run test:device` (`:app:pixel6api36DebugAndroidTest`). The `aosp`
+        // image (`system-images;android-36;default;x86_64`) is the smallest API 36 image
+        // that still ships Settings with its search, which is the field the test types into;
+        // the ATD images drop Settings. That image only exists with 4 KB pages, so the page
+        // alignment is stated rather than left to AGP to warn about. The managed-device DSL
+        // is `@Incubating`, which is one more reason AGP stays pinned in the version catalog.
+        managedDevices {
+            localDevices {
+                create("pixel6api36") {
+                    device = "Pixel 6"
+                    sdkVersion = 36
+                    systemImageSource = "aosp"
+                    require64Bit = true
+                    pageAlignment = ManagedVirtualDevice.PageAlignment.FORCE_4KB_PAGES
+                }
+            }
+        }
+
         unitTests {
             // Robolectric needs the merged resources and manifest to build a context.
             isIncludeAndroidResources = true
@@ -428,6 +454,10 @@ dependencies {
     testImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    // Drives the keyboard from outside: the device test types into Settings search, a field
+    // in another app, which only UI Automator can reach.
+    androidTestImplementation(libs.androidx.test.uiautomator)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
 }

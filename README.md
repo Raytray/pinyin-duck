@@ -130,6 +130,8 @@ cd packages/android && ./gradlew test
 cd packages/android && ./gradlew check
 ```
 
+The Android end-to-end test runs on an emulator with `npm run test:device -w @pinyinduck/android`; see "Device tests" in [packages/android/README.md](packages/android/README.md#device-tests).
+
 ## Deployment
 
 `.github/workflows/deploy-pages.yml` publishes `packages/web` to GitHub Pages after CI

@@ -6,7 +6,8 @@
   "type": "module",
   "description": "Gradle wrapper for the PinyinDuck Android input method",
   "scripts": {
-    "ci": "./gradlew ktlintCheck testDebugUnitTest jacocoTestReport jacocoTestCoverageVerification"
+    "ci": "./gradlew ktlintCheck testDebugUnitTest jacocoTestReport jacocoTestCoverageVerification",
+    "test:device": "./gradlew :app:pixel6api36DebugAndroidTest -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect"
   },
   "comment": [
     "This package is a Gradle project. Gradle is the build system; this file makes",
@@ -22,6 +23,10 @@
     "  ./gradlew testDebugUnitTest      # unit tests",
     "  ./gradlew jacocoTestReport       # coverage HTML + XML",
     "  ./gradlew check                  # tests plus the coverage gate",
+    "",
+    "`npm run test:device -w @pinyinduck/android` runs the end-to-end test on an emulator",
+    "(a Gradle Managed Device, so it needs KVM). It is not part of `ci`, which stays the",
+    "unit-test job; CI runs it as its own `android-device` job.",
     "",
     "See packages/android/README.md."
   ]

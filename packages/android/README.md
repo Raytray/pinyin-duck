@@ -102,6 +102,38 @@ The coverage report is written to `app/build/reports/jacoco/jacocoTestReport/htm
 - **80% instruction coverage** across the whole module.
 - **85% instruction and branch coverage** for each class in the code that runs without Android: the pinyin parser, the B-tree reader, ranking, search, the composition session and the key layouts. The list is `gatedClasses` in `app/build.gradle.kts`.
 
+### Device tests
+
+Three test classes in `app/src/androidTest` run the keyboard on an Android emulator and drive it with UI Automator, typing with PinyinDuck into Settings search:
+
+- `SentenceCommitDeviceTest`, end to end: it types `woxianghekafei`, taps the Sentence candidate, and checks that 我想喝咖啡 was committed.
+- `SentenceSlotDeviceTest` checks what Robolectric cannot, because it has no real CJK font metrics: in the Sentence candidate's strip slot, each chip sits inside the slot and nothing overlaps, for one chosen input per slot state (no chips, the leftover chip, the "+N" chip, both), and the keyboard keeps its height from before typing to a long sentence.
+- `SentenceCardDeviceTest` opens the Sentence candidate's card in the Expanded candidate list with a long press on the slot, and checks that the card wraps its word blocks onto rows inside it, that a word's menu fits under the card with its "Commit through" chip in view while its alternatives overflow, and that Back closes the menu, then hides the keyboard without reaching the app.
+
+Each test first checks that its input still gives the sentence it expects (and, for the slot, the chips of its state), so a dictionary or ranking change fails with a hint to pick a new input rather than with a bounds diff.
+
+The tests find tagged elements by resource id (`By.res("sentenceSlot")`): `KeyboardWindow` turns on `testTagsAsResourceId`, so every `testTag` in the keyboard is also its accessibility resource id. Shared setup lives in `PinyinDuckImeRule` (selecting and restoring the keyboard), `KeyboardDriver` (opening the field, typing, and every search on the keyboard, scoped to PinyinDuck's package) and `BoundsAssertions` (checks on on-screen bounds).
+
+Prerequisites:
+
+- KVM, with your user allowed to open `/dev/kvm` (`emulator -accel-check` says whether it is).
+- `npm run build:dict` and `npm run build:bigrams` at the repository root. Without the bigram table the tests stop at once and say to build it, because the keyboard would offer 我想和咖啡 instead.
+
+Run them on an emulator that Gradle creates, boots and shuts down for you (a Gradle Managed Device, `pixel6api36`: a Pixel 6 on the API 36 AOSP image, downloaded on first use):
+
+```bash
+npm run test:device -w @pinyinduck/android
+```
+
+Or against your own phone or a running emulator over adb:
+
+```bash
+cd packages/android
+./gradlew connectedDebugAndroidTest
+```
+
+Each test makes PinyinDuck the selected keyboard while it runs and puts back the keyboard, the enabled list and the "show with a hardware keyboard" setting afterwards. Reports and logcat are written under `app/build/outputs/androidTest-results/` and `app/build/reports/androidTests/`. CI runs them as the `android-device` job, report-only for now: a failure shows as a red check but does not block a merge.
+
 ### Parity with the web engine
 
 The search engine in `engine/` is a Kotlin port of `packages/core/src/index/lazy-search.ts`. `PinyinEngineParityTest` compares it to the TypeScript engine's output, which is recorded in `app/src/test/resources/engine-parity.tsv`. If you change ranking, tie-breaking or search in core, regenerate that file and commit it with the change. The same command writes `detail-parity.tsv`, the Candidate detail view for every entry those queries reach, which the Kotlin detail view is pinned to; regenerate it when the detail file or the detail view in core changes:

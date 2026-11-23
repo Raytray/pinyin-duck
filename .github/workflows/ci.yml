@@ -355,11 +355,141 @@ jobs:
           path: playwright-report/
           retention-days: 14
 
+  # ─── Android end-to-end test on an emulator ──────────────────────────────
+  # Types a Sentence candidate into Settings search with PinyinDuck, on a Gradle Managed
+  # Device (`npm run test:device`, the same command as locally). Report-only for now: it is
+  # not in ci-passed's needs, so a red run shows but does not block the merge, and there are
+  # no retries, because this period exists to measure how flaky it is. GitHub runs it on
+  # ubuntu-latest; the homelab on its `kvm` runner, whose capacity of 1 serialises emulators.
+  android-device:
+    needs: changes
+    # Same gate as the Android unit tests, so core, root and dispatch changes run it too.
+    if: ${{ contains(fromJSON(needs.changes.outputs.packages), 'android') }}
+    runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'kvm' }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache dictionary sources
+        uses: actions/cache@v6
+        with:
+          path: |
+            packages/core/.cache
+            !packages/core/.cache/opensubtitles-*
+          key: dictionary-sources-${{ hashFiles('packages/core/scripts/sources.ts') }}
+
+      - name: Cache the OpenSubtitles corpus
+        uses: actions/cache@v6
+        with:
+          path: packages/core/.cache/opensubtitles-zh_cn.txt.gz
+          key: opensubtitles-${{ hashFiles('packages/core/scripts/sources.ts') }}
+
+      # The test checks for 我想喝咖啡, which only the bigram table ranks first. Without it the
+      # test stops early and says to build it.
+      - name: Build dictionary assets and the bigram table
+        run: |
+          npm run build:dict
+          npm run build:bigrams
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      # The job container on the homelab runner (catthehacker/ubuntu:act-24.04) lacks the
+      # libraries the emulator binary links against, even headless. GitHub's image has them.
+      - name: Install the emulator's libraries
+        if: github.server_url != 'https://github.com'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpulse0 libnss3 libgl1 libegl1 libxcomposite1 libxcursor1 libxdamage1 libxi6 \
+            libxtst6 libasound2t64 libxkbfile1 libx11-xcb1 libxrandr2 libdbus-1-3 \
+            libfontconfig1 libxkbcommon0 libgbm1 libdrm2
+
+      # GitHub's runners have /dev/kvm, but only root can open it until this rule widens it.
+      # The homelab job container runs as root with the device passed in by the runner.
+      - name: Let the emulator use KVM
+        if: github.server_url == 'https://github.com'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: 'platform-tools platforms;android-37.0 emulator'
+
+      # The managed device downloads the image itself on a miss, and it takes the newest
+      # revision sdkmanager offers. The cache is keyed on that revision, read from the
+      # repository before the restore (the image is not installed yet at this point), so a new
+      # revision is fetched afresh rather than masked by an old cache. After setup-android,
+      # which puts sdkmanager on the PATH and sets ANDROID_HOME on the homelab.
+      - name: Revision of the API 36 system image
+        id: image
+        run: |
+          revision=$(sdkmanager --list 2>/dev/null | awk -F'|' '
+            /^Available Packages:/ { available = 1 }
+            available && $1 ~ /^ *system-images;android-36;default;x86_64 *$/ { gsub(/ /, "", $2); print $2; exit }')
+          if [ -z "$revision" ]; then
+            echo "::error::sdkmanager --list offers no system-images;android-36;default;x86_64"
+            exit 1
+          fi
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the API 36 system image
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.ANDROID_HOME }}/system-images/android-36/default/x86_64
+          key: system-image-android-36-default-x86_64-r${{ steps.image.outputs.revision }}
+
+      # The managed device's AVD and its boot snapshot. A snapshot only goes stale when the
+      # emulator, the image, AGP or the device definition changes, hence the week and the build
+      # file in the key. It is tied to the emulator build and the host CPU, so GitHub's and the
+      # homelab's never share a key.
+      - name: Week for the snapshot cache key
+        id: week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the managed device snapshot
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.android/avd/gradle-managed/*
+            ~/.android/adb*
+          key: gmd-pixel6api36-${{ steps.week.outputs.week }}-${{ hashFiles('packages/android/app/build.gradle.kts') }}-${{ github.server_url }}
+
+      - name: "[android] device test"
+        run: npm run test:device -w @pinyinduck/android
+
+      - name: Upload the device test report and logcat
+        # Artifact actions v4+ refuse to run off github.com (GHES check), e.g. on Forgejo.
+        if: failure() && github.server_url == 'https://github.com'
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-device-report
+          path: |
+            packages/android/app/build/outputs/androidTest-results/
+            packages/android/app/build/reports/androidTests/
+          retention-days: 14
+
   # ─── Single required check ────────────────────────────────────────────────
   # Branch protection can't require the per-package jobs: they only exist when a PR touches
   # that package, so a required `web` check would wait forever on an Android-only PR. This
   # job always runs and reports one result. A skipped job is fine, because the change
   # detection skipped it; a failed or cancelled one fails the gate.
+  # android-device is left out on purpose: it is report-only until its flakiness is known.
   ci-passed:
     if: ${{ always() }}
     needs: [changes, root-checks, package-checks, rime-files, installers, e2e]

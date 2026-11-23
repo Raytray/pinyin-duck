@@ -62,6 +62,12 @@ import dev.pinyinduck.android.ime.OpenWordMenu
 /** The Sentence candidate's slot in the strip. */
 const val SENTENCE_SLOT_TAG = "sentenceSlot"
 
+/**
+ * The strip slot's horizontal padding, in dp: its word blocks and chips sit inside it. An Int,
+ * not a [Dp], so device tests can read it as a constant.
+ */
+const val SENTENCE_SLOT_PADDING_DP = 4
+
 /** The "+N" chip counting the words the strip slot has no room for. */
 const val MORE_WORDS_CHIP_TAG = "moreWordsChip"
 
@@ -307,7 +313,7 @@ internal fun RowScope.SentenceStripSlot(
                         )
                 }.detailAnchor(index)
                 .combinedClickable(onLongClickLabel = "Show all candidates", onLongClick = onShowAll, onClick = onClick)
-                .padding(horizontal = 4.dp),
+                .padding(horizontal = SENTENCE_SLOT_PADDING_DP.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
         FittedWordBlocks(sentence, selected)
