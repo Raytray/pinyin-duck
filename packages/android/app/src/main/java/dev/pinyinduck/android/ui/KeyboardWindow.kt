@@ -26,6 +26,8 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import dev.pinyinduck.android.ime.KeyboardUiState
@@ -74,7 +76,10 @@ fun KeyboardWindow(
     val bubbleOpen by rememberUpdatedState(state.detailOpen)
 
     CompositionLocalProvider(LocalDetailAnchors provides anchors) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        // Test tags double as accessibility resource ids, so a UI Automator test on a device
+        // finds the keyboard's elements by tag (`By.res(SENTENCE_SLOT_TAG)`) the way a Compose
+        // test does. Set once here and inherited by everything in the window.
+        Column(modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
             var areaLeft by remember { mutableFloatStateOf(0f) }
             BoxWithConstraints(
                 modifier =
