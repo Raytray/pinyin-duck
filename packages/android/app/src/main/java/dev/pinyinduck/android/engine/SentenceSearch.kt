@@ -40,7 +40,10 @@ const val BIGRAM_BACKOFF_PENALTY = 12000
  */
 const val MIN_SENTENCE_WORD_FREQUENCY = 1
 
-/** One word of a Sentence candidate, and where it starts and ends in the toneless query. */
+/**
+ * One word of a Sentence candidate, or a fixed word resolved to its stored entry, and where it
+ * starts and ends in the toneless query.
+ */
 internal class SentenceWord(
     val entry: StoredEntry,
     val start: Int,
@@ -59,44 +62,37 @@ internal class SentenceResult(
     val fixed: Boolean = false,
 )
 
-/** A fixed word the query can hold, resolved to its stored entry. */
-private class HeldWord(
-    val entry: StoredEntry,
-    val start: Int,
-    val end: Int,
-)
-
 /**
- * Resolves the fixed words the query can hold, sorted by start. `holdFixedWords` in
- * `sentence-search.ts`: one is held when both ends of its span are lattice nodes (or, for a
+ * Resolves the fixed words the query can honor, sorted by start. `resolveFixedWords` in
+ * `sentence-search.ts`: one is honored when both ends of its span are lattice nodes (or, for a
  * completed last word, the span runs to the end of the query and the key is longer), its
  * entry is stored under that key and shown in the active script, and the typed tones and
  * boundaries allow it. A fixed word skips [MIN_SENTENCE_WORD_FREQUENCY]: the learner chose it. One that
- * overlaps a word held earlier in the list is ignored.
+ * overlaps a word honored earlier in the list is ignored.
  */
-private fun holdFixedWords(
+private fun resolveFixedWords(
     dictionary: BTreeDictionary,
     fixedWords: List<FixedWord>,
     boundaries: QueryBoundaries,
     script: ScriptType,
     toneFilter: List<ToneConstraint>,
     exactOnly: Boolean,
-): List<HeldWord> {
+): List<SentenceWord> {
     val toneless = boundaries.toneless
     val nodes = boundaries.nodes
     val end = boundaries.end
     val n = toneless.length
-    val held = ArrayList<HeldWord>()
+    val resolved = ArrayList<SentenceWord>()
     for (word in fixedWords) {
-        val start = word.start
-        val stop = word.end
-        if (start < 0 || stop <= start || stop > n) continue
+        if (!isSpanIn(word.span, n)) continue
+        val start = word.span.start
+        val stop = word.span.end
         if (start > end || (start != 0 && !nodes[start])) continue
-        if (held.any { start < it.end && stop > it.start }) continue
-        val span = toneless.substring(start, stop)
+        if (resolved.any { start < it.end && stop > it.start }) continue
+        val typed = toneless.substring(start, stop)
         val key = cleanPinyin(word.pinyinNumbers)
-        val exact = key == span && stop <= end && nodes[stop]
-        val completes = !exactOnly && stop == n && key.length > span.length && key.startsWith(span)
+        val exact = key == typed && stop <= end && nodes[stop]
+        val completes = !exactOnly && stop == n && key.length > typed.length && key.startsWith(typed)
         if (!exact && !completes) continue
         val entry =
             dictionary.lookupExact(key).firstOrNull { stored ->
@@ -107,10 +103,10 @@ private fun holdFixedWords(
             }
         if (entry == null || !fitsTones(entry, start, toneFilter)) continue
         if (!spansForced(entry.pinyinNumbers, start, stop, boundaries.forced)) continue
-        held.add(HeldWord(entry, start, stop))
+        resolved.add(SentenceWord(entry, start, stop))
     }
-    held.sortBy { it.start }
-    return held
+    resolved.sortBy { it.start }
+    return resolved
 }
 
 /** The cost charged per word: the dictionary's base word cost plus the extra bias. */
@@ -205,7 +201,7 @@ private fun collapse(
         if (entry.onlyIn != null && entry.onlyIn != script) continue
         if (entry.frequency < MIN_SENTENCE_WORD_FREQUENCY || !fitsTones(entry, start, toneFilter)) continue
         if (!spansForced(entry.pinyinNumbers, start, end, forced)) continue
-        val hanzi = if (script == ScriptType.TRADITIONAL) entry.traditional else entry.simplified
+        val hanzi = hanziIn(entry, script)
         val previous = best[hanzi]
         if (previous == null || ENTRY_ORDER.compare(entry, previous) < 0) best[hanzi] = entry
     }
@@ -251,14 +247,14 @@ internal fun findSentence(
     // Fixed words force their edge: no other word may start, end or lie inside their span,
     // so every path past a fixed word's start goes through it, and the best path is found
     // before and after it as usual.
-    val held = holdFixedWords(dictionary, fixedWords, boundaries, script, toneFilter, exactOnly)
+    val fixed = resolveFixedWords(dictionary, fixedWords, boundaries, script, toneFilter, exactOnly)
 
-    fun heldAt(i: Int) = held.firstOrNull { it.start == i }
+    fun fixedAt(i: Int) = fixed.firstOrNull { it.start == i }
 
-    fun insideHeld(i: Int) = held.any { i > it.start && i < it.end }
+    fun insideFixed(i: Int) = fixed.any { i > it.start && i < it.end }
 
     /** The first fixed word starting after [i], where every other edge from [i] must stop; -1 when none does. */
-    fun nextHeldStart(i: Int) = held.firstOrNull { it.start > i }?.start ?: -1
+    fun nextFixedStart(i: Int) = fixed.firstOrNull { it.start > i }?.start ?: -1
 
     // Edges by start node, in the fixed order: shorter spans first, then completions, each
     // span in `compareScored` order.
@@ -287,14 +283,14 @@ internal fun findSentence(
         if (!nodes[i] && i != 0) continue
         if (!reached[i]) continue
         // Edges are built only from nodes a path reaches, so an unreachable stretch costs no lookups.
-        val fixedHere = heldAt(i)
+        val fixedHere = fixedAt(i)
         if (fixedHere != null) addEdges(i, listOf(fixedHere.entry), fixedHere.end)
-        val next = nextHeldStart(i)
+        val next = nextFixedStart(i)
         // The last node an exact edge from here may end at: none at or inside a fixed word,
         // and no further than the next fixed word's start.
         val stop =
             when {
-                fixedHere != null || insideHeld(i) -> -1
+                fixedHere != null || insideFixed(i) -> -1
                 next >= 0 -> minOf(end, next)
                 else -> end
             }
@@ -308,11 +304,8 @@ internal fun findSentence(
         if (!exactOnly && i > 0 && stop >= 0 && next < 0 && hasVowel(toneless, i)) {
             val tail = toneless.substring(i)
             val found = ArrayList<StoredEntry>()
-            var scanned = 0
-            dictionary.scanPrefix(tail) { entry ->
+            dictionary.scanPrefixWithin(tail, maxMatches) { entry ->
                 if (entry.key.length > tail.length) found.add(entry)
-                scanned++
-                scanned < maxMatches
             }
             addEdges(i, collapse(found, script, i, n, boundaries.forced, toneFilter), n)
         }
@@ -372,15 +365,15 @@ internal fun findSentence(
     }
 
     // An edited sentence keeps the learner's choice even when it is a single word.
-    val minWords = if (held.isNotEmpty()) 1 else 2
-    // A path ending before the last fixed word does not hold it.
-    val lastHeldEnd = held.lastOrNull()?.end ?: 0
+    val minWords = if (fixed.isNotEmpty()) 1 else 2
+    // A path ending before the last fixed word does not include it.
+    val lastFixedEnd = fixed.lastOrNull()?.end ?: 0
     var final = pick(incoming[n], minWords)
     var full = final != null
     if (final == null) {
         var furthest = n - 1
         while (furthest > 0 && incoming[furthest].isEmpty()) furthest--
-        if (furthest > 0 && furthest >= lastHeldEnd) {
+        if (furthest > 0 && furthest >= lastFixedEnd) {
             val best = pick(incoming[furthest], 1)
             if (best != null && best.words >= minWords) final = best
         }
@@ -395,5 +388,5 @@ internal fun findSentence(
         state = state.previous
     }
     words.reverse()
-    return SentenceResult(words, final.score, final.edge.end, full, fixed = held.isNotEmpty())
+    return SentenceResult(words, final.score, final.edge.end, full, fixed = fixed.isNotEmpty())
 }

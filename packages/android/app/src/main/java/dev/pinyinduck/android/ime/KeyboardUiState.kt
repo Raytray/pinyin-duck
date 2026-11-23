@@ -34,7 +34,7 @@ data class KeyboardUiState(
     val detail: OpenDetail? = null,
     /** The open word menu of a Sentence candidate's card, or null while it is closed. */
     val wordMenu: OpenWordMenu? = null,
-    /** The Fixed words held in the composition, which the card marks (#37). */
+    /** The Fixed words in the composition, which the card marks (#37). */
     val fixedWords: List<FixedWord> = emptyList(),
 ) {
     /** Whether the Candidate detail bubble is open. */

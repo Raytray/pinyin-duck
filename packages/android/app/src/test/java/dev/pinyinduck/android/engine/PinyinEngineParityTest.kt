@@ -181,7 +181,7 @@ class PinyinEngineParityTest {
             searches.map { it.candidates.first().first() },
         )
         // 河 and 像 are listed out of order; the engine sorts them by start.
-        assertEquals(listOf(7, 2), searches[2].fixedWords.map { it.start })
+        assertEquals(listOf(7, 2), searches[2].fixedWords.map { it.span.start })
         assertEquals(listOf("woxiang he4 kafei", "woxianghekafei", "xi'anhenmei"), alternatives.map { it.query })
         assertTrue("only hè readings", alternatives[0].alternatives.all { it[1] == "hè" })
         assertEquals(52, alternatives[1].alternatives.size)
@@ -301,7 +301,10 @@ class PinyinEngineParityTest {
                     flush()
                     header = fields
                 }
-                fields[0] == "fixed" -> fixedWords.add(FixedWord(fields[1].toInt(), fields[2].toInt(), fields[3], fields[4], fields[5]))
+                fields[0] == "fixed" ->
+                    fixedWords.add(
+                        FixedWord(Span(fields[1].toInt(), fields[2].toInt()), fields[3], fields[4], fields[5]),
+                    )
                 line.startsWith("segments ") -> segments = line.removePrefix("segments ").split(" ").filter { it.isNotEmpty() }
                 line.startsWith("spans ") ->
                     spans =

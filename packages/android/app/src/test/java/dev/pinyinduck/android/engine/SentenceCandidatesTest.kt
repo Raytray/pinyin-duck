@@ -424,7 +424,7 @@ class SentenceCandidatesTest {
         simplified: String,
         pinyinNumbers: String,
         traditional: String = simplified,
-    ) = FixedWord(start, end, simplified, traditional, pinyinNumbers)
+    ) = FixedWord(Span(start, end), simplified, traditional, pinyinNumbers)
 
     private fun row(
         key: String,

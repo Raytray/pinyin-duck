@@ -52,6 +52,12 @@ data class Span(
     val end: Int,
 )
 
+/** Whether [span] is a non-empty span inside a toneless query of [length] letters. `isSpanIn` in `lattice.ts`. */
+internal fun isSpanIn(
+    span: Span,
+    length: Int,
+): Boolean = span.start >= 0 && span.end > span.start && span.end <= length
+
 data class SearchResult(
     val query: String,
     val segments: List<String>,
@@ -69,41 +75,40 @@ data class SearchOptions(
     /**
      * Fixed words: words the learner chose in place of others inside the Sentence candidate
      * (see [FixedWord]). The sentence is rebuilt so each one sits on its span, with the best
-     * path before and after it, and while any is held that edited sentence is the first
+     * path before and after it, and while any is honored that edited sentence is the first
      * candidate. `SearchOptions.fixedWords` in `packages/core/src/types.ts`.
      *
      * The engine keeps no state between searches: the UI holds this list and passes it with
      * every keystroke while the learner keeps composing. Dropping fixed words is the UI's job:
      * clear the whole list when the sentence (or part of it) is committed and on Esc, and drop
-     * a fixed word as soon as a Backspace deletes into its span ([FixedWord.end] > the new
+     * a fixed word as soon as a Backspace deletes into its span (`span.end` > the new
      * toneless query length). Typing more pinyin after them keeps them.
      *
-     * A fixed completed last word (咖啡 on `kafe`) is held only while its span ends the query,
-     * so the UI moves its span as the learner types on: stretch [FixedWord.end] to the end of
+     * A fixed completed last word (咖啡 on `kafe`) is honored only while its span ends the
+     * query, so the UI moves its span as the learner types on: stretch `span.end` to the end of
      * the query while the typing is still a prefix of the word's key, set it to
-     * `start + key.length` once the key is typed in full (an ordinary fixed word from then on),
+     * `span.start + key.length` once the key is typed in full (an ordinary fixed word from then on),
      * and drop the word once the typing leaves the key. The keyboard does this in
      * `carryFixedWords` (`ime/FixedWords.kt`), a port of the web's
      * (`packages/web/src/sentence/fixed-words.ts`).
      *
-     * A fixed word the current query cannot hold is ignored, not an error: its span is not a
-     * word boundary on both ends, its entry is not under that span, a typed tone rules it out,
-     * or it overlaps an earlier one in the list.
+     * A fixed word the current query cannot honor is ignored, not an error: its span is not a
+     * word boundary on both ends, its entry is not under that span, a typed tone or boundary
+     * rules it out, or it overlaps an earlier one in the list.
      */
     val fixedWords: List<FixedWord> = emptyList(),
 )
 
 /**
  * A word the learner chose in place of another inside a Sentence candidate, pinned to the
- * span `[start, end)` of the toneless query it covers, and naming its entry by forms and
- * reading. Build one from a span alternative with [Candidate.toFixedWord].
+ * [span] of the toneless query it covers, and naming its entry by forms and reading
+ * (`FixedWord` in `packages/core/src/types.ts`, whose `word` holds the three fields here). Build one from a span alternative with [Candidate.toFixedWord].
  *
  * The entry's key is normally exactly the span. For the last word it may instead be a longer
- * key that completes the query (`kafe` → 咖啡), held only while the span ends the query.
+ * key that completes the query (`kafe` → 咖啡), honored only while the span ends the query.
  */
 data class FixedWord(
-    val start: Int,
-    val end: Int,
+    val span: Span,
     val simplified: String,
     val traditional: String,
     val pinyinNumbers: String,
@@ -115,5 +120,5 @@ data class FixedWord(
  */
 fun Candidate.toFixedWord(): FixedWord {
     val on = requireNotNull(span) { "only a span alternative or a sentence word has a span" }
-    return FixedWord(on.start, on.end, simplified, traditional, pinyinNumbers)
+    return FixedWord(on, simplified, traditional, pinyinNumbers)
 }

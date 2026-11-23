@@ -66,7 +66,7 @@ export interface OpenWordMenu {
 /** What the popup needs to draw word menus and act on them. */
 export interface WordMenuControls {
   menu: OpenWordMenu | null;
-  /** The Fixed words held, so their blocks can be marked. */
+  /** The Fixed words, so their blocks can be marked. */
   fixedWords: readonly FixedWord[];
   /** Opens word `wordIndex` of row `index`'s menu, or closes it if open. */
   toggle: (index: number, wordIndex: number) => void;

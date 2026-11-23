@@ -1,6 +1,7 @@
 package dev.pinyinduck.android.ime
 
 import dev.pinyinduck.android.engine.FixedWord
+import dev.pinyinduck.android.engine.Span
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -53,21 +54,21 @@ class FixedWordsTest {
 
     @Test
     fun aFixedCompletionStretchesAsTheLearnerTypesMoreOfItsKey() {
-        assertEquals(listOf(KAFEI_ON_KA.copy(end = 12)), carryFixedWords(listOf(KAFEI_ON_KA), "woxianghekaf"))
+        assertEquals(listOf(KAFEI_ON_KA.copy(span = Span(9, 12))), carryFixedWords(listOf(KAFEI_ON_KA), "woxianghekaf"))
     }
 
     @Test
     fun aFixedCompletionBecomesAnExactWordOnceItsKeyIsTypedAndThenLasts() {
-        assertEquals(listOf(KAFEI_ON_KA.copy(end = 14)), carryFixedWords(listOf(KAFEI_ON_KA), "woxianghekafei"))
+        assertEquals(listOf(KAFEI_ON_KA.copy(span = Span(9, 14))), carryFixedWords(listOf(KAFEI_ON_KA), "woxianghekafei"))
         assertEquals(
-            listOf(KAFEI_ON_KA.copy(end = 14)),
-            carryFixedWords(listOf(KAFEI_ON_KA.copy(end = 14)), "woxianghekafeiranhou"),
+            listOf(KAFEI_ON_KA.copy(span = Span(9, 14))),
+            carryFixedWords(listOf(KAFEI_ON_KA.copy(span = Span(9, 14))), "woxianghekafeiranhou"),
         )
     }
 
     @Test
     fun aFixedCompletionReAnchorsToItsKeyWhenTheLearnerTypesPastItAtOnce() {
-        assertEquals(listOf(KAFEI_ON_KA.copy(end = 14)), carryFixedWords(listOf(KAFEI_ON_KA), "woxianghekafeir"))
+        assertEquals(listOf(KAFEI_ON_KA.copy(span = Span(9, 14))), carryFixedWords(listOf(KAFEI_ON_KA), "woxianghekafeir"))
     }
 
     @Test
@@ -77,14 +78,14 @@ class FixedWordsTest {
 
     @Test
     fun offsetsAreReadInTheTonelessQueryPastToneDigitsAndSeparators() {
-        assertEquals(listOf(KAFEI_ON_KA.copy(end = 13)), carryFixedWords(listOf(KAFEI_ON_KA), "wo3xiang3he1ka'fe"))
+        assertEquals(listOf(KAFEI_ON_KA.copy(span = Span(9, 13))), carryFixedWords(listOf(KAFEI_ON_KA), "wo3xiang3he1ka'fe"))
     }
 
     private companion object {
-        val HE = FixedWord(7, 9, "喝", "喝", "he1")
-        val XIANG = FixedWord(2, 7, "向", "向", "xiang4")
+        val HE = FixedWord(Span(7, 9), "喝", "喝", "he1")
+        val XIANG = FixedWord(Span(2, 7), "向", "向", "xiang4")
 
         /** 咖啡 fixed on `ka`, a completion: its key `kafei` runs past the span. */
-        val KAFEI_ON_KA = FixedWord(9, 11, "咖啡", "咖啡", "ka1 fei1")
+        val KAFEI_ON_KA = FixedWord(Span(9, 11), "咖啡", "咖啡", "ka1 fei1")
     }
 }
