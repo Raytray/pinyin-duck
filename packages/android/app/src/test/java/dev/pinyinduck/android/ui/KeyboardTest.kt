@@ -1,9 +1,16 @@
 package dev.pinyinduck.android.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import dev.pinyinduck.android.engine.Candidate
@@ -14,6 +21,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * The keyboard as drawn.
@@ -109,6 +117,26 @@ class KeyboardTest {
     }
 
     // --- candidate strip --------------------------------------------------------
+
+    @Test
+    @Config(qualifiers = "w411dp-h891dp")
+    fun typingDoesNotChangeTheKeyboardsHeight() {
+        // Before typing the composition bar holds a hint that wraps to two lines on a phone;
+        // it must fit the bar, or the keyboard shrinks on the first key and the app jumps.
+        var state by mutableStateOf(KeyboardUiState(loading = false, dictionaryEntries = 125_276))
+        compose.setContent {
+            PinyinDuckTheme {
+                PinyinDuckKeyboard(state = state, callbacks = Recorder().callbacks(), modifier = Modifier.testTag(KEYBOARD_TAG))
+            }
+        }
+        val before = compose.onNodeWithTag(KEYBOARD_TAG).getBoundsInRoot()
+
+        state = state.copy(buffer = "ni", candidates = listOf(candidate("你", "nǐ", "you")), total = 1)
+        compose.waitForIdle()
+        val composing = compose.onNodeWithTag(KEYBOARD_TAG).getBoundsInRoot()
+
+        assertEquals(before.bottom - before.top, composing.bottom - composing.top)
+    }
 
     @Test
     fun theStripShowsTheCompositionAndEachCandidateWithItsDefinition() {
