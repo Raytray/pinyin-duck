@@ -1,0 +1,52 @@
+package dev.pinyinduck.android
+
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * Switching to another keyboard while PinyinDuck is shown. The system destroys the service
+ * with its input view still started, and the service must not crash on the way out.
+ *
+ * The service runs in the app's process, which is also the instrumentation's, so a crash
+ * takes the test down too. The test still checks logcat and the process id, so a failure
+ * names the crash.
+ */
+@RunWith(AndroidJUnit4::class)
+class KeyboardSwitchDeviceTest {
+    @get:Rule
+    val ime = PinyinDuckImeRule()
+
+    private val keyboard = KeyboardDriver()
+    private val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+
+    @Test
+    fun switchingToAnotherKeyboardWhileShownDoesNotCrashPinyinDuck() {
+        val other =
+            shell("ime list -s").lines().firstOrNull { it.isNotBlank() && !it.startsWith(PACKAGE) }
+                ?: failTest("No other enabled keyboard to switch to")
+
+        keyboard.openSettingsSearch()
+        keyboard.type(INPUT, fieldTextWhileComposing = INPUT)
+        val pidBefore = shell("pidof $PACKAGE")
+        shell("logcat -b crash -c")
+
+        shell("ime set $other")
+
+        keyboard.assertKeyboardHides("Switching to $other")
+        val crashes = shell("logcat -b crash -d -v brief")
+        assertFalse("PinyinDuck crashed when switching to $other:\n$crashes", "FATAL EXCEPTION" in crashes)
+        assertEquals("PinyinDuck's process died or restarted when switching to $other", pidBefore, shell("pidof $PACKAGE"))
+    }
+
+    private fun shell(command: String): String = device.executeShellCommand(command).trim()
+
+    private companion object {
+        const val INPUT = "nihao"
+    }
+}
