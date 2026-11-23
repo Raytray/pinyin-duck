@@ -4,7 +4,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { CandidateDetail } from './CandidateDetail';
 import { SentenceDetail } from './SentenceDetail';
 import { SentenceRow } from './SentenceRow';
-import type { OpenCandidateDetail } from '../hooks/usePinyinDuck';
+import { WordMenu } from './WordMenu';
+import type { OpenCandidateDetail, WordMenuControls } from '../hooks/usePinyinDuck';
 
 interface CandidatePopupProps {
   candidates: Candidate[];
@@ -20,6 +21,8 @@ interface CandidatePopupProps {
   /** The open Candidate detail, drawn under its row, or null. */
   detail: OpenCandidateDetail | null;
   onToggleDetail: (index: number) => void;
+  /** The word menu of a Sentence candidate's word, and what it can do. */
+  wordMenu: WordMenuControls;
 }
 
 export const CandidatePopup: React.FC<CandidatePopupProps> = ({
@@ -35,7 +38,9 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
   onHoverIndex,
   detail,
   onToggleDetail,
+  wordMenu,
 }) => {
+  const { menu } = wordMenu;
   // An empty candidate list means "no match" only once the dictionary is loaded.
   // Before that the search has not run at all, so claiming no match would be a lie.
   if (candidates.length === 0) {
@@ -85,6 +90,7 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
           const displayNum = idx + 1;
 
           const detailHere = detail?.index === idx;
+          const menuHere = menu?.index === idx ? menu : null;
 
           return (
             <React.Fragment key={cand.id + idx}>
@@ -93,15 +99,24 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
                 aria-selected={isSelected}
                 aria-expanded={detailHere}
                 className={`candidate-item ${isSelected ? 'selected' : ''}`}
+                // A click commits the whole candidate, except on a word block of a Sentence
+                // candidate, which opens that word's menu instead (#37). So on a sentence the
+                // number, the gaps between blocks and the leftover block commit it.
                 onClick={() => onSelectCandidate(idx)}
-                // While a detail is open the highlight moves by keyboard or ⓘ only: following
-                // the pointer would move the detail, and the rows with it, under the pointer.
-                onMouseEnter={detail ? undefined : () => onHoverIndex(idx)}
+                // While a detail or word menu is open the highlight moves by keyboard or click
+                // only: following the pointer would move it, and the rows with it, under the pointer.
+                onMouseEnter={detail || menu ? undefined : () => onHoverIndex(idx)}
               >
                 {cand.words ? (
                   <>
                     <span className="candidate-num">{displayNum}</span>
-                    <SentenceRow words={cand.words} leftover={cand.remainingPinyin} />
+                    <SentenceRow
+                      words={cand.words}
+                      leftover={cand.remainingPinyin}
+                      openWord={menuHere?.wordIndex ?? null}
+                      fixedWords={wordMenu.fixedWords}
+                      onWordClick={(wordIndex) => wordMenu.toggle(idx, wordIndex)}
+                    />
                   </>
                 ) : (
                   <>
@@ -131,6 +146,9 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
                   ⓘ
                 </button>
               </div>
+              {menuHere && (
+                <WordMenu menu={menuHere} onSwap={wordMenu.swap} onCommitThrough={wordMenu.commitThrough} />
+              )}
               {detailHere &&
                 (cand.words ? (
                   <SentenceDetail detail={detail} onCommit={() => onSelectCandidate(idx)} />
@@ -157,6 +175,11 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
           <span className="hint-pill">
             <kbd>Tab</kbd> Details
           </span>
+          {candidates.some((cand) => cand.words) && (
+            <span className="hint-pill">
+              <kbd>Shift</kbd>+<kbd>←</kbd>/<kbd>→</kbd> Words
+            </span>
+          )}
         </div>
         <div className="candidate-pager">
           <button
