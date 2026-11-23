@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -188,12 +189,18 @@ private fun CompositionBar(
     }
 }
 
+/**
+ * A hint in the composition bar. Its line height is set so that two lines fit within the bar's
+ * 34 dp icons: with the theme's 24 sp a wrapped hint made the bar taller before typing than
+ * while composing, and the keyboard shrank on the first key.
+ */
 @Composable
 private fun HintText(text: String) {
     Text(
         text = text,
         color = DuckColors.SecondaryText,
         fontSize = 12.sp,
+        lineHeight = 16.sp,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
     )
@@ -271,7 +278,9 @@ private fun CandidateStrip(
             page = (safePage - 1).coerceAtLeast(0)
         }
 
-        Box(modifier = Modifier.weight(1f)) {
+        // As tall with no candidates as with them, so the keyboard keeps its height from the
+        // first key typed to the last candidate picked.
+        Box(modifier = Modifier.weight(1f).height(stripCandidateHeight()), contentAlignment = Alignment.Center) {
             if (state.candidates.isEmpty()) {
                 Text(
                     text =
@@ -290,7 +299,7 @@ private fun CandidateStrip(
                 )
             } else {
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(stripCandidateHeight()),
+                    modifier = Modifier.fillMaxSize(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
