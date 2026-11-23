@@ -84,6 +84,20 @@ class SentenceCardDeviceTest {
     }
 
     @Test
+    fun commitThroughCommitsTheWordsUpToTheChosenOneAndLeavesTheRestComposing() {
+        val card = openCard()
+        val menu = openMenu(card)
+
+        menu.findObject(By.text(COMMIT_THROUGH))?.click()
+            ?: failTest("The word menu has no \"$COMMIT_THROUGH\" chip to tap")
+
+        // 我爱吃 is committed; the pinyin after 吃 stays in the field as composing text.
+        keyboard.waitForFieldText(COMMITTED_THROUGH + REST_OF_INPUT)
+        assertEquals(COMMITTED_THROUGH + REST_OF_INPUT, keyboard.fieldText())
+        keyboard.assertTagGoes(WORD_MENU_TAG, "\"$COMMIT_THROUGH\"")
+    }
+
+    @Test
     fun backClosesTheMenuThenHidesTheKeyboardWithoutReachingTheApp() {
         val card = openCard()
         openMenu(card)
@@ -169,6 +183,12 @@ class SentenceCardDeviceTest {
 
         /** How many alternatives [MENU_WORD]'s menu offers. */
         const val MENU_WORD_ALTERNATIVES = 65
+
+        /** What "Commit through" [MENU_WORD] commits: the sentence's words up to and including it. */
+        const val COMMITTED_THROUGH = "我爱吃"
+
+        /** [INPUT] after the pinyin of [COMMITTED_THROUGH] (`woaichi`), which is still composing. */
+        const val REST_OF_INPUT = "yebuxianghev"
 
         const val COMMIT_THROUGH = "Commit through $MENU_WORD"
     }
