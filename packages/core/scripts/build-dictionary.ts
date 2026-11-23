@@ -50,8 +50,8 @@ import { detailRecords, entrySenseDefinitions, isCommonLine } from './build-deta
 import { partOfSpeechSources } from './part-of-speech.js';
 
 const PACKAGE_DIR = path.resolve(__dirname, '..');
-const CACHE_DIR = path.join(PACKAGE_DIR, '.cache');
-const OUT_DIR = path.resolve(__dirname, '../../web/public');
+export const CACHE_DIR = path.join(PACKAGE_DIR, '.cache');
+export const OUT_DIR = path.resolve(__dirname, '../../web/public');
 const DEFAULT_OUT = path.join(OUT_DIR, 'dictionary.btree');
 /**
  * The web app imports the compressed copy from here, so Vite gives its production URL
@@ -98,6 +98,18 @@ export function parseCedictLine(line: string): RawCedictLine | null {
     .filter(Boolean);
 
   return { traditional, simplified, pinyin, definitions };
+}
+
+/**
+ * The scaled ln(corpus total), on the same scale as `normalizeFrequency`, which the B-tree
+ * header carries for Sentence candidates to charge per word. A stored frequency is
+ * SCALE * ln(1 + count), so frequency minus this is about SCALE * ln P(word): a path score
+ * built this way is a scaled log-probability. `build-bigrams.ts` computes its OFFSET with
+ * the same formula, so the two scales meet.
+ */
+export function baseWordCost(corpusTotal: number, corpusMax: number): number {
+  if (corpusTotal <= 0 || corpusMax <= 0) return 0;
+  return Math.round((100000 / Math.log1p(corpusMax)) * Math.log(corpusTotal));
 }
 
 /**
@@ -166,7 +178,7 @@ export function sha256(text: string): string {
  * A committed file or a download that does not match is an error, not a warning: it means
  * the bytes are no longer what this commit was built and tested against.
  */
-async function readPinned(source: PinnedSource, useCache: boolean): Promise<string> {
+export async function readPinned(source: PinnedSource, useCache: boolean): Promise<string> {
   if ('file' in source) return readVendored(source);
 
   const { url, cacheName } = source;
@@ -379,7 +391,7 @@ export function joinCorpora(
   cedictContent: string,
   frequencyContent: string,
   hskContent: string
-): { rows: DictionaryRow[]; entries: DictionaryEntry[]; stats: BuildStats } {
+): { rows: DictionaryRow[]; entries: DictionaryEntry[]; stats: BuildStats; baseWordCost: number } {
   const frequencies = parseFrequencyList(frequencyContent);
   const hskLevels = parseHskList(hskContent);
   const entries = collectEntries(cedictContent);
@@ -387,8 +399,10 @@ export function joinCorpora(
   // Normalize against the busiest word in the corpus, not a hardcoded constant, so
   // the top of the scale is actually reached regardless of corpus size.
   let corpusMax = 0;
+  let corpusTotal = 0;
   for (const count of frequencies.values()) {
     if (count > corpusMax) corpusMax = count;
+    corpusTotal += count;
   }
 
   // Headwords that one simplified candidate stands for, in the file order of their first entry.
@@ -462,6 +476,7 @@ export function joinCorpora(
   return {
     rows,
     entries,
+    baseWordCost: baseWordCost(corpusTotal, corpusMax),
     stats: {
       cedictLines,
       entries: entries.length,
@@ -501,8 +516,11 @@ function renumberInStorageOrder(rows: DictionaryRow[], entries: DictionaryEntry[
  * entry id does and stays the same when nothing did. The Candidate detail file built from
  * the same entries carries the same id, and a reader refuses a pair that differ (ADR 0002).
  */
-export function encodeDictionary(rows: DictionaryRow[]): { bytes: Uint8Array; buildId: number } {
-  const bytes = buildBTree(rows, { buildId: 0 });
+export function encodeDictionary(
+  rows: DictionaryRow[],
+  wordCost = 0
+): { bytes: Uint8Array; buildId: number } {
+  const bytes = buildBTree(rows, { buildId: 0, baseWordCost: wordCost });
   const digest = createHash('sha256').update(bytes).digest();
   // Zero is what an unstamped tree carries, so it is never a real build's id.
   const buildId = digest.readUInt32LE(0) || 1;
@@ -518,7 +536,7 @@ export function encodeDictionary(rows: DictionaryRow[]): { bytes: Uint8Array; bu
  * Writes `bytes` to `outPath` and a gzip copy to `compressedOutPath`, returning each path
  * with its size.
  */
-function writeWithGzip(bytes: Uint8Array, outPath: string, compressedOutPath: string): [string, number][] {
+export function writeWithGzip(bytes: Uint8Array, outPath: string, compressedOutPath: string): [string, number][] {
   const payload = Buffer.from(bytes);
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, payload);
@@ -552,14 +570,14 @@ async function build(
     readPinned(SOURCES.handedict, useCache),
   ]);
 
-  const { rows, entries, stats } = joinCorpora(cedictContent, frequencyContent, hskContent);
+  const { rows, entries, stats, baseWordCost: wordCost } = joinCorpora(cedictContent, frequencyContent, hskContent);
 
   console.log(
     `\n  corpus  ${parseFrequencyList(frequencyContent).size} frequency entries, ` +
       `${parseHskList(hskContent).size} HSK words`
   );
 
-  const { bytes, buildId } = encodeDictionary(rows);
+  const { bytes, buildId } = encodeDictionary(rows, wordCost);
   const partOfSpeechOf = partOfSpeechSources(wiktionaryContent, handeDictContent);
   const partOfSpeechCounts = { Wiktionary: 0, HanDeDict: 0 };
   const records = detailRecords(entries, entryGloss, (entry) => {
@@ -585,6 +603,7 @@ async function build(
     `  part of speech ${partOfSpeechCounts.Wiktionary + partOfSpeechCounts.HanDeDict} of ${entries.length} entries ` +
       `(${partOfSpeechCounts.Wiktionary} Wiktionary, ${partOfSpeechCounts.HanDeDict} HanDeDict)`
   );
+  console.log(`  word    cost ${wordCost} (scaled ln of the corpus total)`);
   console.log(`  build   id ${formatBuildId(buildId)}`);
   for (const [file, size] of written) {
     console.log(`  wrote   ${file} (${(size / 1048576).toFixed(2)}MB)`);

@@ -80,6 +80,24 @@ class BTreeDictionary private constructor(
         }
     }
 
+    /**
+     * Visits the entries whose key starts with [prefix], in key order, stopping once [budget] of
+     * them have been visited (always at least one, when there is one): the search engine's
+     * `maxMatches` scan budget. `scanPrefixWithin` in `btree-dictionary.ts`.
+     */
+    fun scanPrefixWithin(
+        prefix: String,
+        budget: Int,
+        visit: (StoredEntry) -> Unit,
+    ) {
+        var scanned = 0
+        scanPrefix(prefix) { entry ->
+            visit(entry)
+            scanned++
+            scanned < budget
+        }
+    }
+
     /** Drops every cached page. The dictionary stays open and readable. */
     fun clearCache() {
         cache.clear()

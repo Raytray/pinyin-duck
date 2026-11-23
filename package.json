@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "node scripts/require-dict-asset.mjs && npm run -w @pinyinduck/web dev",
     "build:dict": "npm run build:dict -w @pinyinduck/core",
+    "build:bigrams": "npm run build:bigrams -w @pinyinduck/core",
     "build:rime": "npm run build:rime -w @pinyinduck/rime --",
     "setup:rime": "npm run setup:rime -w @pinyinduck/rime",
     "test:rime": "npm run test:rime -w @pinyinduck/rime --",

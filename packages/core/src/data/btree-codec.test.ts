@@ -40,6 +40,7 @@ const header: BTreeHeader = {
   rootPageId: 1195,
   directoryOffset: HEADER_SIZE,
   buildId: 0xdeadbeef,
+  baseWordCost: 119936,
 };
 
 describe('ByteWriter and ByteReader', () => {
@@ -260,11 +261,18 @@ describe('header', () => {
     expect(() => decodeHeader(bytes)).toThrow(/B-tree format/);
   });
 
-  it('is format 2, the first with entry ids on rows, and rejects a format 1 asset', () => {
-    expect(BTREE_FORMAT_VERSION).toBe(2);
+  it('is format 3, the first with a word cost, and rejects a format 2 asset', () => {
+    expect(BTREE_FORMAT_VERSION).toBe(3);
     const bytes = encodeHeader(header);
-    bytes[4] = 1;
-    expect(() => decodeHeader(bytes)).toThrow(/built with B-tree format 1/);
+    bytes[4] = 2;
+    expect(() => decodeHeader(bytes)).toThrow(/built with B-tree format 2/);
+  });
+
+  it('carries the base word cost Sentence candidates score with, as a u32 at byte 28', () => {
+    const bytes = encodeHeader(header);
+    expect(HEADER_SIZE).toBe(32);
+    expect(new DataView(bytes.buffer, bytes.byteOffset).getUint32(28, true)).toBe(119936);
+    expect(decodeHeader(bytes).baseWordCost).toBe(119936);
   });
 
   it('carries the build id the Candidate detail file must match', () => {

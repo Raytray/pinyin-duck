@@ -1,10 +1,13 @@
-import { useState, useMemo, useCallback, useRef, useEffect, useSyncExternalStore } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, useSyncExternalStore, type SetStateAction } from 'react';
 import {
   LazyPinyinSearchEngine,
   candidateDetail,
   type Candidate,
   type DetailView,
+  type FixedWord,
   loadDictionary,
+  loadBigramTable,
+  type BigramTable,
   type BTreeDictionary,
   type DownloadProgress,
   type SearchResult,
@@ -12,15 +15,25 @@ import {
 } from '@pinyinduck/core';
 import { DICTIONARY_URL } from '../dictionary-asset';
 import { DETAIL_URL } from '../detail-asset';
+import { BIGRAMS_URL } from '../bigram-asset';
 import { createDetailLoader, type DetailLoadState } from '../detail/detail-loader';
+import { carryFixedWords, composingAfter } from '../sentence/fixed-words';
 
 export type DictionaryStatus = 'loading' | 'ready' | 'error';
+
+/**
+ * Where the bigram table is: not configured, waiting for the dictionary or downloading,
+ * loaded, or failed (search then scores Sentence candidates unigram only).
+ */
+export type BigramStatus = 'none' | 'loading' | 'ready' | 'failed';
 
 export interface UsePinyinDuckOptions {
   pageSize?: number;
   initialScript?: ScriptType;
   dictionaryUrl?: string;
   detailUrl?: string;
+  /** The bigram table Sentence candidates score with; none means unigram only. */
+  bigramsUrl?: string | null;
 }
 
 /**
@@ -33,7 +46,37 @@ export interface OpenCandidateDetail {
   index: number;
   status: 'loading' | 'ready' | 'failed';
   view?: DetailView;
+  /** For a Sentence candidate, once ready: one detail view per word, in order. */
+  wordViews?: DetailView[];
 }
+
+/**
+ * The open word menu (#37): one word of the highlighted Sentence candidate, the alternatives
+ * it can be swapped for, numbered from 1, and then "Commit through" that word.
+ */
+export interface OpenWordMenu {
+  /** The Sentence candidate's index on the current page. */
+  index: number;
+  /** Which of its words the menu is for. */
+  wordIndex: number;
+  word: Candidate;
+  alternatives: Candidate[];
+}
+
+/** What the popup needs to draw word menus and act on them. */
+export interface WordMenuControls {
+  menu: OpenWordMenu | null;
+  /** The Fixed words, so their blocks can be marked. */
+  fixedWords: readonly FixedWord[];
+  /** Opens word `wordIndex` of row `index`'s menu, or closes it if open. */
+  toggle: (index: number, wordIndex: number) => void;
+  /** Swaps the menu's word for its alternative `n`, from 0. */
+  swap: (n: number) => void;
+  commitThrough: () => void;
+}
+
+/** Alternatives a word menu offers, one per digit key. */
+const MENU_ALTERNATIVES = 9;
 
 const IDLE: DetailLoadState = { status: 'idle' };
 const NO_SUBSCRIPTION = () => () => {};
@@ -68,9 +111,12 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     initialScript = 'simplified',
     dictionaryUrl = DICTIONARY_URL,
     detailUrl = DETAIL_URL,
+    bigramsUrl = BIGRAMS_URL ?? null,
   } = options;
 
   const [dictionary, setDictionary] = useState<BTreeDictionary | null>(null);
+  const [bigrams, setBigrams] = useState<BigramTable | null>(null);
+  const [bigramFailed, setBigramFailed] = useState(false);
   const [dictionaryStatus, setDictionaryStatus] = useState<DictionaryStatus>('loading');
   const [dictionaryError, setDictionaryError] = useState<string | null>(null);
   // The label rather than the byte counts, so the hundreds of chunks a download arrives in
@@ -83,6 +129,11 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   const [currentPage, setCurrentPage] = useState<number>(0);
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [detailRequested, setDetailRequested] = useState(false);
+  // The Fixed words the learner has chosen in the Sentence candidate being composed. The
+  // engine is stateless, so they are passed on every search.
+  const [fixedWords, setFixedWords] = useState<FixedWord[]>([]);
+  // The word of the highlighted Sentence candidate whose menu is open, or null.
+  const [menuWord, setMenuWord] = useState<number | null>(null);
 
   // Target cursor position to restore on next render
   const cursorToRestoreRef = useRef<number | null>(null);
@@ -94,15 +145,33 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     cursorToRestoreRef.current = caret;
   }, []);
 
-  /** Sets the composition buffer and goes back to the first candidate on page one. */
-  const setBuffer = useCallback((buffer: string) => {
-    setCompositionBuffer(buffer);
-    // The detail belongs to a composition: it stays open while the user types on, and
-    // goes when the composition ends.
-    if (buffer === '') setDetailRequested(false);
-    setCurrentPage(0);
-    setSelectedIndex(0);
+  /**
+   * Moves the highlight to row `index` of page `page`. The word menu belongs to the row and
+   * the sentence it was opened on, so every move closes it, even one that stays put: this is
+   * the one place it closes, apart from Esc.
+   */
+  const moveHighlight = useCallback((page: SetStateAction<number>, index: number) => {
+    setCurrentPage(page);
+    setSelectedIndex(index);
+    setMenuWord(null);
   }, []);
+
+  /**
+   * Sets the composition buffer and goes back to the first candidate on page one. The Fixed
+   * words last while the learner types on, less any a Backspace reached into; the word menu
+   * belongs to the sentence as it was, so it closes.
+   */
+  const setBuffer = useCallback(
+    (buffer: string) => {
+      setCompositionBuffer(buffer);
+      setFixedWords((fixed) => carryFixedWords(fixed, buffer));
+      // The detail belongs to a composition: it stays open while the user types on, and
+      // goes when the composition ends.
+      if (buffer === '') setDetailRequested(false);
+      moveHighlight(0, 0);
+    },
+    [moveHighlight]
+  );
 
   // The whole dictionary is downloaded once, compressed, and searched in memory. The
   // download is a few megabytes, so its progress is shown. Typing works while it loads,
@@ -138,9 +207,38 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     };
   }, [dictionaryUrl]);
 
+  // The bigram table loads after the dictionary, so it never delays the first candidates.
+  // Until it arrives, and for good if it fails, Sentence candidates score unigram only.
+  useEffect(() => {
+    if (!dictionary || !bigramsUrl) return;
+    const controller = new AbortController();
+    let cancelled = false;
+    loadBigramTable(bigramsUrl, { signal: controller.signal })
+      .then((table) => {
+        if (!cancelled) setBigrams(table);
+      })
+      .catch((err: unknown) => {
+        if (cancelled || (err instanceof Error && err.name === 'AbortError')) return;
+        setBigramFailed(true);
+        console.warn(`Sentence candidates will score without bigrams: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [dictionary, bigramsUrl]);
+
+  const bigramStatus: BigramStatus = !bigramsUrl
+    ? 'none'
+    : bigrams
+      ? 'ready'
+      : bigramFailed
+        ? 'failed'
+        : 'loading';
+
   const engine = useMemo(
-    () => (dictionary ? new LazyPinyinSearchEngine(dictionary) : null),
-    [dictionary]
+    () => (dictionary ? new LazyPinyinSearchEngine(dictionary, bigrams ? { bigrams } : {}) : null),
+    [dictionary, bigrams]
   );
   const entryCount = dictionary?.entryCount ?? 0;
 
@@ -149,7 +247,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   const search = useMemo((): { result: SearchResult; error: string | null } => {
     if (!engine || !compositionBuffer) return { result: EMPTY_RESULT, error: null };
     try {
-      const result = engine.search(compositionBuffer, { script, limit: CANDIDATE_LIMIT, offset: 0 });
+      const result = engine.search(compositionBuffer, { script, limit: CANDIDATE_LIMIT, offset: 0, fixedWords });
       return { result, error: null };
     } catch (err) {
       // Only a corrupt page throws here: opening the asset already checked its header,
@@ -157,7 +255,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       // reports the broken asset rather than letting it pass for "no match".
       return { result: EMPTY_RESULT, error: err instanceof Error ? err.message : String(err) };
     }
-  }, [engine, compositionBuffer, script]);
+  }, [engine, compositionBuffer, script, fixedWords]);
   const searchResult = search.result;
 
   // A corrupt page means the asset is broken for good, so the failure sticks, as a
@@ -197,6 +295,11 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     const base = { candidate: detailCandidate, index: selectedIndex };
     if (detailLoad.status === 'ready') {
       try {
+        // A Sentence candidate stands for no entry of its own: each word has its view.
+        if (detailCandidate.words) {
+          const wordViews = detailCandidate.words.map((word) => candidateDetail(word, script, detailLoad.file));
+          return { ...base, status: 'ready', wordViews };
+        }
         return { ...base, status: 'ready', view: candidateDetail(detailCandidate, script, detailLoad.file) };
       } catch {
         // An entry id the file does not hold: the file is broken, which reads as a failed load.
@@ -216,14 +319,78 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     (indexOnPage: number = selectedIndex) => {
       if (!pageCandidates[indexOnPage]) return;
       const closing = detailOpen && indexOnPage === selectedIndex;
-      setSelectedIndex(indexOnPage);
+      moveHighlight((page) => page, indexOnPage);
       setDetailRequested(!closing);
       if (!closing) detailLoader?.request();
     },
-    [selectedIndex, pageCandidates, detailOpen, detailLoader]
+    [selectedIndex, pageCandidates, detailOpen, detailLoader, moveHighlight]
   );
 
   const closeDetail = useCallback(() => setDetailRequested(false), []);
+
+  // The menu is only ever for a word of the highlighted candidate, and only while that is a
+  // Sentence candidate. The faded "next" leftover is not a word, so it has none.
+  const menuCandidate = menuWord !== null ? pageCandidates[selectedIndex] : undefined;
+  const wordMenu = useMemo((): OpenWordMenu | null => {
+    const word = menuWord !== null ? menuCandidate?.words?.[menuWord] : undefined;
+    if (!engine || !word?.span) return null;
+    const alternatives = engine
+      .alternativesForSpan(compositionBuffer, word.span, { script })
+      .slice(0, MENU_ALTERNATIVES);
+    return { index: selectedIndex, wordIndex: menuWord!, word, alternatives };
+  }, [engine, menuCandidate, menuWord, selectedIndex, compositionBuffer, script]);
+
+  /**
+   * Moves the word cursor one block along the highlighted Sentence candidate, opening that
+   * block's menu. From closed it starts at the end it moves from; past either end it closes.
+   * Returns false when the highlighted candidate is not a sentence.
+   */
+  const moveWordCursor = useCallback(
+    (direction: 'next' | 'prev'): boolean => {
+      const words = pageCandidates[selectedIndex]?.words;
+      if (!words) return false;
+      const step = direction === 'next' ? 1 : -1;
+      const next = menuWord === null ? (direction === 'next' ? 0 : words.length - 1) : menuWord + step;
+      setMenuWord(next >= 0 && next < words.length ? next : null);
+      setDetailRequested(false);
+      return true;
+    },
+    [pageCandidates, selectedIndex, menuWord]
+  );
+
+  /** Opens the menu of word `wordIndex` of row `indexOnPage`, or closes it if it is open. */
+  const toggleWordMenu = useCallback(
+    (indexOnPage: number, wordIndex: number) => {
+      if (!pageCandidates[indexOnPage]?.words?.[wordIndex]) return;
+      const closing = wordMenu?.index === indexOnPage && wordMenu.wordIndex === wordIndex;
+      setSelectedIndex(indexOnPage);
+      setMenuWord(closing ? null : wordIndex);
+      setDetailRequested(false);
+    },
+    [pageCandidates, wordMenu]
+  );
+
+  const closeWordMenu = useCallback(() => setMenuWord(null), []);
+
+  /**
+   * Swaps the menu's word for alternative `n` (from 0): it becomes a Fixed word on its span,
+   * in place of any fixed on that span, and the sentence is rebuilt around it. The edited
+   * sentence comes first, so the highlight goes back to it.
+   */
+  const swapWord = useCallback(
+    (n: number) => {
+      const alt = wordMenu?.alternatives[n];
+      if (!alt?.span) return;
+      const span = alt.span;
+      const word = { simplified: alt.simplified, traditional: alt.traditional, pinyinNumbers: alt.pinyinNumbers };
+      setFixedWords((fixed) => [
+        ...fixed.filter((f) => f.span.end <= span.start || f.span.start >= span.end),
+        { span, word },
+      ]);
+      moveHighlight(0, 0);
+    },
+    [wordMenu, moveHighlight]
+  );
 
   /** Replaces committed text `[from, to)` with `insert`, leaving the caret after it. */
   const replaceText = useCallback(
@@ -238,6 +405,18 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     [insertPos, replaceText]
   );
 
+  /**
+   * Ends what is being composed, leaving `buffer` to compose next. Every commit and a cancel
+   * go through here, and drop every Fixed word: they belonged to the sentence just ended.
+   */
+  const composeAfresh = useCallback(
+    (buffer: string) => {
+      setBuffer(buffer);
+      setFixedWords([]);
+    },
+    [setBuffer]
+  );
+
   // Select a candidate by visible page index (0 to pageSize - 1).
   const selectCandidate = useCallback(
     (indexOnPage: number) => {
@@ -248,54 +427,66 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       setDetailRequested(false);
       // A partial match leaves the pinyin it did not consume to compose next; a full
       // match leaves nothing.
-      setBuffer(candidate.remainingPinyin);
+      composeAfresh(candidate.remainingPinyin);
     },
-    [pageCandidates, insertCommitted, setBuffer]
+    [pageCandidates, insertCommitted, composeAfresh]
   );
+
+  /**
+   * Commits the highlighted Sentence candidate up to and including the menu's word. The rest
+   * of what was typed stays composing and is searched again, like the leftover of a prefix word.
+   */
+  const commitThrough = useCallback(() => {
+    const words = wordMenu ? pageCandidates[wordMenu.index]?.words : undefined;
+    if (!wordMenu || !words || !wordMenu.word.span) return;
+    insertCommitted(words.slice(0, wordMenu.wordIndex + 1).map((w) => w.hanzi).join(''));
+    setDetailRequested(false);
+    composeAfresh(composingAfter(compositionBuffer, wordMenu.word.span.end));
+  }, [wordMenu, pageCandidates, insertCommitted, compositionBuffer, composeAfresh]);
 
   // Commit raw untranslated pinyin text
   const commitRaw = useCallback(() => {
     if (!compositionBuffer) return;
     insertCommitted(compositionBuffer);
-    setBuffer('');
-  }, [compositionBuffer, insertCommitted, setBuffer]);
+    composeAfresh('');
+  }, [compositionBuffer, insertCommitted, composeAfresh]);
 
   // Cancel composition
   const cancelComposition = useCallback(() => {
-    setBuffer('');
-  }, [setBuffer]);
+    composeAfresh('');
+  }, [composeAfresh]);
 
   // Navigation
-  const nextPage = useCallback(() => {
-    setCurrentPage((prev) => (prev + 1 < totalPages ? prev + 1 : prev));
-    setSelectedIndex(0);
-  }, [totalPages]);
+  const nextPage = useCallback(
+    () => moveHighlight((prev) => (prev + 1 < totalPages ? prev + 1 : prev), 0),
+    [totalPages, moveHighlight]
+  );
 
-  const prevPage = useCallback(() => {
-    setCurrentPage((prev) => (prev > 0 ? prev - 1 : 0));
-    setSelectedIndex(0);
-  }, []);
+  const prevPage = useCallback(() => moveHighlight((prev) => (prev > 0 ? prev - 1 : 0), 0), [moveHighlight]);
 
   const moveSelection = useCallback(
     (direction: 'next' | 'prev') => {
       if (pageCandidates.length === 0) return;
+      let page = currentPage;
+      let index = selectedIndex;
       if (direction === 'next') {
-        if (selectedIndex + 1 < pageCandidates.length) {
-          setSelectedIndex((i) => i + 1);
-        } else if (currentPage + 1 < totalPages) {
-          setCurrentPage((p) => p + 1);
-          setSelectedIndex(0);
+        if (index + 1 < pageCandidates.length) {
+          index++;
+        } else if (page + 1 < totalPages) {
+          page++;
+          index = 0;
         }
       } else {
-        if (selectedIndex > 0) {
-          setSelectedIndex((i) => i - 1);
-        } else if (currentPage > 0) {
-          setCurrentPage((p) => p - 1);
-          setSelectedIndex(pageSize - 1);
+        if (index > 0) {
+          index--;
+        } else if (page > 0) {
+          page--;
+          index = pageSize - 1;
         }
       }
+      moveHighlight(page, index);
     },
-    [pageCandidates.length, selectedIndex, currentPage, totalPages, pageSize]
+    [pageCandidates.length, selectedIndex, currentPage, totalPages, pageSize, moveHighlight]
   );
 
   // Direct change handler on textarea (e.g. paste, native text deletion)
@@ -351,14 +542,23 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
         return;
       }
 
-      // Handle Escape: close the Candidate detail first, then cancel composition
+      // Handle Escape: close the word menu or Candidate detail first, then cancel composition
       if (e.key === 'Escape') {
         if (isComposing) {
           e.preventDefault();
-          if (detailOpen) closeDetail();
+          if (wordMenu) closeWordMenu();
+          else if (detailOpen) closeDetail();
           else cancelComposition();
         }
         return;
+      }
+
+      // Shift+←/→ moves the word cursor across the highlighted Sentence candidate's blocks.
+      if (isComposing && e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        if (moveWordCursor(e.key === 'ArrowRight' ? 'next' : 'prev')) {
+          e.preventDefault();
+          return;
+        }
       }
 
       // Tab toggles the Candidate detail of the highlighted candidate. While composing it
@@ -393,7 +593,9 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       // Handle Enter
       if (e.key === 'Enter') {
         e.preventDefault();
-        if (isComposing) {
+        if (isComposing && wordMenu) {
+          commitThrough();
+        } else if (isComposing) {
           // While the dictionary is still loading, committing raw pinyin would
           // silently discard the candidate the user expects in a moment. Once the
           // load has failed there is nothing to wait for, so raw text is inserted.
@@ -430,8 +632,11 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
         }
         e.preventDefault();
         const digit = parseInt(e.key, 10);
-        // Out of range: swallowed, and the composition is left exactly as it was.
-        if (digit >= 1 && digit <= pageCandidates.length) selectCandidate(digit - 1);
+        // Out of range: swallowed, and the composition is left exactly as it was. With the
+        // word menu open a digit picks an alternative for its word instead.
+        if (wordMenu) {
+          if (digit >= 1 && digit <= wordMenu.alternatives.length) swapWord(digit - 1);
+        } else if (digit >= 1 && digit <= pageCandidates.length) selectCandidate(digit - 1);
         return;
       }
 
@@ -479,7 +684,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
           // The highlighted candidate, or the pinyin as typed, followed by the punctuation.
           const chosen = pageCandidates[selectedIndex]?.hanzi ?? compositionBuffer;
           insertCommitted(chosen + mappedPunct);
-          setBuffer('');
+          composeAfresh('');
         } else {
           replaceText(start, end, mappedPunct);
         }
@@ -518,16 +723,24 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
       insertCommitted,
       replaceText,
       setBuffer,
+      composeAfresh,
+      wordMenu,
+      closeWordMenu,
+      moveWordCursor,
+      commitThrough,
+      swapWord,
     ]
   );
 
   // A script change rebuilds the candidate list, and the two scripts can have different
   // numbers of candidates, so the page and highlight go back to the first candidate.
-  const setScript = useCallback((next: ScriptType) => {
-    setScriptState(next);
-    setCurrentPage(0);
-    setSelectedIndex(0);
-  }, []);
+  const setScript = useCallback(
+    (next: ScriptType) => {
+      setScriptState(next);
+      moveHighlight(0, 0);
+    },
+    [moveHighlight]
+  );
 
   const toggleScript = useCallback(() => {
     setScript(script === 'simplified' ? 'traditional' : 'simplified');
@@ -535,14 +748,15 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
 
   const clearAll = useCallback(() => {
     setText('', 0);
-    setBuffer('');
-  }, [setText, setBuffer]);
+    composeAfresh('');
+  }, [setText, composeAfresh]);
 
   return {
     script,
     setScript,
     toggleScript,
     dictionaryStatus,
+    bigramStatus,
     dictionaryError,
     downloadProgress,
     entryCount,
@@ -564,6 +778,7 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     cancelComposition,
     detail,
     toggleDetail,
+    wordMenu: { menu: wordMenu, fixedWords, toggle: toggleWordMenu, swap: swapWord, commitThrough } satisfies WordMenuControls,
     nextPage,
     prevPage,
     handleKeyDown,

@@ -16,11 +16,14 @@ From the repository root:
 ```bash
 npm install
 npm run build:dict
+npm run build:bigrams   # optional, ~2 minutes: the bigram table Sentence candidates score with
 cd packages/android
 ./gradlew assembleDebug
 ```
 
 `npm run build:dict` writes `packages/web/public/dictionary.btree` and `detail.bin` beside it, from the same build. Both are gitignored, and the Android build copies them into the APK, so Gradle stops with an error naming that command if either file is missing. At runtime the keyboard refuses a `detail.bin` whose build id differs from the dictionary's, and says to rebuild both.
+
+`npm run build:bigrams` writes `bigrams.bin` to the same folder, and the build copies it too when it is there. It is optional: without it the keyboard still offers Sentence candidates, scored on unigram frequencies alone. A `bigrams.bin` that is there but unreadable fails the load, and the message says to rerun that command.
 
 The APK is written to:
 
@@ -68,6 +71,9 @@ The app also installs a **PinyinDuck settings** launcher icon. It has a shortcut
 - Picking a shorter match keeps the rest buffered: choosing 你 from `nihao` leaves `hao` to finish.
 - While composing, `1`–`5` add a tone, so `shi4` shows only shì. Any other digit, or a digit when you're not composing, is typed as-is. This differs from the web app, where digits select candidates.
 - Type `'` to split syllables: `xi'an` is 西安, not `xian`.
+- Type several words at once and a Sentence candidate builds them from dictionary words in a row: `woxianghekafei` offers 我想喝咖啡. Pinyin it can't build yet stays to compose after it.
+- In the Expanded candidate list (▴), the Sentence candidate's card shows each word with its reading and gloss. Tap a word to open its word menu: the other words for the same pinyin, and "Commit through". Tapping an alternative makes it a Fixed word, and the rest of the sentence is rebuilt around it. Back closes the menu.
+- "Commit through" commits the sentence up to and including that word, and leaves the rest of the pinyin composing.
 - `Backspace` removes the last pinyin character, or deletes before the cursor when you're not composing.
 - `↵` sends the field's action (Search, Send, Done) or a newline. It doesn't commit a candidate.
 - The 简/繁 button switches between Simplified and Traditional without losing the composition. ▴ expands the candidate strip into a full list.
@@ -81,7 +87,7 @@ With a hardware keyboard, the arrow keys move the highlighted candidate (up and 
 
 This is a Gradle project, not an npm package. The `package.json` only makes it a member of the root workspace.
 
-Unit tests run on the JVM with Robolectric, so no device or emulator is needed. They read the real `dictionary.btree` and `detail.bin`, so run `npm run build:dict` first.
+Unit tests run on the JVM with Robolectric, so no device or emulator is needed. They read the real `dictionary.btree`, `detail.bin` and `bigrams.bin`, so run `npm run build:dict` and `npm run build:bigrams` first (the parity golden is generated with the bigram table loaded).
 
 ```bash
 cd packages/android

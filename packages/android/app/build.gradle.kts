@@ -48,6 +48,9 @@ val gatedClasses =
         "dev.pinyinduck.android.engine.DetailViewKt",
         "dev.pinyinduck.android.engine.ByteReader",
         "dev.pinyinduck.android.engine.RankingKt",
+        "dev.pinyinduck.android.engine.BigramTable*",
+        "dev.pinyinduck.android.engine.QueryBoundaries*",
+        "dev.pinyinduck.android.engine.SentenceSearchKt",
         "dev.pinyinduck.android.engine.MappedPageSource",
         "dev.pinyinduck.android.ime.PinyinDuckSession",
         "dev.pinyinduck.android.ime.ImeInsets",
@@ -72,10 +75,16 @@ val dictionaryAssetsDir = layout.buildDirectory.dir("generated/dictionaryAssets"
  * The Candidate detail file, `detail.bin`, is built alongside it by the same command and
  * carries the same build id (ADR 0002), so the two are always copied together: shipping
  * one without the other, or from another build, is a failed load at runtime.
+ *
+ * The bigram table, `bigrams.bin`, is built by `npm run build:bigrams` into the same folder and
+ * copied with them when it is there. It is optional: without it the keyboard ranks Sentence
+ * candidates on unigram frequencies alone, so a missing table is not an error. It is keyed by
+ * simplified form rather than entry id, so it does not need the dictionary's build id.
  */
 val syncDictionaryAsset by tasks.registering(Copy::class) {
-    description = "Copies the shared generated dictionary.btree and detail.bin into the app assets."
+    description = "Copies the shared generated dictionary.btree, detail.bin and bigrams.bin into the app assets."
     val sources = listOf("dictionary.btree", "detail.bin").map { rootProject.file("../web/public/$it") }
+    val optional = rootProject.file("../web/public/bigrams.bin")
     onlyIf {
         sources.firstOrNull { !it.isFile }?.let { missing ->
             throw GradleException(
@@ -86,6 +95,7 @@ val syncDictionaryAsset by tasks.registering(Copy::class) {
         true
     }
     from(sources)
+    from(optional)
     into(dictionaryAssetsDir)
 }
 

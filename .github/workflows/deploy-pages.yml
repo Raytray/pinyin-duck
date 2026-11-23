@@ -50,14 +50,28 @@ jobs:
 
       # Same cache as CI: the downloaded sources are pinned by URL and SHA-256 in
       # sources.ts, so this only spares GitHub a download.
+      # The OpenSubtitles corpus is cached on its own key, as in CI.
       - name: Cache dictionary sources
         uses: actions/cache@v6
         with:
-          path: packages/core/.cache
+          path: |
+            packages/core/.cache
+            !packages/core/.cache/opensubtitles-*
           key: dictionary-sources-${{ hashFiles('packages/core/scripts/sources.ts') }}
+
+      - name: Cache the OpenSubtitles corpus
+        uses: actions/cache@v6
+        with:
+          path: packages/core/.cache/opensubtitles-zh_cn.txt.gz
+          key: opensubtitles-${{ hashFiles('packages/core/scripts/sources.ts') }}
 
       - name: Build dictionary asset
         run: npm run build:dict
+
+      # The bigram table Sentence candidates score with. The app loads it after the
+      # dictionary and works without it, but the site should ship it.
+      - name: Build bigram table
+        run: npm run build:bigrams
 
       # GitHub Pages serves a project site from https://<user>.github.io/<repo>/, so the
       # bundle's asset URLs need that prefix. vite.config.ts reads it from BASE_PATH.

@@ -9,6 +9,7 @@ export const App: React.FC = () => {
     script,
     toggleScript,
     dictionaryStatus,
+    bigramStatus,
     dictionaryError,
     downloadProgress,
     entryCount,
@@ -25,6 +26,7 @@ export const App: React.FC = () => {
     selectCandidate,
     detail,
     toggleDetail,
+    wordMenu,
     nextPage,
     prevPage,
     handleKeyDown,
@@ -34,7 +36,9 @@ export const App: React.FC = () => {
   } = usePinyinDuck({ pageSize: 5 });
 
   return (
-    <div className="app-shell">
+    // data-bigrams says whether Sentence candidates score with the bigram table yet, for tests
+    // that pin candidates to wait on; it changes nothing on screen.
+    <div className="app-shell" data-bigrams={bigramStatus}>
       <div className="app-backdrop-duck" />
 
       <Toolbar
@@ -68,6 +72,7 @@ export const App: React.FC = () => {
             onSelectCandidate={selectCandidate}
             detail={detail}
             onToggleDetail={toggleDetail}
+            wordMenu={wordMenu}
             onNextPage={nextPage}
             onPrevPage={prevPage}
             onSetSelectedIndex={setSelectedIndex}

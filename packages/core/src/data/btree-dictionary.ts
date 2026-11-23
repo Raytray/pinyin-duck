@@ -108,6 +108,11 @@ export class BTreeDictionary {
   }
 
   /** Number of pages the asset is split into. */
+  /** The scaled ln(corpus total) from the header; see `BTreeHeader.baseWordCost`. */
+  get baseWordCost(): number {
+    return this.header.baseWordCost;
+  }
+
   get pageCount(): number {
     return this.header.pageCount;
   }
@@ -155,6 +160,20 @@ export class BTreeDictionary {
       if (leaf.nextLeaf === NO_PAGE) return;
       leaf = this.readLeaf(leaf.nextLeaf);
     }
+  }
+
+  /**
+   * Visits the entries whose key starts with `prefix`, in key order, stopping once `budget`
+   * of them have been visited (always at least one, when there is one): the search engine's
+   * `maxMatches` scan budget.
+   */
+  scanPrefixWithin(prefix: string, budget: number, visit: (entry: StoredEntry) => void): void {
+    let scanned = 0;
+    this.scanPrefix(prefix, (entry) => {
+      visit(entry);
+      scanned++;
+      return scanned < budget;
+    });
   }
 
   /** Drops every cached page. The dictionary stays open and readable. */

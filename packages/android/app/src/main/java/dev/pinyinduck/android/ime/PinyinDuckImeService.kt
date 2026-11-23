@@ -29,6 +29,7 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import dev.pinyinduck.android.data.DictionaryLoader
 import dev.pinyinduck.android.data.OpenedDictionary
+import dev.pinyinduck.android.engine.Candidate
 import dev.pinyinduck.android.engine.DetailSubject
 import dev.pinyinduck.android.engine.candidateDetail
 import dev.pinyinduck.android.ui.KeyAction
@@ -381,6 +382,10 @@ class PinyinDuckImeService :
         // Belt and braces beside onFinishInputView: the window can go without the input view
         // finishing, and a bubble left open would make the whole window touchable on next show.
         closeDetail()
+        // Putting the keyboard away (Back, with nothing open on it) ends the editing of the
+        // sentence: the Fixed words go and the composition stays (#37).
+        uiState = uiState.copy(wordMenu = null)
+        session?.dropFixedWords()
         super.onWindowHidden()
     }
 
@@ -403,7 +408,7 @@ class PinyinDuckImeService :
         fieldPolicy = FieldPolicy.forInputType(info?.inputType ?: 0)
         session?.direct = fieldPolicy.direct
         // A new field also closes the Candidate detail bubble (#11).
-        uiState = uiState.copy(shift = false, expanded = false, layout = fieldPolicy.layout, detail = null)
+        uiState = uiState.copy(shift = false, expanded = false, layout = fieldPolicy.layout, detail = null, wordMenu = null)
     }
 
     override fun onFinishInput() {
@@ -455,6 +460,7 @@ class PinyinDuckImeService :
                 unicode = event.unicodeChar.toChar(),
                 shift = event.isShiftPressed,
                 detailOpen = uiState.detailOpen,
+                wordMenuOpen = uiState.wordMenu != null,
             ) ?: return super.onKeyDown(keyCode, event)
 
         when (outcome) {
@@ -466,6 +472,10 @@ class PinyinDuckImeService :
             KeyRouting.Outcome.Cancel -> session.cancelComposition()
             KeyRouting.Outcome.CloseDetail -> {
                 closeDetail()
+                swallowKeyUp = keyCode
+            }
+            KeyRouting.Outcome.CloseWordMenu -> {
+                uiState = uiState.copy(wordMenu = null)
                 swallowKeyUp = keyCode
             }
         }
@@ -510,9 +520,32 @@ class PinyinDuckImeService :
             onToggleScript = { session?.toggleScript() },
             onToggleExpanded = ::toggleExpanded,
             onClear = { session?.cancelComposition() },
-            onShowDetail = ::openDetail,
+            onShowDetail = { openDetail(it) },
+            onShowWordDetail = { index, word -> openDetail(index, word) },
             onCloseDetail = ::closeDetail,
+            onOpenWordMenu = ::toggleWordMenu,
+            onSwapWord = { session?.fixWord(it) },
+            onCommitThrough = { index, word -> session?.commitThrough(index, word) },
         )
+
+    /**
+     * Opens the word menu for word [word] of the Sentence candidate at [index], or closes it
+     * when it is already open there (#47). It and the Candidate detail share the space above
+     * the keys' attention, so opening one closes the other.
+     */
+    private fun toggleWordMenu(
+        index: Int,
+        word: Int,
+    ) {
+        val open = uiState.wordMenu
+        if (open != null && open.index == index && open.word == word) {
+            uiState = uiState.copy(wordMenu = null)
+            return
+        }
+        val alternatives = session?.wordAlternatives(index, word).orEmpty()
+        if (alternatives.isEmpty()) return
+        uiState = uiState.copy(wordMenu = OpenWordMenu(index, word, alternatives), detail = null)
+    }
 
     /**
      * Opens the Candidate detail bubble for the candidate at [index], or switches it there.
@@ -520,17 +553,36 @@ class PinyinDuckImeService :
      * The detail is read here, on the main thread: [candidateDetail] touches only the mapped
      * pages of the candidate's own records, a few KB at most. A record that cannot be read
      * still opens the bubble, which then says so, rather than a long press doing nothing.
+     *
+     * A Sentence candidate has no records of its own, so each of its words is read instead
+     * (#46); [focusWord] is the word whose block was long-pressed, if one was.
      */
-    private fun openDetail(index: Int) {
+    private fun openDetail(
+        index: Int,
+        focusWord: Int? = null,
+    ) {
         val candidate = uiState.candidates.getOrNull(index) ?: return
-        val view =
-            dictionary?.let { opened ->
-                runCatching { candidateDetail(DetailSubject.of(candidate), uiState.script, opened.detail) }
-                    .onFailure { Log.w(LOG_TAG, "could not read the detail of ${candidate.hanzi}", it) }
-                    .getOrNull()
-            }
-        uiState = uiState.copy(detail = OpenDetail(index, candidate, view))
+        val words = candidate.words
+        uiState =
+            uiState.copy(
+                wordMenu = null,
+                detail =
+                    OpenDetail(
+                        index = index,
+                        candidate = candidate,
+                        view = if (words == null) readDetail(candidate) else null,
+                        wordViews = words?.map(::readDetail).orEmpty(),
+                        focusWord = focusWord?.takeIf { words != null && it in words.indices },
+                    ),
+            )
     }
+
+    private fun readDetail(candidate: Candidate) =
+        dictionary?.let { opened ->
+            runCatching { candidateDetail(DetailSubject.of(candidate), uiState.script, opened.detail) }
+                .onFailure { Log.w(LOG_TAG, "could not read the detail of ${candidate.hanzi}", it) }
+                .getOrNull()
+        }
 
     /**
      * Opens or closes the Expanded candidate list.
@@ -539,7 +591,7 @@ class PinyinDuckImeService :
      * screen, so an open detail closes.
      */
     private fun toggleExpanded() {
-        uiState = uiState.copy(expanded = !uiState.expanded, detail = null)
+        uiState = uiState.copy(expanded = !uiState.expanded, detail = null, wordMenu = null)
     }
 
     /** Closes the Candidate detail bubble; a no-op when it is already closed. */
@@ -592,7 +644,9 @@ class PinyinDuckImeService :
                 total = session.total,
                 selectedIndex = session.selectedIndex,
                 script = session.script,
+                fixedWords = session.fixedWords,
                 detail = if (compositionChanged) null else previous.detail,
+                wordMenu = if (compositionChanged) null else previous.wordMenu,
             )
     }
 

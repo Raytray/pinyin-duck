@@ -1,6 +1,7 @@
 package dev.pinyinduck.android.data
 
 import androidx.test.core.app.ApplicationProvider
+import dev.pinyinduck.android.engine.BigramFormatException
 import dev.pinyinduck.android.engine.DetailBuildMismatchException
 import dev.pinyinduck.android.engine.DetailFileWriter
 import dev.pinyinduck.android.engine.DetailSubject
@@ -9,6 +10,7 @@ import dev.pinyinduck.android.engine.TestDictionary
 import dev.pinyinduck.android.engine.candidateDetail
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -107,6 +109,58 @@ class DictionaryLoaderTest {
                 DictionaryLoader.openFromFile(dictionaryFile, stale)
             }
         assertEquals(dictionary, error.dictionaryBuildId)
+    }
+
+    @Test
+    fun itOpensTheShippedBigramTableAlongsideTheDictionary() {
+        DictionaryLoader.openFromAssets(assets).use { opened ->
+            val bigrams = checkNotNull(opened.bigrams) { "bigrams.bin was not bundled. Run \"npm run build:bigrams\"." }
+            // A pair the #51 build measured, read through the mapped asset.
+            assertEquals(85440, bigrams.score("想", "喝"))
+            // And the engine scores with it: unigram alone would pick 和 over 喝.
+            assertEquals(
+                listOf("我", "想", "喝", "咖啡"),
+                opened.engine
+                    .search("woxianghekafei")
+                    .candidates
+                    .first()
+                    .words
+                    ?.map { it.hanzi },
+            )
+        }
+    }
+
+    @Test
+    fun aMissingBigramTableIsNotAnErrorAndSearchStillWorks() {
+        DictionaryLoader.openFromAssets(assets, bigramAssetName = "not-a-real-bigrams.bin").use { opened ->
+            assertNull(opened.bigrams)
+            assertEquals(
+                "你好",
+                opened.engine
+                    .search("nihao")
+                    .candidates
+                    .first()
+                    .hanzi,
+            )
+            assertNotNull(
+                opened.engine
+                    .search("woxianghekafei")
+                    .candidates
+                    .first()
+                    .words,
+            )
+        }
+        DictionaryLoader.openFromFile(dictionaryFile, bigramFile = File("/nonexistent/bigrams.bin")).use { opened ->
+            assertNull(opened.bigrams)
+        }
+    }
+
+    @Test
+    fun aBrokenBigramTableFailsTheLoad() {
+        val broken = tempFile("PDBX".toByteArray() + ByteArray(40))
+        assertThrows(BigramFormatException::class.java) {
+            DictionaryLoader.openFromFile(dictionaryFile, bigramFile = broken)
+        }
     }
 
     @Test

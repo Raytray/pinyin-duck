@@ -29,9 +29,12 @@ In short:
 
 ```bash
 npm install
-npm run build:dict && npm run build:rime
+npm run build:dict && npm run build:bigrams && npm run build:rime
 npm run dev
 ```
+
+`npm run build:bigrams` (about two minutes) writes the bigram table Sentence candidates
+score with. Core's CI, the Android tests and the e2e suite need it.
 
 ## Before opening a pull request
 

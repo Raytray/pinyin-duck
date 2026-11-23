@@ -1,5 +1,6 @@
 import React from 'react';
 import type { OpenCandidateDetail } from '../hooks/usePinyinDuck';
+import { keepFocus } from './WordMenu';
 
 interface CandidateDetailProps {
   detail: OpenCandidateDetail;
@@ -20,7 +21,7 @@ export const CandidateDetail: React.FC<CandidateDetailProps> = ({ detail, onComm
     <section
       className="candidate-detail"
       aria-label="Candidate detail"
-      onMouseDown={(e) => e.preventDefault()}
+      onMouseDown={keepFocus}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="detail-head">

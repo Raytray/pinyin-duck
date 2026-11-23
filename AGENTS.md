@@ -4,7 +4,7 @@
 
 ### Issue tracker
 
-Issues are tracked on the homelab Forgejo (`git.tail68c66a.ts.net`, raytray25/pinyin-duck), via the `fj` CLI. GitHub (`origin`) is a mirror, not the tracker. See `docs/agents/issue-tracker.md`.
+Issues are tracked on the homelab Forgejo (`git.tail68c66a.ts.net`, raytray25/pinyin-duck), via the `gt` CLI. GitHub (`origin`) is a mirror, not the tracker. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

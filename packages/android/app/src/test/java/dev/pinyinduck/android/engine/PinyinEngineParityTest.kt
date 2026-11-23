@@ -24,6 +24,8 @@ class PinyinEngineParityTest {
         val hanzi: List<String>,
         val pinyinMarks: List<String>,
         val glosses: List<String>,
+        /** Per candidate, a Sentence candidate's words as hanzi, tone marks and gloss; empty for a word. */
+        val words: List<List<List<String>>>,
     )
 
     @Test
@@ -54,7 +56,139 @@ class PinyinEngineParityTest {
             assertEquals("ranked characters for $label", case.hanzi, actual.candidates.map { it.hanzi })
             assertEquals("tone marks for $label", case.pinyinMarks, actual.candidates.map { it.pinyinMarks })
             assertEquals("glosses for $label", case.glosses, actual.candidates.map { it.shortGloss })
+            assertEquals(
+                "Sentence candidate words for $label",
+                case.words,
+                actual.candidates.map { candidate ->
+                    candidate.words.orEmpty().map { listOf(it.hanzi, it.pinyinMarks, it.shortGloss) }
+                },
+            )
         }
+    }
+
+    @Test
+    fun theGoldenPinsTheHandPickedSentenceCases() {
+        // The nine cases of #40, which `parity-cases.ts` adds to the generated queries. Each
+        // must lead with the expected candidate, a Sentence candidate where it is one.
+        val firsts = parseGolden().filter { it.script == ScriptType.SIMPLIFIED }.associate { it.query to it }
+        val expected =
+            mapOf(
+                "nihao" to "你好",
+                "zhongwen" to "中文",
+                "woshi" to "我是",
+                "nishi" to "你是",
+                "woxianghekafei" to "我想喝咖啡",
+                "xiexieni" to "谢谢你",
+                "zhongguoren" to "中国人",
+                "woxianghekafe" to "我想喝咖啡",
+                "woxianghekafeiqqq" to "我想喝咖啡",
+            )
+        for ((query, hanzi) in expected) {
+            val case = checkNotNull(firsts[query]) { "the golden does not pin $query" }
+            assertEquals("first candidate for $query", hanzi, case.hanzi.first())
+        }
+        assertEquals(
+            listOf("我", "想", "喝", "咖啡"),
+            firsts
+                .getValue("woxianghekafe")
+                .words
+                .first()
+                .map { it[0] },
+        )
+        assertEquals(
+            listOf("谢谢", "你"),
+            firsts
+                .getValue("xiexieni")
+                .words
+                .first()
+                .map { it[0] },
+        )
+        assertTrue(
+            "中国人 is the entry, not 中国 + 人",
+            firsts
+                .getValue("zhongguoren")
+                .words
+                .first()
+                .isEmpty(),
+        )
+    }
+
+    /** A `>search` record of `fixed-word-parity.tsv`: a search with fixed words. */
+    private data class FixedSearchCase(
+        val query: String,
+        val script: ScriptType,
+        val total: Int,
+        val fixedWords: List<FixedWord>,
+        val segments: List<String>,
+        /** The first candidate's word spans when it is a Sentence candidate, else empty. */
+        val spans: List<Span>,
+        /** Every candidate line, split into its tab-separated fields. */
+        val candidates: List<List<String>>,
+    )
+
+    /** An `>alternatives` record of `fixed-word-parity.tsv`: one `alternativesForSpan` call. */
+    private data class AlternativesCase(
+        val query: String,
+        val script: ScriptType,
+        val span: Span,
+        val alternatives: List<List<String>>,
+    )
+
+    @Test
+    fun matchesTheTypeScriptEngineOnFixedWords() {
+        val (searches, _) = parseFixedGolden()
+        assertTrue("The fixed-word golden pinned no searches", searches.isNotEmpty())
+        for (case in searches) {
+            val label = "${case.query} with ${case.fixedWords}"
+            val actual =
+                TestDictionary.engine.search(
+                    case.query,
+                    SearchOptions(script = case.script, limit = case.candidates.size, fixedWords = case.fixedWords),
+                )
+            // As in matchesTheTypeScriptEngineExactly, the total may grow with a new CC-CEDICT edition.
+            assertTrue("candidate total for $label", actual.total >= case.candidates.size)
+            assertEquals("segments for $label", case.segments, actual.segments)
+            assertEquals("candidates for $label", case.candidates, actual.candidates.map { it.goldenFields() })
+            assertEquals(
+                "word spans for $label",
+                case.spans,
+                actual.candidates
+                    .first()
+                    .words
+                    .orEmpty()
+                    .map { it.span },
+            )
+        }
+    }
+
+    @Test
+    fun matchesTheTypeScriptEngineOnSpanAlternatives() {
+        val (_, alternatives) = parseFixedGolden()
+        assertTrue("The fixed-word golden pinned no alternatives", alternatives.isNotEmpty())
+        for (case in alternatives) {
+            val actual = TestDictionary.engine.alternativesForSpan(case.query, case.span, case.script)
+            assertEquals("alternatives for ${case.query} ${case.span}", case.alternatives, actual.map { it.goldenFields() })
+            assertTrue("every alternative carries its span", actual.all { it.span == case.span })
+        }
+    }
+
+    @Test
+    fun theFixedWordGoldenPinsTheCasesOf42() {
+        // The cases `FIXED_WORD_CASES` and `ALTERNATIVES_CASES` in parity-cases.ts pin, in order.
+        val (searches, alternatives) = parseFixedGolden()
+        assertEquals(
+            listOf("我想喝咖啡", "我向河咖啡", "我像河咖啡", "我想和咖啡", "我想涸咖啡", "卧是"),
+            searches.map { it.candidates.first().first() },
+        )
+        // 河 and 像 are listed out of order; the engine sorts them by start.
+        assertEquals(listOf(7, 2), searches[2].fixedWords.map { it.span.start })
+        assertEquals(listOf("woxiang he4 kafei", "woxianghekafei", "xi'anhenmei"), alternatives.map { it.query })
+        assertTrue("only hè readings", alternatives[0].alternatives.all { it[1] == "hè" })
+        assertEquals(52, alternatives[1].alternatives.size)
+        // Nothing runs across the apostrophe: 西安 is offered, 先 is not.
+        val xian = alternatives[2].alternatives.map { it[0] }
+        assertTrue("西安 offered", "西安" in xian)
+        assertTrue("先 not offered", "先" !in xian)
     }
 
     @Test
@@ -63,6 +197,8 @@ class PinyinEngineParityTest {
         // above while proving nothing, so pin that the real asset was actually opened.
         assertTrue("expected the full CC-CEDICT corpus, found ${TestDictionary.entryCount}", TestDictionary.entryCount > 100_000)
         assertTrue("expected a paged asset, found ${TestDictionary.pageCount} pages", TestDictionary.pageCount > 100)
+        // The golden is generated with the bigram table loaded, so it must be here too.
+        assertTrue("bigrams.bin is missing. Run \"npm run build:bigrams\".", TestDictionary.bigrams != null)
     }
 
     private fun parseGolden(): List<GoldenCase> {
@@ -80,13 +216,15 @@ class PinyinEngineParityTest {
         val hanzi = mutableListOf<String>()
         val marks = mutableListOf<String>()
         val glosses = mutableListOf<String>()
+        val words = mutableListOf<List<List<String>>>()
 
         fun flush() {
             val started = query ?: return
-            cases.add(GoldenCase(started, script, total, segments, hanzi.toList(), marks.toList(), glosses.toList()))
+            cases.add(GoldenCase(started, script, total, segments, hanzi.toList(), marks.toList(), glosses.toList(), words.toList()))
             hanzi.clear()
             marks.clear()
             glosses.clear()
+            words.clear()
         }
 
         stream.bufferedReader().forEachLine { line ->
@@ -107,6 +245,8 @@ class PinyinEngineParityTest {
                     hanzi.add(fields[0])
                     marks.add(fields[1])
                     glosses.add(fields.getOrElse(2) { "" })
+                    // A Sentence candidate's words follow, three fields each.
+                    words.add(fields.drop(3).chunked(3) { it.toList() })
                 }
             }
         }
@@ -116,7 +256,76 @@ class PinyinEngineParityTest {
         return cases
     }
 
+    private fun parseFixedGolden(): Pair<List<FixedSearchCase>, List<AlternativesCase>> {
+        val loader = checkNotNull(javaClass.classLoader) { "The test class loader is unavailable" }
+        val stream =
+            checkNotNull(
+                loader.getResourceAsStream(FIXED_GOLDEN_RESOURCE),
+            ) { "$FIXED_GOLDEN_RESOURCE is missing. Run packages/core/scripts/generate-android-parity.ts." }
+
+        val searches = mutableListOf<FixedSearchCase>()
+        val alternatives = mutableListOf<AlternativesCase>()
+        // The header fields of the record being read, or null between records.
+        var header: List<String>? = null
+        val fixedWords = mutableListOf<FixedWord>()
+        var segments = emptyList<String>()
+        var spans = emptyList<Span>()
+        val lines = mutableListOf<List<String>>()
+
+        fun flush() {
+            val started = header ?: return
+            val script = ScriptType.valueOf(started[2].uppercase())
+            when (started[0]) {
+                ">search" ->
+                    searches.add(
+                        FixedSearchCase(started[1], script, started[3].toInt(), fixedWords.toList(), segments, spans, lines.toList()),
+                    )
+                else -> {
+                    assertEquals("alternatives count for ${started[1]}", started[5].toInt(), lines.size)
+                    alternatives.add(AlternativesCase(started[1], script, Span(started[3].toInt(), started[4].toInt()), lines.toList()))
+                }
+            }
+            header = null
+            fixedWords.clear()
+            segments = emptyList()
+            spans = emptyList()
+            lines.clear()
+        }
+
+        stream.bufferedReader().forEachLine { line ->
+            val fields = line.split("\t")
+            when {
+                line.isBlank() -> flush()
+                line.startsWith("#") -> Unit
+                line.startsWith(">") -> {
+                    flush()
+                    header = fields
+                }
+                fields[0] == "fixed" ->
+                    fixedWords.add(
+                        FixedWord(Span(fields[1].toInt(), fields[2].toInt()), fields[3], fields[4], fields[5]),
+                    )
+                line.startsWith("segments ") -> segments = line.removePrefix("segments ").split(" ").filter { it.isNotEmpty() }
+                line.startsWith("spans ") ->
+                    spans =
+                        line.removePrefix("spans ").split(" ").map { span ->
+                            val (start, end) = span.split("-").map { it.toInt() }
+                            Span(start, end)
+                        }
+                else -> lines.add(fields)
+            }
+        }
+        flush()
+        stream.close()
+        return searches to alternatives
+    }
+
+    /** A candidate as the golden writes it: Hanzi, tone marks and gloss, then the same per word. */
+    private fun Candidate.goldenFields(): List<String> =
+        listOf(hanzi, pinyinMarks, shortGloss) + words.orEmpty().flatMap { listOf(it.hanzi, it.pinyinMarks, it.shortGloss) }
+
     private companion object {
         const val GOLDEN_RESOURCE = "engine-parity.tsv"
+        const val FIXED_GOLDEN_RESOURCE = "fixed-word-parity.tsv"
     }
 }

@@ -112,6 +112,12 @@ fun scoreEntry(
     return score
 }
 
+/** A stored entry's Hanzi as [script] displays it. `hanziIn` in `ranking.ts`. */
+internal fun hanziIn(
+    entry: StoredEntry,
+    script: ScriptType,
+): String = if (script == ScriptType.TRADITIONAL) entry.traditional else entry.simplified
+
 /** Projects a ranked entry into the candidate the UI renders. */
 fun entryToCandidate(
     entry: ScorableEntry,

@@ -24,8 +24,27 @@ object SyntheticDictionary {
      * whenever it sees a key it has already written. That is the case the tree's high-key
      * separator exists to handle, and what `lookupExact` has to follow `nextLeaf` for.
      */
-    fun encode(entries: List<Pair<String, String>>): ByteArray {
-        val groups = packIntoLeaves(entries.sortedBy { it.first })
+    fun encode(entries: List<Pair<String, String>>): ByteArray = encodeRows(entries.map { (key, simplified) -> Row(key, simplified) })
+
+    /** A full leaf record, for tests that rank on frequencies, readings and glosses. */
+    data class Row(
+        val key: String,
+        val simplified: String,
+        val traditional: String = simplified,
+        /** Empty in the key-only rows, where it is derived on read. */
+        val pinyinNumbers: String = "",
+        val shortGloss: String = "",
+        val frequency: Int = 0,
+        val hskLevel: Int = 0,
+        val entryIds: List<Int> = emptyList(),
+    )
+
+    /** Encodes full rows, sorted by key, with [baseWordCost] in the header. */
+    fun encodeRows(
+        entries: List<Row>,
+        baseWordCost: Int = 0,
+    ): ByteArray {
+        val groups = packIntoLeaves(entries.sortedBy { it.key })
 
         // Leaves are allocated first, so their ids are known before the internal root is
         // written and can name them.
@@ -42,7 +61,7 @@ object SyntheticDictionary {
                 // The root's separators are the *last* key of each leaf but the last, because a
                 // key can span several leaves and a low-key separator would skip the earlier
                 // ones. The final child is unbounded.
-                val highKeys = groups.dropLast(1).map { it.last().first }
+                val highKeys = groups.dropLast(1).map { it.last().key }
                 pages.add(encodeInternal(children = groups.indices.toList(), highKeys = highKeys))
                 pages.lastIndex
             }
@@ -65,6 +84,7 @@ object SyntheticDictionary {
         out.u32(rootPageId)
         out.u32(directoryOffset)
         out.u32(0) // buildId
+        out.u32(baseWordCost)
         locations.forEach { (pageOffset, length) ->
             out.u32(pageOffset)
             out.u32(length)
@@ -79,20 +99,21 @@ object SyntheticDictionary {
      *
      * A new leaf is started whenever a key repeats, so one key can occupy several leaves.
      */
-    private fun packIntoLeaves(sorted: List<Pair<String, String>>): List<List<Pair<String, String>>> {
+    private fun packIntoLeaves(sorted: List<Row>): List<List<Row>> {
         if (sorted.isEmpty()) return listOf(emptyList())
 
-        val leaves = mutableListOf<List<Pair<String, String>>>()
-        var current = mutableListOf<Pair<String, String>>()
+        val leaves = mutableListOf<List<Row>>()
+        var current = mutableListOf<Row>()
         val writtenKeys = mutableSetOf<String>()
 
-        for ((key, value) in sorted) {
+        for (row in sorted) {
+            val key = row.key
             if (key in writtenKeys || current.size >= LEAF_ENTRIES) {
                 leaves.add(current)
                 current = mutableListOf()
                 writtenKeys.clear()
             }
-            current.add(key to value)
+            current.add(row)
             writtenKeys.add(key)
         }
         leaves.add(current)
@@ -101,22 +122,29 @@ object SyntheticDictionary {
     }
 
     private fun encodeLeaf(
-        entries: List<Pair<String, String>>,
+        entries: List<Row>,
         nextLeaf: Int,
     ): ByteArray {
         val out = ByteWriter()
         out.u8(LEAF_KIND)
         out.u16(entries.size)
         out.u32(nextLeaf)
-        for ((key, simplified) in entries) {
-            out.string(key)
-            out.string(simplified) // simplified
-            out.string(simplified) // traditional
-            out.string("") // pinyinNumbers, derived on read
-            out.string("") // shortGloss
-            out.varint(0) // frequency
-            out.u8(0) // hskLevel
-            out.varint(0) // no entry ids
+        // Ids are zigzag-encoded deltas from the previous id in the leaf, starting at 0.
+        var previous = 0
+        for (row in entries) {
+            out.string(row.key)
+            out.string(row.simplified)
+            out.string(row.traditional)
+            out.string(row.pinyinNumbers)
+            out.string(row.shortGloss)
+            out.varint(row.frequency)
+            out.u8(row.hskLevel)
+            out.varint(row.entryIds.size)
+            for (id in row.entryIds) {
+                val delta = id - previous
+                out.varint((delta shl 1) xor (delta shr 31))
+                previous = id
+            }
             out.u8(0) // a candidate in both scripts
         }
         return out.toByteArray()
