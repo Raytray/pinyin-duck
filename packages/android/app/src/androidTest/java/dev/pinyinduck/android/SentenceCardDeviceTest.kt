@@ -27,10 +27,21 @@ class SentenceCardDeviceTest {
     @get:Rule
     val ime = PinyinDuckImeRule()
 
+    @get:Rule
+    val orientation = DeviceOrientationRule()
+
     private val keyboard = KeyboardDriver()
 
     @Test
-    fun theCardWrapsItsWordBlocksOntoRowsInsideIt() {
+    fun theCardWrapsItsWordBlocksOntoRowsInsideIt() = checkCardWraps()
+
+    @Test
+    fun inLandscapeTheCardWrapsItsWordBlocksOntoRowsInsideIt() {
+        orientation.landscape()
+        checkCardWraps()
+    }
+
+    private fun checkCardWraps() {
         val card = openCard()
         val bounds = LabelledBounds("the card", card.visibleBounds)
         val blocks = wordBlocksByDescription(card)
@@ -46,7 +57,15 @@ class SentenceCardDeviceTest {
     }
 
     @Test
-    fun theWordMenuFitsUnderTheCardWithItsCommitChipInView() {
+    fun theWordMenuFitsUnderTheCardWithItsCommitChipInView() = checkWordMenuFits()
+
+    @Test
+    fun inLandscapeTheWordMenuFitsUnderTheCardWithItsCommitChipInView() {
+        orientation.landscape()
+        checkWordMenuFits()
+    }
+
+    private fun checkWordMenuFits() {
         val card = openCard()
         val menu = openMenu(card)
 
