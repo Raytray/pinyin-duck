@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Candidate, FixedWord } from '@pinyinduck/core';
 import { wordGloss } from '../sentence/word-gloss';
+import { keepFocus } from './WordMenu';
 
 interface SentenceRowProps {
   /** The Sentence candidate's words, in order. */
@@ -9,14 +10,14 @@ interface SentenceRowProps {
   leftover: string;
   /** The word whose menu is open, or null. */
   openWord: number | null;
-  /** The Fixed words held, so the blocks the learner chose are marked. */
+  /** The Fixed words, so the blocks the learner chose are marked. */
   fixedWords: readonly FixedWord[];
   /** A click on word `i`'s block, which opens or closes its menu. */
   onWordClick: (i: number) => void;
 }
 
 const isFixed = (word: Candidate, fixedWords: readonly FixedWord[]) =>
-  !!word.span && fixedWords.some((f) => f.start === word.span!.start && f.end === word.span!.end);
+  !!word.span && fixedWords.some(({ span }) => span.start === word.span!.start && span.end === word.span!.end);
 
 /**
  * The body of a Sentence candidate's row (variant A of #31): each word its own block, with
@@ -37,8 +38,7 @@ export const SentenceRow: React.FC<SentenceRowProps> = ({ words, leftover, openW
         aria-haspopup="menu"
         aria-expanded={openWord === i}
         title="Swap this word or commit through it (Shift+←/→)"
-        // Keeps focus, and so the composition, in the editor.
-        onMouseDown={(e) => e.preventDefault()}
+        onMouseDown={keepFocus}
         onClick={(e) => {
           e.stopPropagation();
           onWordClick(i);

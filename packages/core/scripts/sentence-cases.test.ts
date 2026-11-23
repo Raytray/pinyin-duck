@@ -80,7 +80,7 @@ describe('Fixed word acceptance cases (real dictionary, bigrams loaded)', () => 
       const [first] = candidates;
       expect(first.words?.map((word) => word.hanzi)).toEqual(testCase.words);
       expect(first.remainingPinyin).toBe(testCase.remaining);
-      for (const { start, end, word } of testCase.fixedWords) {
+      for (const { span: { start, end }, word } of testCase.fixedWords) {
         expect(first.words?.find((each) => each.span?.start === start && each.span?.end === end)?.pinyinNumbers).toBe(
           word.pinyinNumbers
         );

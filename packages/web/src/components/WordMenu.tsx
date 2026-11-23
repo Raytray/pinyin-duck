@@ -9,8 +9,8 @@ interface WordMenuProps {
   onCommitThrough: () => void;
 }
 
-/** Keeps focus, and so the composition, in the editor. */
-const keepFocus = (e: React.MouseEvent) => e.preventDefault();
+/** A mousedown handler that keeps focus, and so the composition, in the editor. */
+export const keepFocus = (e: React.MouseEvent) => e.preventDefault();
 
 /**
  * The menu of one word of a Sentence candidate (#37), drawn under its row: the alternatives

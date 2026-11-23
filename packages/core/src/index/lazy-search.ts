@@ -19,17 +19,24 @@
  * the same Hanzi as a word candidate is dropped, the word winning.
  */
 
-import { Candidate, SearchOptions, SearchResult, ScriptType } from '../types.js';
-import { cleanPinyin, parseToneFilter, pinyinNumbersToMarks, segmentPinyin } from '../parser/pinyin.js';
+import type { Candidate, SearchOptions, SearchResult, ScriptType, Span } from '../types.js';
+import {
+  cleanPinyin,
+  parseToneFilter,
+  pinyinNumbersToMarks,
+  segmentPinyin,
+  type ToneConstraint,
+} from '../parser/pinyin.js';
 import { BTreeDictionary } from '../data/btree-dictionary.js';
 import type { StoredEntry } from '../data/btree-codec.js';
 import type { BigramTable } from '../bigram/bigram-codec.js';
-import { queryBoundaries, spansForced } from '../sentence/lattice.js';
+import { isSpanIn, queryBoundaries, spansForced } from '../sentence/lattice.js';
 import { findSentence, oneWordPathScore, wordCost, type SentenceResult } from '../sentence/sentence-search.js';
 import {
   DEFAULT_MAX_MATCHES,
   compareScored,
   entryToCandidate,
+  hanziIn,
   scoreEntry,
   type ScorableEntry,
   type ScoredEntry,
@@ -37,6 +44,29 @@ import {
 
 interface ScoredStoredEntry extends ScoredEntry {
   stored: StoredEntry;
+}
+
+/**
+ * Collects the best-scoring entry per displayed Hanzi against `query`, so dedup and ranking
+ * happen in one pass with no full-dictionary materialization. With a tone filter, entries it
+ * rules out (score 0 or less) are skipped.
+ */
+function bestPerHanzi(script: ScriptType, query: string, toneFilter: readonly ToneConstraint[]) {
+  const chosen = new Map<string, ScoredStoredEntry>();
+  const consider = (stored: StoredEntry): void => {
+    // A row for one script only stands in for rows the other script shows instead.
+    if (stored.onlyIn && stored.onlyIn !== script) return;
+    const entry = storedEntryToScorable(stored);
+    const score = scoreEntry(entry, query, toneFilter);
+    if (toneFilter.length > 0 && score <= 0) return;
+    const hanzi = hanziIn(stored, script);
+    const candidate = { entry, score, stored };
+    // Ties go through the shared order rather than "first seen wins", so the reading
+    // that represents a hanzi does not depend on page scan order.
+    const previous = chosen.get(hanzi);
+    if (!previous || compareScored(candidate, previous) < 0) chosen.set(hanzi, candidate);
+  };
+  return { chosen, consider };
 }
 
 export interface SearchEngineOptions {
@@ -71,36 +101,10 @@ export class LazyPinyinSearchEngine {
     const segments = segmentPinyin(rawQuery);
     const tonelessQuery = cleanPinyin(rawQuery);
     const toneFilter = parseToneFilter(rawQuery);
-    const hasToneFilter = toneFilter.length > 0;
 
-    // Keep the best-scoring entry per displayed hanzi so dedup and ranking happen in
-    // one pass, with no full-dictionary materialization.
-    const chosen = new Map<string, ScoredStoredEntry>();
-
-    const consider = (stored: StoredEntry): void => {
-      // A row for one script only stands in for rows the other script shows instead.
-      if (stored.onlyIn && stored.onlyIn !== script) return;
-      const entry = storedEntryToScorable(stored);
-      const score = scoreEntry(entry, tonelessQuery, toneFilter);
-      if (hasToneFilter && score <= 0) return;
-      const hanzi = script === 'traditional' ? stored.traditional : stored.simplified;
-      const candidate = { entry, score, stored };
-      // Ties go through the shared order rather than "first seen wins", so the reading
-      // that represents a hanzi does not depend on page scan order.
-      const previous = chosen.get(hanzi);
-      if (!previous || compareScored(candidate, previous) < 0) chosen.set(hanzi, candidate);
-    };
-
+    const { chosen, consider } = bestPerHanzi(script, tonelessQuery, toneFilter);
     for (const entry of this.dictionary.lookupExact(tonelessQuery)) consider(entry);
-
-    let scanned = 0;
-    if (!options.exactOnly) {
-      this.dictionary.scanPrefix(tonelessQuery, (entry) => {
-        consider(entry);
-        scanned++;
-        return scanned < maxMatches;
-      });
-    }
+    if (!options.exactOnly) this.dictionary.scanPrefixWithin(tonelessQuery, maxMatches, consider);
 
     // A multi-syllable query whose last syllable is incomplete (e.g. "nih" or "nihao")
     // also offers matches for the first full syllable.
@@ -135,15 +139,11 @@ export class LazyPinyinSearchEngine {
       // The edited sentence (#37): the learner's own choice comes first, ahead of every word.
       // A word showing the same Hanzi is the one dropped this time.
       const hanzi = sentenceHanzi(sentence, script);
-      const kept = ordered.filter(
-        (slot) => !('item' in slot) || (script === 'traditional' ? slot.item.stored.traditional : slot.item.stored.simplified) !== hanzi
-      );
+      const kept = ordered.filter((slot) => !('item' in slot) || hanziIn(slot.item.stored, script) !== hanzi);
       ordered.splice(0, ordered.length, { sentence }, ...kept);
     } else if (sentence) {
       const hanzi = sentenceHanzi(sentence, script);
-      const repeatsAWord = ranked.some(
-        ({ item }) => (script === 'traditional' ? item.stored.traditional : item.stored.simplified) === hanzi
-      );
+      const repeatsAWord = ranked.some(({ item }) => hanziIn(item.stored, script) === hanzi);
       if (!repeatsAWord) {
         let position: number;
         if (sentence.full) {
@@ -197,46 +197,33 @@ export class LazyPinyinSearchEngine {
    */
   alternativesForSpan(
     query: string,
-    span: { start: number; end: number },
+    span: Span,
     options: Pick<SearchOptions, 'script' | 'exactOnly' | 'maxMatches'> = {}
   ): Candidate[] {
     const rawQuery = query.trim().toLowerCase();
     const script: ScriptType = options.script || 'simplified';
     const maxMatches = options.maxMatches ?? DEFAULT_MAX_MATCHES;
     const { toneless, forced } = queryBoundaries(rawQuery);
+    if (!isSpanIn(span, toneless.length)) return [];
     const { start, end } = span;
-    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start || end > toneless.length) {
-      return [];
-    }
     const key = toneless.slice(start, end);
     // The typed tones that fall on this span, as offsets into it.
     const toneFilter = parseToneFilter(rawQuery)
       .filter(({ offset }) => offset > start && offset <= end)
       .map(({ offset, tone }) => ({ offset: offset - start, tone }));
 
-    const chosen = new Map<string, ScoredStoredEntry>();
+    const best = bestPerHanzi(script, key, toneFilter);
+    // A word never runs across an apostrophe or space typed inside the span.
     const consider = (stored: StoredEntry): void => {
-      if (stored.onlyIn && stored.onlyIn !== script) return;
-      // A word never runs across an apostrophe or space typed inside the span.
-      if (!spansForced(stored.pinyinNumbers, start, end, forced)) return;
-      const entry = storedEntryToScorable(stored);
-      const score = scoreEntry(entry, key, toneFilter);
-      if (toneFilter.length > 0 && score <= 0) return;
-      const hanzi = script === 'traditional' ? stored.traditional : stored.simplified;
-      const candidate = { entry, score, stored };
-      const previous = chosen.get(hanzi);
-      if (!previous || compareScored(candidate, previous) < 0) chosen.set(hanzi, candidate);
+      if (spansForced(stored.pinyinNumbers, start, end, forced)) best.consider(stored);
     };
     for (const entry of this.dictionary.lookupExact(key)) consider(entry);
     if (end === toneless.length && !options.exactOnly) {
-      let scanned = 0;
-      this.dictionary.scanPrefix(key, (entry) => {
+      this.dictionary.scanPrefixWithin(key, maxMatches, (entry) => {
         if (entry.key.length > key.length) consider(entry);
-        scanned++;
-        return scanned < maxMatches;
       });
     }
-    return Array.from(chosen.values())
+    return Array.from(best.chosen.values())
       .sort(compareScored)
       .map(({ stored }) => ({ ...storedEntryToCandidate(stored, script, key), span: { start, end } }));
   }
@@ -244,7 +231,7 @@ export class LazyPinyinSearchEngine {
 
 /** A Sentence candidate's Hanzi in the active script. */
 function sentenceHanzi(sentence: SentenceResult, script: ScriptType): string {
-  return sentence.words.map(({ entry }) => (script === 'traditional' ? entry.traditional : entry.simplified)).join('');
+  return sentence.words.map(({ entry }) => hanziIn(entry, script)).join('');
 }
 
 /**

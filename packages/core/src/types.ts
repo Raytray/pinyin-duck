@@ -1,5 +1,11 @@
 export type ScriptType = 'simplified' | 'traditional';
 
+/** A span `[start, end)` of the toneless query (`cleanPinyin(query)` offsets). */
+export interface Span {
+  start: number;
+  end: number;
+}
+
 export interface Candidate {
   id: string;
   hanzi: string;         // displayed characters according to active ScriptType
@@ -31,7 +37,7 @@ export interface Candidate {
    * a `FixedWord`. Committing through word k commits `words[0..k]` and leaves the toneless
    * query from `words[k].span.end` composing.
    */
-  span?: { start: number; end: number };
+  span?: Span;
 }
 
 export interface SearchOptions {
@@ -53,18 +59,18 @@ export interface SearchOptions {
    * The engine keeps no state between searches: the UI holds this list and passes it with
    * every keystroke while the learner keeps composing. Dropping fixed words is the UI's job:
    * clear the whole list when the sentence (or part of it) is committed and on Esc, and drop
-   * a fixed word as soon as a Backspace deletes into its span (`end` > the new toneless
+   * a fixed word as soon as a Backspace deletes into its span (`span.end` > the new toneless
    * query length). Typing more pinyin after them keeps them.
    *
-   * A fixed completed last word (咖啡 on `kafe`) is held only while its span ends the query,
-   * so the UI moves its span as the learner types on: stretch `end` to the end of the query
-   * while the typing is still a prefix of the word's key, set it to `start + key.length` once
-   * the key is typed in full (an ordinary fixed word from then on), and drop the word once the
-   * typing leaves the key. The web does this in `carryFixedWords`.
+   * A fixed completed last word (咖啡 on `kafe`) is honored only while its span ends the
+   * query, so the UI moves its span as the learner types on: stretch `span.end` to the end of
+   * the query while the typing is still a prefix of the word's key, set it to
+   * `span.start + key.length` once the key is typed in full (an ordinary fixed word from then
+   * on), and drop the word once the typing leaves the key. The web does this in `carryFixedWords`.
    *
-   * A fixed word the current query cannot hold is ignored, not an error: its span is not a
-   * word boundary on both ends, its entry is not under that span, a typed tone rules it out,
-   * or it overlaps an earlier one in the list.
+   * A fixed word the current query cannot honor is ignored, not an error: its span is not a
+   * word boundary on both ends, its entry is not under that span, a typed tone or boundary
+   * rules it out, or it overlaps an earlier one in the list.
    */
   fixedWords?: readonly FixedWord[];
 }
@@ -75,9 +81,8 @@ export interface SearchOptions {
  * the span it was asked for.
  */
 export interface FixedWord {
-  /** The span `[start, end)` in the toneless query (`cleanPinyin(query)` offsets). */
-  start: number;
-  end: number;
+  /** The span of the toneless query the word covers. */
+  span: Span;
   /**
    * The entry, by its forms and reading. A word or alternative candidate can be passed as
    * is. Its key is normally exactly the span; for the last word it may instead be a longer

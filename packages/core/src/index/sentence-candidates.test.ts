@@ -202,8 +202,7 @@ describe('Coverage first', () => {
 
 /** The fixed word for `candidate` (as `alternativesForSpan` returns it) on the span [start, end). */
 const fix = (start: number, end: number, simplified: string, pinyinNumbers: string, traditional = simplified): FixedWord => ({
-  start,
-  end,
+  span: { start, end },
   word: { simplified, traditional, pinyinNumbers },
 });
 
@@ -328,7 +327,7 @@ describe('Span alternatives', () => {
     expect(rest.map((candidate) => candidate.hanzi)).toContain('賀');
     expect(first.span).toEqual({ start: 7, end: 9 });
     const he = rest.find((candidate) => candidate.hanzi === '賀')!;
-    const fixedWords = [{ ...he.span!, word: he }];
+    const fixedWords = [{ span: he.span!, word: he }];
     expect(engine.search('woxianghekafei', { script: 'traditional', fixedWords }).candidates[0].hanzi).toBe('我想賀咖啡');
   });
 });

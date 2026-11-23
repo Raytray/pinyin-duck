@@ -13,6 +13,7 @@
  * reached only by a prefix completion of the last word, or left to compose.
  */
 
+import type { Span } from '../types.js';
 import { VALID_PINYIN_SYLLABLES, syllableToneEnds, tonelessLetter } from '../parser/pinyin.js';
 
 /** The longest syllable (`zhuang`, `chuang`, `shuang`). */
@@ -84,6 +85,12 @@ export function queryBoundaries(query: string): QueryBoundaries {
     }
   }
   return { toneless, nodes, end, forced };
+}
+
+/** Whether `span` is a non-empty span with integer ends inside a toneless query of `length` letters. */
+export function isSpanIn(span: Span, length: number): boolean {
+  const { start, end } = span;
+  return Number.isInteger(start) && Number.isInteger(end) && start >= 0 && end > start && end <= length;
 }
 
 /**

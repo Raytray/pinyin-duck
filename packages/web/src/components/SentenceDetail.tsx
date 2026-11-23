@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Candidate, DetailView } from '@pinyinduck/core';
 import type { OpenCandidateDetail } from '../hooks/usePinyinDuck';
+import { keepFocus } from './WordMenu';
 
 /** Senses shown per sense group of each word; the rest are counted ("+3 more"). */
 const SENSES_PER_GROUP = 2;
@@ -26,7 +27,7 @@ export const SentenceDetail: React.FC<SentenceDetailProps> = ({ detail, onCommit
     <section
       className="candidate-detail"
       aria-label="Candidate detail"
-      onMouseDown={(e) => e.preventDefault()}
+      onMouseDown={keepFocus}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="detail-head">

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, useEffect, useSyncExternalStore } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, useSyncExternalStore, type SetStateAction } from 'react';
 import {
   LazyPinyinSearchEngine,
   candidateDetail,
@@ -146,20 +146,32 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   }, []);
 
   /**
+   * Moves the highlight to row `index` of page `page`. The word menu belongs to the row and
+   * the sentence it was opened on, so every move closes it, even one that stays put: this is
+   * the one place it closes, apart from Esc.
+   */
+  const moveHighlight = useCallback((page: SetStateAction<number>, index: number) => {
+    setCurrentPage(page);
+    setSelectedIndex(index);
+    setMenuWord(null);
+  }, []);
+
+  /**
    * Sets the composition buffer and goes back to the first candidate on page one. The Fixed
    * words last while the learner types on, less any a Backspace reached into; the word menu
    * belongs to the sentence as it was, so it closes.
    */
-  const setBuffer = useCallback((buffer: string) => {
-    setCompositionBuffer(buffer);
-    setFixedWords((fixed) => carryFixedWords(fixed, buffer));
-    setMenuWord(null);
-    // The detail belongs to a composition: it stays open while the user types on, and
-    // goes when the composition ends.
-    if (buffer === '') setDetailRequested(false);
-    setCurrentPage(0);
-    setSelectedIndex(0);
-  }, []);
+  const setBuffer = useCallback(
+    (buffer: string) => {
+      setCompositionBuffer(buffer);
+      setFixedWords((fixed) => carryFixedWords(fixed, buffer));
+      // The detail belongs to a composition: it stays open while the user types on, and
+      // goes when the composition ends.
+      if (buffer === '') setDetailRequested(false);
+      moveHighlight(0, 0);
+    },
+    [moveHighlight]
+  );
 
   // The whole dictionary is downloaded once, compressed, and searched in memory. The
   // download is a few megabytes, so its progress is shown. Typing works while it loads,
@@ -307,12 +319,11 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     (indexOnPage: number = selectedIndex) => {
       if (!pageCandidates[indexOnPage]) return;
       const closing = detailOpen && indexOnPage === selectedIndex;
-      setSelectedIndex(indexOnPage);
+      moveHighlight((page) => page, indexOnPage);
       setDetailRequested(!closing);
-      setMenuWord(null);
       if (!closing) detailLoader?.request();
     },
-    [selectedIndex, pageCandidates, detailOpen, detailLoader]
+    [selectedIndex, pageCandidates, detailOpen, detailLoader, moveHighlight]
   );
 
   const closeDetail = useCallback(() => setDetailRequested(false), []);
@@ -370,14 +381,15 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
     (n: number) => {
       const alt = wordMenu?.alternatives[n];
       if (!alt?.span) return;
-      const { start, end } = alt.span;
+      const span = alt.span;
       const word = { simplified: alt.simplified, traditional: alt.traditional, pinyinNumbers: alt.pinyinNumbers };
-      setFixedWords((fixed) => [...fixed.filter((f) => f.end <= start || f.start >= end), { start, end, word }]);
-      setMenuWord(null);
-      setCurrentPage(0);
-      setSelectedIndex(0);
+      setFixedWords((fixed) => [
+        ...fixed.filter((f) => f.span.end <= span.start || f.span.start >= span.end),
+        { span, word },
+      ]);
+      moveHighlight(0, 0);
     },
-    [wordMenu]
+    [wordMenu, moveHighlight]
   );
 
   /** Replaces committed text `[from, to)` with `insert`, leaving the caret after it. */
@@ -445,39 +457,36 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
   }, [composeAfresh]);
 
   // Navigation
-  const nextPage = useCallback(() => {
-    setCurrentPage((prev) => (prev + 1 < totalPages ? prev + 1 : prev));
-    setSelectedIndex(0);
-    setMenuWord(null);
-  }, [totalPages]);
+  const nextPage = useCallback(
+    () => moveHighlight((prev) => (prev + 1 < totalPages ? prev + 1 : prev), 0),
+    [totalPages, moveHighlight]
+  );
 
-  const prevPage = useCallback(() => {
-    setCurrentPage((prev) => (prev > 0 ? prev - 1 : 0));
-    setSelectedIndex(0);
-    setMenuWord(null);
-  }, []);
+  const prevPage = useCallback(() => moveHighlight((prev) => (prev > 0 ? prev - 1 : 0), 0), [moveHighlight]);
 
   const moveSelection = useCallback(
     (direction: 'next' | 'prev') => {
       if (pageCandidates.length === 0) return;
-      setMenuWord(null);
+      let page = currentPage;
+      let index = selectedIndex;
       if (direction === 'next') {
-        if (selectedIndex + 1 < pageCandidates.length) {
-          setSelectedIndex((i) => i + 1);
-        } else if (currentPage + 1 < totalPages) {
-          setCurrentPage((p) => p + 1);
-          setSelectedIndex(0);
+        if (index + 1 < pageCandidates.length) {
+          index++;
+        } else if (page + 1 < totalPages) {
+          page++;
+          index = 0;
         }
       } else {
-        if (selectedIndex > 0) {
-          setSelectedIndex((i) => i - 1);
-        } else if (currentPage > 0) {
-          setCurrentPage((p) => p - 1);
-          setSelectedIndex(pageSize - 1);
+        if (index > 0) {
+          index--;
+        } else if (page > 0) {
+          page--;
+          index = pageSize - 1;
         }
       }
+      moveHighlight(page, index);
     },
-    [pageCandidates.length, selectedIndex, currentPage, totalPages, pageSize]
+    [pageCandidates.length, selectedIndex, currentPage, totalPages, pageSize, moveHighlight]
   );
 
   // Direct change handler on textarea (e.g. paste, native text deletion)
@@ -725,12 +734,13 @@ export function usePinyinDuck(options: UsePinyinDuckOptions = {}) {
 
   // A script change rebuilds the candidate list, and the two scripts can have different
   // numbers of candidates, so the page and highlight go back to the first candidate.
-  const setScript = useCallback((next: ScriptType) => {
-    setScriptState(next);
-    setCurrentPage(0);
-    setSelectedIndex(0);
-    setMenuWord(null);
-  }, []);
+  const setScript = useCallback(
+    (next: ScriptType) => {
+      setScriptState(next);
+      moveHighlight(0, 0);
+    },
+    [moveHighlight]
+  );
 
   const toggleScript = useCallback(() => {
     setScript(script === 'simplified' ? 'traditional' : 'simplified');

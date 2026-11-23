@@ -20,7 +20,7 @@ export function composingAfter(raw: string, tonelessEnd: number): string {
  * and Esc clear them all, which is the caller's job.
  *
  * A fixed completed last word (咖啡 fixed on `ka`, its key `kafei` running past the span) is
- * held by the engine only while its span ends the query. So while the learner goes on typing
+ * honored by the engine only while its span ends the query. So while the learner goes on typing
  * its key, its span stretches to the end of the query; once the query covers the whole key the
  * span becomes exactly the key, an ordinary fixed word from then on. If the typing leaves the
  * key (`kan`), the word is dropped: the learner is typing something else.
@@ -28,16 +28,17 @@ export function composingAfter(raw: string, tonelessEnd: number): string {
 export function carryFixedWords(fixed: readonly FixedWord[], raw: string): FixedWord[] {
   const toneless = cleanPinyin(raw);
   const carried: FixedWord[] = [];
-  for (const word of fixed) {
-    if (word.end > toneless.length) continue;
-    const key = cleanPinyin(word.word.pinyinNumbers);
-    if (key.length <= word.end - word.start) {
-      carried.push(word);
+  for (const fixedWord of fixed) {
+    const { start, end } = fixedWord.span;
+    if (end > toneless.length) continue;
+    const key = cleanPinyin(fixedWord.word.pinyinNumbers);
+    if (key.length <= end - start) {
+      carried.push(fixedWord);
       continue;
     }
-    const typed = toneless.slice(word.start);
-    if (typed.startsWith(key)) carried.push({ ...word, end: word.start + key.length });
-    else if (key.startsWith(typed)) carried.push({ ...word, end: toneless.length });
+    const typed = toneless.slice(start);
+    if (typed.startsWith(key)) carried.push({ ...fixedWord, span: { start, end: start + key.length } });
+    else if (key.startsWith(typed)) carried.push({ ...fixedWord, span: { start, end: toneless.length } });
   }
   return carried;
 }

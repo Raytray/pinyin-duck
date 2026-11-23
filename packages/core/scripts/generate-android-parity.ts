@@ -139,7 +139,7 @@ function main(): void {
     const script = 'simplified';
     const result = engine.search(testCase.query, { script, limit: CANDIDATE_DEPTH, fixedWords: testCase.fixedWords });
     fixedLines.push(`>search\t${testCase.query}\t${script}\t${result.total}`);
-    for (const { start, end, word } of testCase.fixedWords) {
+    for (const { span: { start, end }, word } of testCase.fixedWords) {
       fixedLines.push(['fixed', start, end, word.simplified, word.traditional, word.pinyinNumbers].join('\t'));
     }
     fixedLines.push(`segments ${result.segments.join(' ')}`);
