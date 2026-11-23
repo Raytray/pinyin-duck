@@ -2,6 +2,8 @@ package dev.pinyinduck.android
 
 import android.content.Intent
 import android.graphics.Rect
+import android.os.Bundle
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
@@ -104,10 +106,61 @@ class KeyboardDriver {
         device.waitForIdle()
     }
 
-    /** Types [pinyin] on PinyinDuck's keys and waits until the field holds it as composing text. */
-    fun type(pinyin: String) {
+    /**
+     * Puts [text] in the search field with the cursor at its end, as pasted text would be,
+     * and waits until the field holds it.
+     */
+    fun setFieldText(text: String) {
+        val field = device.findObject(SEARCH_FIELD) ?: failTest("No search field to put \"$text\" in")
+        field.text = text
+        waitForFieldText(text)
+        device.waitForIdle()
+    }
+
+    /**
+     * Selects the [length] characters that end [fromEnd] characters before the end of the
+     * field's text, with the accessibility action `ACTION_SET_SELECTION` on the field, then
+     * fails unless the field reports exactly that selection.
+     *
+     * Hardware key events (Shift+Left) did not move the selection on the emulator, and a long
+     * press selects a word rather than a range, so the field is asked directly.
+     */
+    fun selectInField(
+        fromEnd: Int,
+        length: Int,
+    ) {
+        val text = fieldText() ?: failTest("No search field to select in")
+        val start = text.length - fromEnd - length
+        val end = text.length - fromEnd
+        val args =
+            Bundle().apply {
+                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, start)
+                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, end)
+            }
+        if (!searchFieldNode().performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, args)) {
+            failTest("The field refused to select $start..$end in \"$text\"")
+        }
+        device.waitForIdle()
+        val selected = searchFieldNode().let { it.textSelectionStart to it.textSelectionEnd }
+        if (selected != start to end) failTest("Expected the selection $start..$end in \"$text\" but the field has $selected")
+    }
+
+    private fun searchFieldNode(): AccessibilityNodeInfo =
+        instrumentation.uiAutomation.rootInActiveWindow
+            ?.findAccessibilityNodeInfosByViewId("android:id/search_src_text")
+            ?.firstOrNull()
+            ?: failTest("No search field to select in")
+
+    /**
+     * Types [pinyin] on PinyinDuck's keys and waits until the field holds [fieldTextWhileComposing],
+     * which is the pinyin itself unless the field had other text around it.
+     */
+    fun type(
+        pinyin: String,
+        fieldTextWhileComposing: String = pinyin,
+    ) {
         pinyin.forEach { tapKey(it.toString()) }
-        waitForFieldText(pinyin)
+        waitForFieldText(fieldTextWhileComposing)
         device.waitForIdle()
     }
 
