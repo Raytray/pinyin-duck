@@ -2,6 +2,7 @@ package dev.pinyinduck.android.engine
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.ByteBuffer
@@ -37,6 +38,13 @@ class SentenceCandidatesTest {
             row("ren", "人", "人", "ren2", "person", 83359, 1, 19),
             row("zhongguoren", "中国人", "中國人", "zhong1 guo2 ren2", "Chinese person", 0, 0, 20),
             row("nihongdeng", "霓虹灯", "霓虹燈", "ni2 hong2 deng1", "neon light", 200, 0, 21),
+            // More words on `he`, for Fixed words and span alternatives.
+            row("he", "和", "和", "he4", "to reply in verse", 83526, 0, 22),
+            row("he", "喝", "喝", "he4", "to shout", 65923, 0, 23),
+            row("he", "河", "河", "he2", "river", 47964, 0, 24),
+            row("he", "贺", "賀", "he4", "to congratulate", 44917, 0, 25),
+            row("he", "涸", "涸", "he2", "to dry up", 0, 0, 26),
+            row("xiang", "像", "像", "xiang4", "to resemble", 75964, 0, 27),
         )
 
     /** The pairs a bigram table holds, scored as `build-bigrams.ts` would. */
@@ -48,6 +56,8 @@ class SentenceCandidatesTest {
             BigramFileWriter.Pair("喝", "咖啡", 98368),
             BigramFileWriter.Pair("和", "咖啡", 67968),
             BigramFileWriter.Pair("我", "是", 98048),
+            // Only a path through a fixed 河 can use this, so it shows a neighbour changing.
+            BigramFileWriter.Pair("像", "河", 99008),
         )
 
     private fun engine(withBigrams: Boolean = true): PinyinDuckEngine {
@@ -224,6 +234,197 @@ class SentenceCandidatesTest {
     fun aQueryWithNoLettersOffersNoSentence() {
         assertNull(search("'").sentence())
     }
+
+    @Test
+    fun givesEachWordItsOwnSpanAndMatchedPinyinSoTheUiCanCommitThroughOneWord() {
+        val words = checkNotNull(search("woxianghekafe")[0].words)
+        assertEquals(
+            listOf(
+                Triple("我", "wo", Span(0, 2)),
+                Triple("想", "xiang", Span(2, 7)),
+                Triple("喝", "he", Span(7, 9)),
+                // A completed last word matches its whole key; its span stops at the end of the query.
+                Triple("咖啡", "kafei", Span(9, 13)),
+            ),
+            words.map { Triple(it.hanzi, it.matchedPinyin, it.span) },
+        )
+    }
+
+    @Test
+    fun rebuildsTheSentenceAroundAFixedWordAndPutsItFirst() {
+        // 贺 never wins on its own (和 and 喝 both outscore it), but the learner chose it.
+        val candidates = search("woxianghekafei", SearchOptions(fixedWords = listOf(fix(7, 9, "贺", "he4", "賀"))))
+        assertEquals(listOf("我", "想", "贺", "咖啡"), candidates[0].wordHanzi())
+        assertEquals("", candidates[0].remainingPinyin)
+    }
+
+    @Test
+    fun letsTheNeighboursOfAFixedWordChange() {
+        // With 河 fixed, 像 → 河 is a bigram hit, so 像 takes the place of 想.
+        assertEquals(listOf("我", "像", "河", "咖啡"), searchFixed("woxianghekafei", fix(7, 9, "河", "he2"))[0].wordHanzi())
+    }
+
+    @Test
+    fun holdsSeveralFixedWordsAtOnce() {
+        val fixedWords = listOf(fix(7, 9, "贺", "he4", "賀"), fix(2, 7, "想", "xiang3"))
+        assertEquals(listOf("我", "想", "贺", "咖啡"), search("woxianghekafei", SearchOptions(fixedWords = fixedWords))[0].wordHanzi())
+        val traditional = SearchOptions(fixedWords = fixedWords, script = ScriptType.TRADITIONAL)
+        assertEquals("我想賀咖啡", search("woxianghekafei", traditional)[0].hanzi)
+    }
+
+    @Test
+    fun usesAFixedWordRarerThanMinSentenceWordFrequency() {
+        // 涸 has no frequency, so it is never inside a sentence on its own.
+        assertTrue("涸" !in search("woxianghekafei")[0].wordHanzi().orEmpty())
+        assertEquals(listOf("我", "想", "涸", "咖啡"), searchFixed("woxianghekafei", fix(7, 9, "涸", "he2"))[0].wordHanzi())
+    }
+
+    @Test
+    fun holdsAFixedWordInsideAPartialSentence() {
+        val first = searchFixed("woxianghekafeiqqq", fix(7, 9, "河", "he2"))[0]
+        assertEquals(listOf("我", "像", "河", "咖啡"), first.wordHanzi())
+        assertEquals("qqq", first.remainingPinyin)
+    }
+
+    @Test
+    fun putsTheEditedSentenceAheadOfTheWordsThatCoverTheQuery() {
+        // 卧 + 是 scores below the word 卧室, but the learner chose 卧.
+        val hanzi = searchFixed("woshi", fix(0, 2, "卧", "wo4", "臥")).map { it.hanzi }
+        assertEquals("卧是", hanzi[0])
+        assertTrue(hanzi.contains("卧室"))
+    }
+
+    @Test
+    fun dropsTheWordNotTheEditedSentenceWhenBothShowTheSameHanzi() {
+        val candidates = searchFixed("zhongguoren", fix(0, 8, "中国", "zhong1 guo2", "中國"))
+        assertEquals(listOf("中国", "人"), candidates[0].wordHanzi())
+        assertEquals(1, candidates.count { it.hanzi == "中国人" })
+        // The dropped word no longer counts in the total either.
+        val result = engine().search("zhongguoren", SearchOptions(limit = 50, fixedWords = listOf(fix(0, 8, "中国", "zhong1 guo2", "中國"))))
+        assertEquals(result.candidates.size, result.total)
+    }
+
+    @Test
+    fun keepsAnEditedSentenceOfASingleWord() {
+        // 卧室 alone is a word candidate, not a sentence, until the learner fixes it.
+        assertNull(search("woshi").firstOrNull { it.hanzi == "卧室" }?.words)
+        val first = searchFixed("woshi", fix(0, 5, "卧室", "wo4 shi4", "臥室"))[0]
+        assertEquals(listOf("卧室"), first.wordHanzi())
+        assertEquals(1, searchFixed("woshi", fix(0, 5, "卧室", "wo4 shi4", "臥室")).count { it.hanzi == "卧室" })
+    }
+
+    @Test
+    fun ignoresAFixedWordTheQueryCannotHold() {
+        val plain = search("woxianghekafei")[0].wordHanzi()
+        for (fixed in listOf(
+            fix(6, 9, "河", "he2"), // not the word's span
+            fix(7, 9, "想", "xiang3"), // not an entry under the span
+            fix(7, 9, "河", "he4"), // not this entry's reading
+            fix(7, 30, "河", "he2"), // past the end of the query
+            fix(-1, 2, "我", "wo3"), // before the start of the query
+            fix(9, 7, "河", "he2"), // an empty span
+        )) {
+            assertEquals("$fixed", plain, searchFixed("woxianghekafei", fixed)[0].wordHanzi())
+        }
+        // A typed tone rules 河 (hé) out on "he4".
+        assertTrue("河" !in searchFixed("woxianghe4kafei", fix(7, 9, "河", "he2"))[0].wordHanzi().orEmpty())
+        // An overlapping one: the first in the list wins.
+        val overlapping = listOf(fix(7, 9, "河", "he2"), fix(2, 9, "想", "xiang3"))
+        assertEquals(listOf("我", "像", "河", "咖啡"), search("woxianghekafei", SearchOptions(fixedWords = overlapping))[0].wordHanzi())
+    }
+
+    @Test
+    fun ignoresAFixedWordStartingPastTheLastWordBoundary() {
+        // `qqq` is past the last word boundary, where no word can start.
+        val plain = search("woxianghekafeiqqq")[0].wordHanzi()
+        assertEquals(plain, searchFixed("woxianghekafeiqqq", fix(15, 17, "河", "he2"))[0].wordHanzi())
+    }
+
+    @Test
+    fun ignoresAFixedWordAPartialSentenceCannotReach() {
+        // 想 sits after a stray letter, past where words reach, so it is not held: no sentence.
+        assertNull(searchFixed("woqxiang", fix(3, 8, "想", "xiang3")).sentence())
+    }
+
+    @Test
+    fun fixesACompletedLastWordWhileItsSpanEndsTheQuery() {
+        val fixedWords = listOf(fix(9, 13, "咖啡", "ka1 fei1"), fix(7, 9, "河", "he2"))
+        assertEquals(listOf("我", "像", "河", "咖啡"), search("woxianghekafe", SearchOptions(fixedWords = fixedWords))[0].wordHanzi())
+        val exact = search("woxianghekafe", SearchOptions(fixedWords = fixedWords, exactOnly = true)).sentence()
+        assertEquals(listOf("我", "像", "河"), exact.wordHanzi())
+    }
+
+    @Test
+    fun turnsASpanAlternativeIntoAFixedWord() {
+        val alternative = checkNotNull(search("woxianghekafei")[0].words)[2]
+        assertEquals(fix(7, 9, "喝", "he1"), alternative.toFixedWord())
+        // A word candidate has no span to fix it on.
+        assertThrows(IllegalArgumentException::class.java) { search("he")[0].toFixedWord() }
+    }
+
+    private fun alternatives(
+        query: String,
+        start: Int,
+        end: Int,
+        script: ScriptType = ScriptType.SIMPLIFIED,
+        exactOnly: Boolean = false,
+    ) = engine().alternativesForSpan(query, Span(start, end), script, exactOnly).map { "${it.hanzi} ${it.pinyinNumbers}" }
+
+    @Test
+    fun listsEveryEntryForTheSpanOnePerHanziRareWordsIncludedInWordCandidateOrder() {
+        assertEquals(listOf("和 he2", "喝 he1", "河 he2", "贺 he4", "涸 he2"), alternatives("woxianghekafei", 7, 9))
+    }
+
+    @Test
+    fun keepsOnlyTheReadingsAToneTypedInTheSpanAllows() {
+        assertEquals(listOf("和 he4", "喝 he4", "贺 he4"), alternatives("woxiang he4 kafei", 7, 9))
+        // A tone typed on the next word says nothing about this one.
+        assertEquals(listOf("和 he2", "喝 he1", "河 he2", "贺 he4", "涸 he2"), alternatives("woxianghe kafei1", 7, 9))
+    }
+
+    @Test
+    fun neverChangesWordBoundaries() {
+        // No entry is keyed "xianghe", so there is nothing to offer: 想 + 喝 stay two words.
+        assertEquals(emptyList<String>(), alternatives("woxianghekafei", 2, 9))
+    }
+
+    @Test
+    fun offersNothingForASpanOutsideTheQuery() {
+        assertEquals(emptyList<String>(), alternatives("woxianghekafei", 7, 30))
+        assertEquals(emptyList<String>(), alternatives("woxianghekafei", -1, 2))
+        assertEquals(emptyList<String>(), alternatives("woxianghekafei", 9, 7))
+    }
+
+    @Test
+    fun offersCompletionsForALastWordThatRunsPastTheEndOfTheQuery() {
+        assertEquals(listOf("咖啡 ka1 fei1"), alternatives("woxianghekafe", 9, 13))
+        assertEquals(emptyList<String>(), alternatives("woxianghekafe", 9, 13, exactOnly = true))
+    }
+
+    @Test
+    fun showsTheActiveScriptAndCarriesTheSpanReadyToBecomeAFixedWord() {
+        val engine = engine()
+        val all = engine.alternativesForSpan("woxianghekafei", Span(7, 9), ScriptType.TRADITIONAL)
+        assertTrue(all.drop(1).map { it.hanzi }.contains("賀"))
+        assertEquals(Span(7, 9), all[0].span)
+        val he = all.first { it.hanzi == "賀" }
+        val traditional = SearchOptions(script = ScriptType.TRADITIONAL, fixedWords = listOf(he.toFixedWord()))
+        assertEquals("我想賀咖啡", engine.search("woxianghekafei", traditional).candidates[0].hanzi)
+    }
+
+    private fun searchFixed(
+        query: String,
+        fixed: FixedWord,
+    ) = search(query, SearchOptions(fixedWords = listOf(fixed)))
+
+    /** The fixed word for an entry, as an alternative from `alternativesForSpan` gives it, on [start, end). */
+    private fun fix(
+        start: Int,
+        end: Int,
+        simplified: String,
+        pinyinNumbers: String,
+        traditional: String = simplified,
+    ) = FixedWord(start, end, simplified, traditional, pinyinNumbers)
 
     private fun row(
         key: String,

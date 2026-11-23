@@ -132,7 +132,7 @@ function main(): void {
     '#   alternativesForSpan(query, { start, end }, { script }): every alternative, in order,',
     '#   as "<hanzi> <tone marks> <gloss>".',
     '#',
-    '# The Kotlin engine does not read this yet: https://git.tail68c66a.ts.net/raytray25/pinyin-duck/issues/43',
+    '# PinyinEngineParityTest reads it (matchesTheTypeScriptEngineOnFixedWords and …OnSpanAlternatives).',
     '',
   ];
   for (const testCase of FIXED_WORD_CASES) {
