@@ -631,6 +631,23 @@ class PinyinDuckImeServiceTest {
     }
 
     @Test
+    fun theInputViewFinishingDuringTeardownIsHarmless() {
+        // Switching to another keyboard while this one is up destroys the service with its
+        // input view still started, and InputMethodService.onDestroy then finishes that view,
+        // after the lifecycle has already gone to DESTROYED. Robolectric cannot start the input
+        // view the framework's way, so the late callback is made by hand. Found by the device
+        // test, which crashed the app restoring the previous keyboard.
+        awaitDictionary()
+        val svc = service
+        svc.onStartInputView(EditorInfo(), restarting = false)
+        destroy()
+
+        svc.onFinishInputView(finishingInput = true)
+
+        assertEquals(Lifecycle.State.DESTROYED, svc.lifecycle.currentState)
+    }
+
+    @Test
     fun destroyingBeforeTheDictionaryFinishesIsHarmless() {
         // The user can switch away from the keyboard while the dictionary is still mapping.
         // No dictionary is loaded, so there is nothing to close, and tearing down must not
