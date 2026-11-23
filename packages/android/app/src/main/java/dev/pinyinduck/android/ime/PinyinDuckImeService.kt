@@ -29,6 +29,7 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import dev.pinyinduck.android.data.DictionaryLoader
 import dev.pinyinduck.android.data.OpenedDictionary
+import dev.pinyinduck.android.engine.Candidate
 import dev.pinyinduck.android.engine.DetailSubject
 import dev.pinyinduck.android.engine.candidateDetail
 import dev.pinyinduck.android.ui.KeyAction
@@ -510,7 +511,8 @@ class PinyinDuckImeService :
             onToggleScript = { session?.toggleScript() },
             onToggleExpanded = ::toggleExpanded,
             onClear = { session?.cancelComposition() },
-            onShowDetail = ::openDetail,
+            onShowDetail = { openDetail(it) },
+            onShowWordDetail = { index, word -> openDetail(index, word) },
             onCloseDetail = ::closeDetail,
         )
 
@@ -520,17 +522,35 @@ class PinyinDuckImeService :
      * The detail is read here, on the main thread: [candidateDetail] touches only the mapped
      * pages of the candidate's own records, a few KB at most. A record that cannot be read
      * still opens the bubble, which then says so, rather than a long press doing nothing.
+     *
+     * A Sentence candidate has no records of its own, so each of its words is read instead
+     * (#46); [focusWord] is the word whose block was long-pressed, if one was.
      */
-    private fun openDetail(index: Int) {
+    private fun openDetail(
+        index: Int,
+        focusWord: Int? = null,
+    ) {
         val candidate = uiState.candidates.getOrNull(index) ?: return
-        val view =
-            dictionary?.let { opened ->
-                runCatching { candidateDetail(DetailSubject.of(candidate), uiState.script, opened.detail) }
-                    .onFailure { Log.w(LOG_TAG, "could not read the detail of ${candidate.hanzi}", it) }
-                    .getOrNull()
-            }
-        uiState = uiState.copy(detail = OpenDetail(index, candidate, view))
+        val words = candidate.words
+        uiState =
+            uiState.copy(
+                detail =
+                    OpenDetail(
+                        index = index,
+                        candidate = candidate,
+                        view = if (words == null) readDetail(candidate) else null,
+                        wordViews = words?.map(::readDetail).orEmpty(),
+                        focusWord = focusWord?.takeIf { words != null && it in words.indices },
+                    ),
+            )
     }
+
+    private fun readDetail(candidate: Candidate) =
+        dictionary?.let { opened ->
+            runCatching { candidateDetail(DetailSubject.of(candidate), uiState.script, opened.detail) }
+                .onFailure { Log.w(LOG_TAG, "could not read the detail of ${candidate.hanzi}", it) }
+                .getOrNull()
+        }
 
     /**
      * Opens or closes the Expanded candidate list.

@@ -65,6 +65,36 @@ class CandidateDetailServiceTest {
     }
 
     @Test
+    fun aSentencesDetailReadsEachOfItsWords() {
+        // #46: the outer candidate has no entries of its own, so the detail is per word.
+        type("woxianghekafei")
+        val sentence = service.uiState.candidates.indexOfFirst { it.words != null }
+
+        service.callbacks().onShowDetail(sentence)
+
+        val detail = assertNotNull(service.uiState.detail)
+        val words = detail.candidate.words!!
+        assertEquals(listOf("我", "想", "喝", "咖啡"), words.map { it.hanzi })
+        assertEquals(words.size, detail.wordViews.size)
+        val coffee = detail.wordViews[3]!!.groups.flatMap { group -> group.senses.map { it.text } }
+        assertTrue("咖啡's senses were $coffee", coffee.any { "coffee" in it })
+        assertEquals(null, detail.focusWord)
+    }
+
+    @Test
+    fun longPressingOneWordOfASentenceOpensTheDetailAtThatWord() {
+        type("woxianghekafei")
+        val sentence = service.uiState.candidates.indexOfFirst { it.words != null }
+
+        service.callbacks().onShowWordDetail(sentence, 2)
+
+        val detail = assertNotNull(service.uiState.detail)
+        assertEquals(sentence, detail.index)
+        assertEquals(2, detail.focusWord)
+        assertEquals(4, detail.wordViews.size)
+    }
+
+    @Test
     fun aDetailOpenedForAnIndexWithNoCandidateIsIgnored() {
         type("mao")
 

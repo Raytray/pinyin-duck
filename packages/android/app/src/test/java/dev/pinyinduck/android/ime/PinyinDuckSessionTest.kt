@@ -109,6 +109,34 @@ class PinyinDuckSessionTest {
     }
 
     @Test
+    fun spaceCommitsAWholeSentenceCandidate() {
+        // #30: a full sentence ranks first, and Space commits all of it.
+        type("woxianghekafei")
+        assertEquals("我想喝咖啡", session.candidates.first().hanzi)
+        assertTrue(session.candidates.first().words != null)
+
+        session.space()
+
+        assertEquals("我想喝咖啡", editor.text)
+        assertFalse(session.isComposing)
+    }
+
+    @Test
+    fun aPartialSentenceCommitsWhatItCoversAndLeavesTheRestComposing() {
+        // `qqq` cannot be built into a word, so the sentence stops short of it (#30).
+        type("woxianghekafeiqqq")
+        val partial = session.candidates.first()
+        assertEquals("我想喝咖啡", partial.hanzi)
+        assertTrue(partial.words != null)
+        assertEquals("qqq", partial.remainingPinyin)
+
+        session.space()
+
+        assertEquals("我想喝咖啡qqq", editor.text)
+        assertEquals("qqq", session.buffer)
+    }
+
+    @Test
     fun backspaceRemovesOneBufferedCharacter() {
         type("nih")
         session.backspace()
