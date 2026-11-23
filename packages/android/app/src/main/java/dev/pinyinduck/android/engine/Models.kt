@@ -82,8 +82,9 @@ data class SearchOptions(
      * so the UI moves its span as the learner types on: stretch [FixedWord.end] to the end of
      * the query while the typing is still a prefix of the word's key, set it to
      * `start + key.length` once the key is typed in full (an ordinary fixed word from then on),
-     * and drop the word once the typing leaves the key. The web does this in
-     * `carryFixedWords` (`packages/web/src/sentence/fixed-words.ts`).
+     * and drop the word once the typing leaves the key. The keyboard does this in
+     * `carryFixedWords` (`ime/FixedWords.kt`), a port of the web's
+     * (`packages/web/src/sentence/fixed-words.ts`).
      *
      * A fixed word the current query cannot hold is ignored, not an error: its span is not a
      * word boundary on both ends, its entry is not under that span, a typed tone rules it out,

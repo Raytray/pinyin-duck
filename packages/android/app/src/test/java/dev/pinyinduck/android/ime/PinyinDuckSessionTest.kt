@@ -136,6 +136,155 @@ class PinyinDuckSessionTest {
         assertEquals("qqq", session.buffer)
     }
 
+    // --- the word menu: Fixed words and commit-through (#37, #47) --------------------
+
+    @Test
+    fun aWordOfTheSentenceCanBeSwappedForAnAlternativeOnItsSpan() {
+        type("woxianghekafei")
+        val drink = session.candidates.first().words!![2]
+        assertEquals("喝", drink.hanzi)
+
+        val alternatives = session.wordAlternatives(0, 2)
+        assertTrue("和 is not among ${alternatives.map { it.hanzi }}", alternatives.any { it.hanzi == "和" })
+        session.fixWord(alternatives.first { it.hanzi == "和" })
+
+        val edited = session.candidates.first()
+        assertEquals("我想和咖啡", edited.hanzi)
+        assertEquals(0, session.selectedIndex)
+        assertEquals(listOf("和"), session.fixedWords.map { it.simplified })
+        assertEquals("the composition is untouched", "woxianghekafei", editor.text)
+    }
+
+    @Test
+    fun swappingAFixedWordAgainReplacesIt() {
+        type("woxianghekafei")
+        session.fixWord(session.wordAlternatives(0, 2).first { it.hanzi == "和" })
+
+        session.fixWord(session.wordAlternatives(0, 2).first { it.hanzi == "喝" })
+
+        assertEquals("我想喝咖啡", session.candidates.first().hanzi)
+        assertEquals(listOf("喝"), session.fixedWords.map { it.simplified })
+    }
+
+    @Test
+    fun anEditedSentenceCommitsWithSpaceAndDropsItsFixedWords() {
+        type("woxianghekafei")
+        session.fixWord(session.wordAlternatives(0, 2).first { it.hanzi == "和" })
+
+        session.space()
+
+        assertEquals("我想和咖啡", editor.text)
+        assertEquals(emptyList<Any>(), session.fixedWords)
+    }
+
+    @Test
+    fun fixedWordsLastWhileTheLearnerTypesOn() {
+        type("woxianghe")
+        session.fixWord(session.wordAlternatives(0, 2).first { it.hanzi == "和" })
+
+        type("kafei")
+
+        assertEquals("我想和咖啡", session.candidates.first().hanzi)
+        assertEquals(listOf("和"), session.fixedWords.map { it.simplified })
+    }
+
+    @Test
+    fun aBackspaceIntoAFixedWordsSpanDropsIt() {
+        type("woxianghekafei")
+        session.fixWord(session.wordAlternatives(0, 2).first { it.hanzi == "和" })
+
+        repeat(5) { session.backspace() }
+        assertEquals("woxianghe", session.buffer)
+        assertEquals("a Backspace short of its span keeps it", listOf("和"), session.fixedWords.map { it.simplified })
+
+        session.backspace()
+        assertEquals(emptyList<Any>(), session.fixedWords)
+        type("ekafei")
+        assertEquals("我想喝咖啡", session.candidates.first().hanzi)
+    }
+
+    @Test
+    fun cancellingTheCompositionDropsTheFixedWords() {
+        type("woxianghekafei")
+        session.fixWord(session.wordAlternatives(0, 2).first { it.hanzi == "和" })
+
+        session.cancelComposition()
+        type("woxianghekafei")
+
+        assertEquals("我想喝咖啡", session.candidates.first().hanzi)
+    }
+
+    @Test
+    fun droppingTheFixedWordsKeepsTheCompositionAndRebuildsTheSentence() {
+        type("woxianghekafei")
+        session.fixWord(session.wordAlternatives(0, 2).first { it.hanzi == "和" })
+
+        session.dropFixedWords()
+
+        assertEquals("woxianghekafei", session.buffer)
+        assertEquals("我想喝咖啡", session.candidates.first().hanzi)
+    }
+
+    @Test
+    fun committingThroughAWordCommitsUpToItAndLeavesTheRestComposing() {
+        type("woxianghekafei")
+
+        session.commitThrough(0, 1)
+
+        assertEquals("我想", editor.committed.toString())
+        assertEquals("hekafei", editor.composing)
+        assertEquals("hekafei", session.buffer)
+        assertTrue(session.hasCandidates)
+    }
+
+    @Test
+    fun committingThroughAFixedWordCommitsItAndDropsTheFixedWords() {
+        type("woxianghekafei")
+        session.fixWord(session.wordAlternatives(0, 2).first { it.hanzi == "和" })
+
+        session.commitThrough(0, 2)
+
+        assertEquals("我想和", editor.committed.toString())
+        assertEquals("kafei", session.buffer)
+        assertEquals(emptyList<Any>(), session.fixedWords)
+    }
+
+    @Test
+    fun committingThroughCarriesAToneDigitTypedAfterTheWord() {
+        type("wo")
+        session.typeDigit(3)
+        type("xiang")
+        session.typeDigit(3)
+        type("he")
+
+        session.commitThrough(0, 0)
+
+        assertEquals("我", editor.committed.toString())
+        assertEquals("xiang3he", session.buffer)
+    }
+
+    @Test
+    fun aPartialSentenceCommitsThroughItsLastWordAndLeavesTheLeftover() {
+        type("woxianghekafeiqqq")
+        val words = session.candidates.first().words!!
+
+        session.commitThrough(0, words.lastIndex)
+
+        assertEquals("我想喝咖啡", editor.committed.toString())
+        assertEquals("qqq", session.buffer)
+    }
+
+    @Test
+    fun aWordCandidateHasNoWordsToSwapOrCommitThrough() {
+        type("mao")
+
+        assertEquals(emptyList<Any>(), session.wordAlternatives(0, 0))
+        session.commitThrough(0, 0)
+
+        assertEquals("mao", session.buffer)
+        assertEquals("", editor.committed.toString())
+    }
+
     @Test
     fun backspaceRemovesOneBufferedCharacter() {
         type("nih")

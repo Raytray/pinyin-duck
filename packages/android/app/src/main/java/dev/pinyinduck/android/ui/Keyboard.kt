@@ -75,6 +75,15 @@ data class KeyboardCallbacks(
     val onShowWordDetail: (Int, Int) -> Unit = { index, _ -> onShowDetail(index) },
     /** Close the Candidate detail bubble, e.g. after a tap on the app area. */
     val onCloseDetail: () -> Unit = {},
+    /**
+     * A tap on one word's block in a Sentence candidate's card (#47): open the word menu for the
+     * candidate at the first index and the word at the second, or close it if it is open there.
+     */
+    val onOpenWordMenu: (Int, Int) -> Unit = { _, _ -> },
+    /** A chip in the word menu: fix this alternative in the sentence in place of the word. */
+    val onSwapWord: (Candidate) -> Unit = {},
+    /** The word menu's "Commit through" chip, for the candidate and word it is open on. */
+    val onCommitThrough: (Int, Int) -> Unit = { _, _ -> },
 )
 
 /**
@@ -486,6 +495,11 @@ private fun ExpandedCandidates(
                         onClick = { callbacks.onSelectCandidate(index) },
                         onShowDetail = { callbacks.onShowDetail(index) },
                         onShowWordDetail = { word -> callbacks.onShowWordDetail(index, word) },
+                        menu = state.wordMenu?.takeIf { it.index == index },
+                        fixedWords = state.fixedWords,
+                        onOpenWordMenu = { word -> callbacks.onOpenWordMenu(index, word) },
+                        onSwapWord = callbacks.onSwapWord,
+                        onCommitThrough = { word -> callbacks.onCommitThrough(index, word) },
                     )
                     return@itemsIndexed
                 }

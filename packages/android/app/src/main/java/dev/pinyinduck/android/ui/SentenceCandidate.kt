@@ -1,15 +1,22 @@
 package dev.pinyinduck.android.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
@@ -26,7 +34,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -36,6 +47,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.pinyinduck.android.engine.Candidate
+import dev.pinyinduck.android.engine.FixedWord
+import dev.pinyinduck.android.ime.OpenWordMenu
 
 /*
  * Sentence candidates on the keyboard (#46, decided on #36, variant B of the prototype).
@@ -303,8 +316,12 @@ internal fun RowScope.SentenceStripSlot(
 
 /**
  * The Sentence candidate in the Expanded candidate list: a full-width card, its blocks
- * wrapping onto more rows. A tap anywhere commits it. A long press on one word's block opens
- * the Candidate detail at that word; anywhere else on the card, from the top.
+ * wrapping onto more rows, and under it the word menu while one is open on it ([menu]).
+ *
+ * A tap on one word's block opens that word's menu (#47, decided on #37), and a long press on
+ * it opens the Candidate detail at that word. A tap anywhere else on the card commits the
+ * whole sentence; a long press there opens the detail from the top. The faded leftover of a
+ * partial sentence is not a word, so it has no menu: a tap on it commits, as on the card.
  */
 @Composable
 internal fun SentenceCard(
@@ -314,47 +331,170 @@ internal fun SentenceCard(
     onClick: () -> Unit,
     onShowDetail: () -> Unit,
     onShowWordDetail: (Int) -> Unit,
+    menu: OpenWordMenu? = null,
+    fixedWords: List<FixedWord> = emptyList(),
+    onOpenWordMenu: (Int) -> Unit = {},
+    onSwapWord: (Candidate) -> Unit = {},
+    onCommitThrough: (Int) -> Unit = {},
 ) = DetailLongPressTimeout {
-    FlowRow(
+    val words = sentence.words.orEmpty()
+    Column(Modifier.fillMaxWidth()) {
+        FlowRow(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(3.dp)
+                    .testTag(SENTENCE_CARD_TAG)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (selected) DuckColors.Accent.copy(alpha = 0.16f) else DuckColors.Key)
+                    .semantics {
+                        contentDescription = sentenceDescription(sentence)
+                        customActions =
+                            listOf(
+                                CustomAccessibilityAction("Show details") {
+                                    onShowDetail()
+                                    true
+                                },
+                            )
+                    }.detailAnchor(index)
+                    .combinedClickable(onLongClickLabel = "Show details", onLongClick = onShowDetail, onClick = onClick)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            words.forEachIndexed { i, word ->
+                val open = menu?.word == i
+                val fixed = word.isFixedIn(fixedWords)
+                WordBlock(
+                    word = word,
+                    selected = selected,
+                    style = CARD_BLOCK,
+                    modifier =
+                        Modifier
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(if (open) DuckColors.Accent.copy(alpha = 0.22f) else Color.Transparent)
+                            .then(if (fixed) Modifier.fixedMark() else Modifier)
+                            .semantics {
+                                contentDescription = wordDescription(word)
+                                this.selected = open
+                                if (fixed) stateDescription = "fixed"
+                            }.combinedClickable(
+                                onClickLabel = "Show alternatives for ${word.hanzi}",
+                                onClick = { onOpenWordMenu(i) },
+                                onLongClickLabel = "Show details for ${word.hanzi}",
+                                onLongClick = { onShowWordDetail(i) },
+                            ).padding(horizontal = 2.dp, vertical = 1.dp),
+                )
+            }
+            if (sentence.remainingPinyin.isNotEmpty()) {
+                // Its own tap, the card's: without one, a tap on it could reach the block
+                // beside it, which Compose stretches to a minimum touch target.
+                LeftoverBlock(
+                    sentence.remainingPinyin,
+                    Modifier.align(Alignment.CenterVertically).clickable(onClickLabel = "Use ${sentence.hanzi}", onClick = onClick),
+                )
+            }
+        }
+        val word = menu?.let { words.getOrNull(it.word) }
+        if (menu != null && word != null) {
+            WordMenu(word, menu.alternatives, onSwapWord = onSwapWord, onCommitThrough = { onCommitThrough(menu.word) })
+        }
+    }
+}
+
+/** Whether this word of a sentence sits on the span of one of [fixedWords]. */
+private fun Candidate.isFixedIn(fixedWords: List<FixedWord>): Boolean {
+    val on = span ?: return false
+    return fixedWords.any { it.start == on.start && it.end == on.end }
+}
+
+/** The mark under a Fixed word's block: a short accent bar, so a swapped word stands out. */
+private fun Modifier.fixedMark(): Modifier =
+    drawBehind {
+        val inset = size.width * 0.2f
+        drawLine(DuckColors.Accent, Offset(inset, size.height - 1.5f), Offset(size.width - inset, size.height - 1.5f), strokeWidth = 3f)
+    }
+
+/** The word menu under a Sentence candidate's card. */
+const val WORD_MENU_TAG = "wordMenu"
+
+/**
+ * One word's menu, as a chip row under the card (#37): every alternative on the word's span,
+ * scrolling sideways, then "Commit through <word>", which stays in view at the row's end
+ * however many alternatives there are. The word in the sentence now is marked among them.
+ */
+@Composable
+private fun WordMenu(
+    word: Candidate,
+    alternatives: List<Candidate>,
+    onSwapWord: (Candidate) -> Unit,
+    onCommitThrough: () -> Unit,
+) {
+    Row(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .padding(3.dp)
-                .testTag(SENTENCE_CARD_TAG)
-                .clip(RoundedCornerShape(8.dp))
-                .background(if (selected) DuckColors.Accent.copy(alpha = 0.16f) else DuckColors.Key)
+                .padding(horizontal = 3.dp, vertical = 2.dp)
+                .testTag(WORD_MENU_TAG)
                 .semantics {
-                    contentDescription = sentenceDescription(sentence)
-                    customActions =
-                        listOf(
-                            CustomAccessibilityAction("Show details") {
-                                onShowDetail()
-                                true
-                            },
-                        )
-                }.detailAnchor(index)
-                .combinedClickable(onLongClickLabel = "Show details", onLongClick = onShowDetail, onClick = onClick)
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    contentDescription = "Alternatives for ${word.hanzi}"
+                    isTraversalGroup = true
+                },
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        sentence.words.orEmpty().forEachIndexed { i, word ->
-            WordBlock(
-                word = word,
-                selected = selected,
-                style = CARD_BLOCK,
-                modifier =
-                    Modifier
-                        .clip(RoundedCornerShape(5.dp))
-                        .semantics { contentDescription = wordDescription(word) }
-                        .combinedClickable(
-                            onLongClickLabel = "Show details for ${word.hanzi}",
-                            onLongClick = { onShowWordDetail(i) },
-                            onClick = onClick,
-                        ).padding(horizontal = 2.dp, vertical = 1.dp),
-            )
+        LazyRow(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            items(alternatives) { alternative ->
+                AlternativeChip(alternative, current = alternative.hanzi == word.hanzi, onClick = { onSwapWord(alternative) })
+            }
         }
-        if (sentence.remainingPinyin.isNotEmpty()) LeftoverBlock(sentence.remainingPinyin, Modifier.align(Alignment.CenterVertically))
+        Text(
+            text = "Commit through ${word.hanzi}",
+            color = DuckColors.Background,
+            fontSize = 12.sp,
+            maxLines = 1,
+            modifier =
+                Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(DuckColors.Accent.copy(alpha = 0.85f))
+                    .clickable(onClick = onCommitThrough)
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+        )
+    }
+}
+
+/** One alternative in the word menu: its Hanzi and reading over a one-sense gloss. */
+@Composable
+private fun AlternativeChip(
+    alternative: Candidate,
+    current: Boolean,
+    onClick: () -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (current) DuckColors.Accent.copy(alpha = 0.22f) else DuckColors.SpecialKey)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = wordDescription(alternative)
+                    selected = current
+                }.clickable(onClickLabel = "Use ${alternative.hanzi}", onClick = onClick)
+                .padding(horizontal = 8.dp, vertical = 3.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(text = alternative.hanzi, color = DuckColors.PrimaryText, fontSize = 17.sp, maxLines = 1)
+            Spacer(Modifier.width(4.dp))
+            Text(text = alternative.pinyinMarks, color = DuckColors.SecondaryText, fontSize = 10.sp, maxLines = 1)
+        }
+        Text(
+            text = wordGloss(alternative.shortGloss),
+            color = DuckColors.SecondaryText,
+            fontSize = 9.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 72.dp),
+        )
     }
 }
 

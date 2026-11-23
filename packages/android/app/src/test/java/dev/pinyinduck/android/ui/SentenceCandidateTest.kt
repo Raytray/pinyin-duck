@@ -8,7 +8,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -16,9 +19,12 @@ import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -26,6 +32,7 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.Dp
@@ -35,8 +42,11 @@ import dev.pinyinduck.android.engine.Candidate
 import dev.pinyinduck.android.engine.DetailGroup
 import dev.pinyinduck.android.engine.DetailView
 import dev.pinyinduck.android.engine.DetailViewSense
+import dev.pinyinduck.android.engine.FixedWord
+import dev.pinyinduck.android.engine.Span
 import dev.pinyinduck.android.ime.KeyboardUiState
 import dev.pinyinduck.android.ime.OpenDetail
+import dev.pinyinduck.android.ime.OpenWordMenu
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -63,6 +73,9 @@ class SentenceCandidateTest {
         val selected = mutableListOf<Int>()
         val details = mutableListOf<Int>()
         val wordDetails = mutableListOf<Pair<Int, Int>>()
+        val wordMenus = mutableListOf<Pair<Int, Int>>()
+        val swaps = mutableListOf<String>()
+        val commitsThrough = mutableListOf<Pair<Int, Int>>()
         var expandedToggles = 0
 
         fun callbacks() =
@@ -74,6 +87,9 @@ class SentenceCandidateTest {
                 onClear = {},
                 onShowDetail = { details.add(it) },
                 onShowWordDetail = { index, word -> wordDetails.add(index to word) },
+                onOpenWordMenu = { index, word -> wordMenus.add(index to word) },
+                onSwapWord = { swaps.add(it.hanzi) },
+                onCommitThrough = { index, word -> commitsThrough.add(index to word) },
             )
     }
 
@@ -250,14 +266,125 @@ class SentenceCandidateTest {
     }
 
     @Test
-    fun tappingTheCardOrOneOfItsWordsCommitsTheWholeSentence() {
+    fun tappingTheCardOutsideItsWordsCommitsTheWholeSentence() {
         val recorder = Recorder()
         show(recorder, candidates = listOf(candidate("我", "wǒ"), COFFEE), expanded = true)
 
-        compose.onNodeWithTag(SENTENCE_CARD_TAG).performClick()
+        // The card's right end, past its last word.
+        compose.onNodeWithTag(SENTENCE_CARD_TAG).performTouchInput { click(centerRight - Offset(8f, 0f)) }
+
+        assertEquals(listOf(1), recorder.selected)
+        assertEquals(emptyList<Pair<Int, Int>>(), recorder.wordMenus)
+    }
+
+    @Test
+    fun tappingAWordInTheCardOpensItsWordMenuRatherThanCommitting() {
+        // #47 (decided on #37): a tap on a block is that word's menu now, not a commit.
+        val recorder = Recorder()
+        show(recorder, candidates = listOf(candidate("我", "wǒ"), COFFEE), expanded = true)
+
         compose.onNodeWithContentDescription(wordDescription(KAFEI), useUnmergedTree = true).performClick()
 
-        assertEquals(listOf(1, 1), recorder.selected)
+        assertEquals(listOf(1 to 3), recorder.wordMenus)
+        assertEquals(emptyList<Int>(), recorder.selected)
+        assertEquals(emptyList<Pair<Int, Int>>(), recorder.wordDetails)
+    }
+
+    @Test
+    fun theLeftoverOfAPartialSentenceHasNoMenuAndATapOnItCommitsTheSentence() {
+        val recorder = Recorder()
+        show(recorder, candidates = listOf(sentence(WO, XIANG, HE, remaining = "kafe")), expanded = true)
+
+        compose.onNodeWithContentDescription("then kafe", useUnmergedTree = true).performClick()
+
+        assertEquals(emptyList<Pair<Int, Int>>(), recorder.wordMenus)
+        assertEquals(listOf(0), recorder.selected)
+    }
+
+    @Test
+    fun theWordMenuShowsTheAlternativesThenCommitThrough() {
+        show(Recorder(), candidates = listOf(COFFEE), expanded = true, wordMenu = OpenWordMenu(0, 2, DRINK_ALTERNATIVES))
+
+        for (alternative in DRINK_ALTERNATIVES) {
+            compose
+                .onNode(
+                    hasContentDescription(wordDescription(alternative)) and hasAnyAncestor(hasTestTag(WORD_MENU_TAG)),
+                ).assertIsDisplayed()
+        }
+        val lastAlternative = compose.onNode(hasContentDescription(wordDescription(DRINK_ALTERNATIVES.last()))).getBoundsInRoot()
+        val commit = compose.onNodeWithText("Commit through 喝", useUnmergedTree = true)
+        commit.assertIsDisplayed()
+        assertTrue("Commit through is not after the alternatives", commit.getBoundsInRoot().left >= lastAlternative.right)
+    }
+
+    @Test
+    fun theWordWhoseMenuIsOpenIsMarkedAndSoIsTheCurrentAlternative() {
+        show(Recorder(), candidates = listOf(COFFEE), expanded = true, wordMenu = OpenWordMenu(0, 2, DRINK_ALTERNATIVES))
+
+        compose.onNode(hasContentDescription(wordDescription(HE)) and !hasAnyAncestor(hasTestTag(WORD_MENU_TAG))).assertIsSelected()
+        compose.onNodeWithContentDescription(wordDescription(KAFEI), useUnmergedTree = true).assertIsNotSelected()
+        compose
+            .onNode(
+                hasContentDescription(wordDescription(DRINK_ALTERNATIVES[0])) and hasAnyAncestor(hasTestTag(WORD_MENU_TAG)),
+            ).assertIsSelected()
+        compose.onNode(hasContentDescription(wordDescription(AND)) and hasAnyAncestor(hasTestTag(WORD_MENU_TAG))).assertIsNotSelected()
+    }
+
+    @Test
+    fun choosingAnAlternativeSwapsTheWord() {
+        val recorder = Recorder()
+        show(recorder, candidates = listOf(COFFEE), expanded = true, wordMenu = OpenWordMenu(0, 2, DRINK_ALTERNATIVES))
+
+        compose.onNode(hasContentDescription(wordDescription(AND)) and hasAnyAncestor(hasTestTag(WORD_MENU_TAG))).performClick()
+
+        assertEquals(listOf("和"), recorder.swaps)
+        assertEquals(emptyList<Int>(), recorder.selected)
+    }
+
+    @Test
+    fun commitThroughCommitsUpToTheMenusWord() {
+        val recorder = Recorder()
+        show(recorder, candidates = listOf(COFFEE), expanded = true, wordMenu = OpenWordMenu(0, 2, DRINK_ALTERNATIVES))
+
+        compose.onNodeWithText("Commit through 喝", useUnmergedTree = true).performClick()
+
+        assertEquals(listOf(0 to 2), recorder.commitsThrough)
+        assertEquals(emptyList<Int>(), recorder.selected)
+    }
+
+    @Test
+    fun theWordMenuIsReachableWithTalkBack() {
+        val recorder = Recorder()
+        show(recorder, candidates = listOf(COFFEE), expanded = true, wordMenu = OpenWordMenu(0, 2, DRINK_ALTERNATIVES))
+
+        // Each block says what a tap on it does, and every chip is a button with its own words.
+        val block = compose.onNodeWithContentDescription(wordDescription(KAFEI), useUnmergedTree = true).fetchSemanticsNode()
+        assertEquals("Show alternatives for 咖啡", block.config[SemanticsActions.OnClick].label)
+        compose.onNode(hasContentDescription(wordDescription(AND)) and hasAnyAncestor(hasTestTag(WORD_MENU_TAG))).assert(hasClickAction())
+        compose.onNodeWithText("Commit through 喝", useUnmergedTree = true).assert(hasClickAction())
+        compose.onNodeWithTag(WORD_MENU_TAG).assertContentDescriptionEquals("Alternatives for 喝")
+
+        val chip =
+            compose
+                .onNode(
+                    hasContentDescription(wordDescription(AND)) and hasAnyAncestor(hasTestTag(WORD_MENU_TAG)),
+                ).fetchSemanticsNode()
+        compose.runOnIdle { chip.config[SemanticsActions.OnClick].action!!() }
+        assertEquals(listOf("和"), recorder.swaps)
+    }
+
+    @Test
+    fun aFixedWordIsMarkedInTheCard() {
+        val fixedHe = HE.copy(span = Span(7, 9))
+        show(
+            Recorder(),
+            candidates = listOf(sentence(WO, XIANG, fixedHe, KAFEI)),
+            expanded = true,
+            fixedWords = listOf(FixedWord(7, 9, "喝", "喝", "he1")),
+        )
+
+        compose.onNodeWithContentDescription(wordDescription(fixedHe), useUnmergedTree = true).assert(hasStateDescription("fixed"))
+        compose.onNodeWithContentDescription(wordDescription(KAFEI), useUnmergedTree = true).assert(!hasStateDescription("fixed"))
     }
 
     @Test
@@ -416,6 +543,8 @@ class SentenceCandidateTest {
     )
 
     /** A node with [text] inside the bubble. */
+    private fun hasStateDescription(state: String) = SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, state)
+
     private fun inBubble(
         text: String,
         substring: Boolean = false,
@@ -478,6 +607,8 @@ class SentenceCandidateTest {
         candidatesState: () -> List<Candidate> = { candidates },
         expanded: Boolean = false,
         detail: OpenDetail? = null,
+        wordMenu: OpenWordMenu? = null,
+        fixedWords: List<FixedWord> = emptyList(),
         selectedIndex: Int = 0,
         windowHeight: Int = 800,
     ) {
@@ -494,6 +625,8 @@ class SentenceCandidateTest {
                                 selectedIndex = selectedIndex,
                                 expanded = expanded,
                                 detail = detail,
+                                wordMenu = wordMenu,
+                                fixedWords = fixedWords,
                             ),
                         callbacks = recorder.callbacks(),
                         onKeyboardTop = {},
@@ -542,6 +675,10 @@ class SentenceCandidateTest {
         val YIYUAN = candidate("医院", "yī yuàn", "hospital").copy(traditional = "醫院")
         val KAN = candidate("看", "kàn", "to see / to look at")
         val YISHENG = candidate("医生", "yī shēng", "doctor")
+        val AND = candidate("和", "hé", "and / together with")
+
+        /** The word menu for 喝 in `woxianghekafei`: the word itself first, as the engine ranks them. */
+        val DRINK_ALTERNATIVES = listOf(HE, AND, candidate("河", "hé", "river"))
 
         /** Roughly a landscape phone, so the bubble's sections do not all fit at once. */
         const val SHORT_WINDOW_HEIGHT = 500

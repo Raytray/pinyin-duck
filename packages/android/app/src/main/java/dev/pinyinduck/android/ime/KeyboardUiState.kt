@@ -2,6 +2,7 @@ package dev.pinyinduck.android.ime
 
 import dev.pinyinduck.android.engine.Candidate
 import dev.pinyinduck.android.engine.DetailView
+import dev.pinyinduck.android.engine.FixedWord
 import dev.pinyinduck.android.engine.ScriptType
 import dev.pinyinduck.android.ui.KeyLayout
 
@@ -31,6 +32,10 @@ data class KeyboardUiState(
     val expanded: Boolean = false,
     /** The open Candidate detail bubble, or null while it is closed. */
     val detail: OpenDetail? = null,
+    /** The open word menu of a Sentence candidate's card, or null while it is closed. */
+    val wordMenu: OpenWordMenu? = null,
+    /** The Fixed words held in the composition, which the card marks (#37). */
+    val fixedWords: List<FixedWord> = emptyList(),
 ) {
     /** Whether the Candidate detail bubble is open. */
     val detailOpen: Boolean get() = detail != null
@@ -64,4 +69,17 @@ data class OpenDetail(
      * it and highlights its section. Null when it was opened for the whole sentence.
      */
     val focusWord: Int? = null,
+)
+
+/**
+ * The word menu open under a Sentence candidate's card in the Expanded candidate list (#47):
+ * a chip row of the [alternatives] for one of its words, then "Commit through" that word.
+ */
+data class OpenWordMenu(
+    /** Where the Sentence candidate sits in [KeyboardUiState.candidates]. */
+    val index: Int,
+    /** Which of its words the menu is for. */
+    val word: Int,
+    /** Every entry on that word's span, in word-candidate order, the word itself among them. */
+    val alternatives: List<Candidate>,
 )
