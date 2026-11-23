@@ -489,6 +489,98 @@ body {
   opacity: 0.55;
 }
 
+/* A word block is a button that opens its word menu (#37). */
+button.sentence-word {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  cursor: pointer;
+}
+
+button.sentence-word:hover,
+button.sentence-word.open {
+  background: var(--color-primary-light);
+}
+
+button.sentence-word.open {
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+}
+
+/* A Fixed word: the learner's own choice. */
+.sentence-word.fixed .sentence-word-hanzi {
+  border-bottom-color: var(--color-primary);
+}
+
+.word-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  flex-shrink: 0;
+  padding: 6px 14px 10px 48px;
+  background: var(--color-card-selected);
+  border-left: 4px solid var(--color-primary);
+  border-bottom: 1px solid #f1f5f9;
+  cursor: default;
+}
+
+.word-menu-alt,
+.word-menu-commit {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  max-width: 14em;
+  padding: 3px 8px;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--color-text-main);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.word-menu-alt:hover,
+.word-menu-commit:hover {
+  border-color: var(--color-primary);
+}
+
+.word-menu-alt.current {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.word-menu-hanzi {
+  font-family: var(--font-hanzi);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.word-menu-pinyin {
+  color: var(--color-pinyin);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.word-menu-gloss {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.word-menu-commit {
+  font-weight: 600;
+}
+
+.word-menu-through {
+  font-family: var(--font-hanzi);
+}
+
 .sentence-leftover-pinyin {
   font-size: 1rem;
   line-height: 1.68rem;
