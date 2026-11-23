@@ -78,6 +78,13 @@ data class SearchOptions(
      * a fixed word as soon as a Backspace deletes into its span ([FixedWord.end] > the new
      * toneless query length). Typing more pinyin after them keeps them.
      *
+     * A fixed completed last word (咖啡 on `kafe`) is held only while its span ends the query,
+     * so the UI moves its span as the learner types on: stretch [FixedWord.end] to the end of
+     * the query while the typing is still a prefix of the word's key, set it to
+     * `start + key.length` once the key is typed in full (an ordinary fixed word from then on),
+     * and drop the word once the typing leaves the key. The web does this in
+     * `carryFixedWords` (`packages/web/src/sentence/fixed-words.ts`).
+     *
      * A fixed word the current query cannot hold is ignored, not an error: its span is not a
      * word boundary on both ends, its entry is not under that span, a typed tone rules it out,
      * or it overlaps an earlier one in the list.
