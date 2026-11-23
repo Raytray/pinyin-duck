@@ -71,6 +71,9 @@ The app also installs a **PinyinDuck settings** launcher icon. It has a shortcut
 - Picking a shorter match keeps the rest buffered: choosing 你 from `nihao` leaves `hao` to finish.
 - While composing, `1`–`5` add a tone, so `shi4` shows only shì. Any other digit, or a digit when you're not composing, is typed as-is. This differs from the web app, where digits select candidates.
 - Type `'` to split syllables: `xi'an` is 西安, not `xian`.
+- Type several words at once and a Sentence candidate builds them from dictionary words in a row: `woxianghekafei` offers 我想喝咖啡. Pinyin it can't build yet stays to compose after it.
+- In the Expanded candidate list (▴), the Sentence candidate's card shows each word with its reading and gloss. Tap a word to open its word menu: the other words for the same pinyin, and "Commit through". Tapping an alternative makes it a Fixed word, and the rest of the sentence is rebuilt around it. Back closes the menu.
+- "Commit through" commits the sentence up to and including that word, and leaves the rest of the pinyin composing.
 - `Backspace` removes the last pinyin character, or deletes before the cursor when you're not composing.
 - `↵` sends the field's action (Search, Send, Done) or a newline. It doesn't commit a candidate.
 - The 简/繁 button switches between Simplified and Traditional without losing the composition. ▴ expands the candidate strip into a full list.
