@@ -113,6 +113,80 @@ class PinyinEngineParityTest {
         )
     }
 
+    /** A `>search` record of `fixed-word-parity.tsv`: a search with fixed words. */
+    private data class FixedSearchCase(
+        val query: String,
+        val script: ScriptType,
+        val total: Int,
+        val fixedWords: List<FixedWord>,
+        val segments: List<String>,
+        /** The first candidate's word spans when it is a Sentence candidate, else empty. */
+        val spans: List<Span>,
+        /** Every candidate line, split into its tab-separated fields. */
+        val candidates: List<List<String>>,
+    )
+
+    /** An `>alternatives` record of `fixed-word-parity.tsv`: one `alternativesForSpan` call. */
+    private data class AlternativesCase(
+        val query: String,
+        val script: ScriptType,
+        val span: Span,
+        val alternatives: List<List<String>>,
+    )
+
+    @Test
+    fun matchesTheTypeScriptEngineOnFixedWords() {
+        val (searches, _) = parseFixedGolden()
+        assertTrue("The fixed-word golden pinned no searches", searches.isNotEmpty())
+        for (case in searches) {
+            val label = "${case.query} with ${case.fixedWords}"
+            val actual =
+                TestDictionary.engine.search(
+                    case.query,
+                    SearchOptions(script = case.script, limit = case.candidates.size, fixedWords = case.fixedWords),
+                )
+            // As in matchesTheTypeScriptEngineExactly, the total may grow with a new CC-CEDICT edition.
+            assertTrue("candidate total for $label", actual.total >= case.candidates.size)
+            assertEquals("segments for $label", case.segments, actual.segments)
+            assertEquals("candidates for $label", case.candidates, actual.candidates.map { it.goldenFields() })
+            assertEquals(
+                "word spans for $label",
+                case.spans,
+                actual.candidates
+                    .first()
+                    .words
+                    .orEmpty()
+                    .map { it.span },
+            )
+        }
+    }
+
+    @Test
+    fun matchesTheTypeScriptEngineOnSpanAlternatives() {
+        val (_, alternatives) = parseFixedGolden()
+        assertTrue("The fixed-word golden pinned no alternatives", alternatives.isNotEmpty())
+        for (case in alternatives) {
+            val actual = TestDictionary.engine.alternativesForSpan(case.query, case.span, case.script)
+            assertEquals("alternatives for ${case.query} ${case.span}", case.alternatives, actual.map { it.goldenFields() })
+            assertTrue("every alternative carries its span", actual.all { it.span == case.span })
+        }
+    }
+
+    @Test
+    fun theFixedWordGoldenPinsTheCasesOf42() {
+        // The cases `FIXED_WORD_CASES` and `ALTERNATIVES_CASES` in parity-cases.ts pin, in order.
+        val (searches, alternatives) = parseFixedGolden()
+        assertEquals(
+            listOf("我想喝咖啡", "我向河咖啡", "我像河咖啡", "我想和咖啡", "我想涸咖啡", "卧是"),
+            searches.map { it.candidates.first().first() },
+        )
+        // 河 and 像 are listed out of order; the engine sorts them by start.
+        assertEquals(listOf(7, 2), searches[2].fixedWords.map { it.start })
+        assertEquals(listOf("woxiang he4 kafei", "woxianghekafei"), alternatives.map { it.query })
+        assertTrue("only hè readings", alternatives[0].alternatives.all { it[1] == "hè" })
+        assertEquals(52, alternatives[1].alternatives.size)
+    }
+
     @Test
     fun theCorpusIsTheOneTheWebAppServes() {
         // A parity run against an empty or stubbed dictionary would pass every assertion
@@ -178,7 +252,73 @@ class PinyinEngineParityTest {
         return cases
     }
 
+    private fun parseFixedGolden(): Pair<List<FixedSearchCase>, List<AlternativesCase>> {
+        val loader = checkNotNull(javaClass.classLoader) { "The test class loader is unavailable" }
+        val stream =
+            checkNotNull(
+                loader.getResourceAsStream(FIXED_GOLDEN_RESOURCE),
+            ) { "$FIXED_GOLDEN_RESOURCE is missing. Run packages/core/scripts/generate-android-parity.ts." }
+
+        val searches = mutableListOf<FixedSearchCase>()
+        val alternatives = mutableListOf<AlternativesCase>()
+        // The header fields of the record being read, or null between records.
+        var header: List<String>? = null
+        val fixedWords = mutableListOf<FixedWord>()
+        var segments = emptyList<String>()
+        var spans = emptyList<Span>()
+        val lines = mutableListOf<List<String>>()
+
+        fun flush() {
+            val started = header ?: return
+            val script = ScriptType.valueOf(started[2].uppercase())
+            when (started[0]) {
+                ">search" ->
+                    searches.add(
+                        FixedSearchCase(started[1], script, started[3].toInt(), fixedWords.toList(), segments, spans, lines.toList()),
+                    )
+                else -> {
+                    assertEquals("alternatives count for ${started[1]}", started[5].toInt(), lines.size)
+                    alternatives.add(AlternativesCase(started[1], script, Span(started[3].toInt(), started[4].toInt()), lines.toList()))
+                }
+            }
+            header = null
+            fixedWords.clear()
+            segments = emptyList()
+            spans = emptyList()
+            lines.clear()
+        }
+
+        stream.bufferedReader().forEachLine { line ->
+            val fields = line.split("\t")
+            when {
+                line.isBlank() -> flush()
+                line.startsWith("#") -> Unit
+                line.startsWith(">") -> {
+                    flush()
+                    header = fields
+                }
+                fields[0] == "fixed" -> fixedWords.add(FixedWord(fields[1].toInt(), fields[2].toInt(), fields[3], fields[4], fields[5]))
+                line.startsWith("segments ") -> segments = line.removePrefix("segments ").split(" ").filter { it.isNotEmpty() }
+                line.startsWith("spans ") ->
+                    spans =
+                        line.removePrefix("spans ").split(" ").map { span ->
+                            val (start, end) = span.split("-").map { it.toInt() }
+                            Span(start, end)
+                        }
+                else -> lines.add(fields)
+            }
+        }
+        flush()
+        stream.close()
+        return searches to alternatives
+    }
+
+    /** A candidate as the golden writes it: Hanzi, tone marks and gloss, then the same per word. */
+    private fun Candidate.goldenFields(): List<String> =
+        listOf(hanzi, pinyinMarks, shortGloss) + words.orEmpty().flatMap { listOf(it.hanzi, it.pinyinMarks, it.shortGloss) }
+
     private companion object {
         const val GOLDEN_RESOURCE = "engine-parity.tsv"
+        const val FIXED_GOLDEN_RESOURCE = "fixed-word-parity.tsv"
     }
 }

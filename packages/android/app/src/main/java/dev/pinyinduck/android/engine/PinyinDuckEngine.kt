@@ -95,6 +95,22 @@ class PinyinDuckEngine(
         // every keystroke, so rank the full set only when the caller needs all of it, and
         // otherwise keep a bounded heap of the top `offset + limit`. The Sentence candidate's
         // slot and its dedupe are worked out from counts over `chosen`, not the sorted list.
+        val found =
+            findSentence(
+                dictionary,
+                rawQuery,
+                options.script,
+                toneFilter,
+                bigrams,
+                options.exactOnly,
+                budget,
+                options.fixedWords,
+            )
+        // The edited sentence (#37) comes first, ahead of every word, and a word showing the
+        // same Hanzi is the one dropped. Otherwise a sentence repeating a word is dropped.
+        if (found?.fixed == true) chosen.remove(found.hanzi(options.script))
+        val sentence = found?.takeUnless { chosen.containsKey(it.hanzi(options.script)) }
+
         val uniqueCount = chosen.size
         val needed = offset + limit
         val ranked =
@@ -104,13 +120,10 @@ class PinyinDuckEngine(
                 topK(chosen.values, needed)
             }
 
-        val sentence =
-            findSentence(dictionary, rawQuery, options.script, toneFilter, bigrams, options.exactOnly, budget)
-                ?.takeUnless { chosen.containsKey(it.hanzi(options.script)) }
         val slots = ArrayList<Any>(ranked.size + 1)
         slots.addAll(ranked)
         if (sentence != null) {
-            val position = sentencePosition(sentence, chosen.values, tonelessQuery.length)
+            val position = if (sentence.fixed) 0 else sentencePosition(sentence, chosen.values, tonelessQuery.length)
             // A slot past the words kept for this page is past the page too.
             if (position <= slots.size) slots.add(position, sentence)
         }
@@ -129,6 +142,65 @@ class PinyinDuckEngine(
             }
 
         return SearchResult(rawQuery, segments, candidates, total)
+    }
+
+    /**
+     * The alternatives a word menu offers for one word of a Sentence candidate (#37): every
+     * entry whose key is exactly [span] of the toneless query, one per Hanzi in [script], in
+     * word-candidate order (`scoreEntry` on the span, then [SCORED_ORDER]). A port of
+     * `alternativesForSpan` in `lazy-search.ts`.
+     *
+     * Rare words are included, since a word the learner picks becomes a [FixedWord] and skips
+     * [MIN_SENTENCE_WORD_FREQUENCY]. A tone typed inside the span, or right after its last
+     * syllable, keeps only the readings with that tone; a tone typed on another word says
+     * nothing here. It never changes word boundaries. The one exception is a span that ends
+     * the query, where the last word may have been a completion (`kafe` → 咖啡), so keys that
+     * start with the span are offered after the exact ones, unless [exactOnly]. Each candidate
+     * carries [Candidate.span], so [Candidate.toFixedWord] turns it into a fixed word as is.
+     * An out-of-range span gives an empty list.
+     */
+    fun alternativesForSpan(
+        query: String,
+        span: Span,
+        script: ScriptType = ScriptType.SIMPLIFIED,
+        exactOnly: Boolean = false,
+        maxMatches: Int? = null,
+    ): List<Candidate> {
+        val rawQuery = query.trim().lowercase()
+        val budget = maxMatches ?: this.maxMatches
+        val toneless = cleanPinyin(rawQuery)
+        val start = span.start
+        val end = span.end
+        if (start < 0 || end <= start || end > toneless.length) return emptyList()
+        val key = toneless.substring(start, end)
+        // The typed tones that fall on this span, as offsets into it.
+        val toneFilter =
+            parseToneFilter(rawQuery)
+                .filter { it.offset > start && it.offset <= end }
+                .map { it.copy(offset = it.offset - start) }
+
+        val chosen = HashMap<String, ScoredEntry>()
+
+        fun consider(entry: StoredEntry) {
+            if (entry.onlyIn != null && entry.onlyIn != script) return
+            val score = scoreEntry(entry.toScorable(), key, toneFilter)
+            if (toneFilter.isNotEmpty() && score <= 0) return
+            val hanzi = if (script == ScriptType.TRADITIONAL) entry.traditional else entry.simplified
+            val candidate = ScoredEntry(entry, score, 0)
+            val previous = chosen[hanzi]
+            if (previous == null || SCORED_ORDER.compare(candidate, previous) < 0) chosen[hanzi] = candidate
+        }
+
+        for (entry in dictionary.lookupExact(key)) consider(entry)
+        if (end == toneless.length && !exactOnly) {
+            var scanned = 0
+            dictionary.scanPrefix(key) {
+                if (it.key.length > key.length) consider(it)
+                scanned++
+                scanned < budget
+            }
+        }
+        return chosen.values.sortedWith(SCORED_ORDER).map { it.entry.toCandidate(script, key).copy(span = span) }
     }
 
     /**
@@ -240,7 +312,10 @@ private fun SentenceResult.toCandidate(
     script: ScriptType,
     tonelessQuery: String,
 ): Candidate {
-    val parts = words.map { it.entry.toCandidate(script, tonelessQuery.substring(it.start, it.end)) }
+    val parts =
+        words.map {
+            it.entry.toCandidate(script, tonelessQuery.substring(it.start, it.end)).copy(span = Span(it.start, it.end))
+        }
     val simplified = parts.joinToString("") { it.simplified }
     val pinyinNumbers = parts.joinToString(" ") { it.pinyinNumbers }
     return Candidate(

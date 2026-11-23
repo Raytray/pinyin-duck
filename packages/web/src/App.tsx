@@ -26,6 +26,7 @@ export const App: React.FC = () => {
     selectCandidate,
     detail,
     toggleDetail,
+    wordMenu,
     nextPage,
     prevPage,
     handleKeyDown,
@@ -71,6 +72,7 @@ export const App: React.FC = () => {
             onSelectCandidate={selectCandidate}
             detail={detail}
             onToggleDetail={toggleDetail}
+            wordMenu={wordMenu}
             onNextPage={nextPage}
             onPrevPage={prevPage}
             onSetSelectedIndex={setSelectedIndex}

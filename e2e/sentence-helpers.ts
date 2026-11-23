@@ -23,3 +23,12 @@ export const candidateDetail = (page: Page) => page.getByRole('region', { name: 
 
 /** The per-word sections of an open Sentence candidate's detail, one under another. */
 export const detailWordSections = (page: Page) => candidateDetail(page).locator('.detail-word');
+
+/** The open word menu of a Sentence candidate's word. */
+export const wordMenu = (page: Page) => page.getByRole('menu', { name: /^Alternatives for / });
+
+/** The numbered alternatives of the open word menu, without "Commit through". */
+export const wordMenuAlternatives = (page: Page) => wordMenu(page).locator('.word-menu-alt');
+
+/** The Hanzi of each word of a candidate row, in order. */
+export const sentenceHanzi = (row: Locator) => sentenceWords(row).locator('.sentence-word-hanzi');

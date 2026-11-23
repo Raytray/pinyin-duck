@@ -1,11 +1,20 @@
 import type { Page } from '@playwright/test';
 import { test, expect } from './coverage-fixtures.js';
-import { candidateItems, candidateList, editor, expectNoMatches, gotoApp } from './helpers';
-import { candidateDetail, detailWordSections, expectSentenceRow, sentenceWords } from './sentence-helpers';
+import { candidateItems, candidateList, editor, expectBuffer, expectNoMatches, gotoApp } from './helpers';
+import {
+  candidateDetail,
+  detailWordSections,
+  expectSentenceRow,
+  sentenceHanzi,
+  sentenceWords,
+  wordMenu,
+  wordMenuAlternatives,
+} from './sentence-helpers';
 
 // A Sentence candidate's row draws each word as its own block (pinyin over Hanzi over a
 // one-sense gloss), and a partial one ends with its leftover pinyin marked "next".
 // Committing takes exactly what the candidate covers. The decision is #31; ranking is #30.
+// The word menu swaps one word for an alternative (a Fixed word) or commits through it (#37).
 
 const FULL = 'woxianghekafei';
 const PARTIAL = 'woxianghekafeiqqq';
@@ -65,7 +74,7 @@ test.describe('a partial sentence', () => {
     await expectNoMatches(page, 'qqq');
   });
 
-  test('a click anywhere on the row commits the covered words, leftover still composing', async ({ page }) => {
+  test('a click on the leftover block commits the covered words, leftover still composing', async ({ page }) => {
     await editor(page).pressSequentially(PARTIAL);
 
     await sentenceRow(page).locator('.sentence-leftover').click();
@@ -97,14 +106,6 @@ test.describe('committing a full sentence', () => {
     await expect(candidateList(page)).toHaveCount(0);
   });
 
-  test('clicking one word commits the whole sentence, not that word', async ({ page }) => {
-    await editor(page).pressSequentially(FULL);
-
-    await sentenceWords(sentenceRow(page)).nth(2).click();
-
-    await expect(editor(page)).toHaveValue('我想喝咖啡');
-    await expect(candidateList(page)).toHaveCount(0);
-  });
 });
 
 test.describe('Candidate detail', () => {
@@ -184,5 +185,264 @@ test.describe('a long input', () => {
 
     await expect(editor(page)).toHaveValue('我想喝咖啡然后去医院看医生');
     await expect(candidateList(page)).toHaveCount(0);
+  });
+});
+
+const HE_ALTERNATIVES = ['和', '喝', '河', '吓', '呵', '贺', '合', '何', '盒'];
+
+/** Opens the menu of word `n` (from 0) of the highlighted sentence with Shift+→. */
+async function openWordMenu(page: Page, n: number) {
+  for (let i = 0; i <= n; i++) await editor(page).press('Shift+ArrowRight');
+}
+
+test.describe('the word menu', () => {
+  test('Shift+→ walks a word cursor across the blocks, opening each block\'s menu', async ({ page }) => {
+    await editor(page).pressSequentially(FULL);
+    await expectSentenceRow(sentenceRow(page), COFFEE_WORDS);
+
+    await editor(page).press('Shift+ArrowRight');
+    await expect(wordMenu(page)).toHaveAccessibleName('Alternatives for 我');
+    await expect(sentenceWords(sentenceRow(page)).nth(0)).toHaveAttribute('aria-expanded', 'true');
+
+    await editor(page).press('Shift+ArrowRight');
+    await editor(page).press('Shift+ArrowRight');
+    await expect(wordMenu(page)).toHaveAccessibleName('Alternatives for 喝');
+    await expect(sentenceWords(sentenceRow(page)).nth(0)).toHaveAttribute('aria-expanded', 'false');
+    await expect(sentenceWords(sentenceRow(page)).nth(2)).toHaveAttribute('aria-expanded', 'true');
+    // Numbered alternatives from the span-alternatives query, then "Commit through".
+    await expect(wordMenuAlternatives(page).locator('.word-menu-hanzi')).toHaveText(HE_ALTERNATIVES);
+    await expect(wordMenuAlternatives(page).locator('kbd')).toHaveText(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+    await expect(wordMenu(page).getByRole('menuitem').last()).toHaveText(/Commit through 喝$/);
+    await expect(editor(page)).toBeFocused();
+  });
+
+  test('a digit swaps 和 for 喝 in place and the sentence rebuilds around it', async ({ page }) => {
+    await editor(page).pressSequentially('woxiangheta');
+    await expect(sentenceHanzi(sentenceRow(page))).toHaveText(['我', '想', '和', '他']);
+    await openWordMenu(page, 2);
+
+    await editor(page).press('2');
+
+    await expect(wordMenu(page)).toHaveCount(0);
+    // 喝 is fixed on its span; its neighbour is chosen again around it.
+    await expect(sentenceHanzi(sentenceRow(page))).toHaveText(['我', '想', '喝', '太']);
+    await expect(sentenceWords(sentenceRow(page)).nth(2)).toHaveClass(/\bfixed\b/);
+    await expect(sentenceRow(page)).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('Space commits the whole edited sentence', async ({ page }) => {
+    await editor(page).pressSequentially(FULL);
+    await openWordMenu(page, 2);
+    await editor(page).press('1');
+    await expect(sentenceHanzi(sentenceRow(page))).toHaveText(['我', '想', '和', '咖啡']);
+
+    await editor(page).press(' ');
+
+    await expect(editor(page)).toHaveValue('我想和咖啡');
+    await expect(candidateList(page)).toHaveCount(0);
+  });
+
+  test('Space with the menu open commits the whole sentence too', async ({ page }) => {
+    await editor(page).pressSequentially(FULL);
+    await openWordMenu(page, 1);
+
+    await editor(page).press(' ');
+
+    await expect(editor(page)).toHaveValue('我想喝咖啡');
+    await expect(candidateList(page)).toHaveCount(0);
+  });
+
+  test('Enter commits through the word and the rest composes again', async ({ page }) => {
+    await editor(page).pressSequentially(FULL);
+    await openWordMenu(page, 1);
+
+    await editor(page).press('Enter');
+
+    await expect(editor(page)).toHaveValue('我想');
+    await expectBuffer(page, 'hekafei');
+    await expect(sentenceHanzi(sentenceRow(page))).toHaveText(['喝', '咖啡']);
+    await expect(wordMenu(page)).toHaveCount(0);
+  });
+
+  test('commit-through takes a separator after the word with it', async ({ page }) => {
+    await editor(page).pressSequentially("woxiang'hekafei");
+    await openWordMenu(page, 1);
+
+    await editor(page).press('Enter');
+
+    await expect(editor(page)).toHaveValue('我想');
+    await expectBuffer(page, 'hekafei');
+  });
+
+  test('Esc closes the menu and keeps composing; a second Esc cancels', async ({ page }) => {
+    await editor(page).pressSequentially(FULL);
+    await openWordMenu(page, 2);
+
+    await editor(page).press('Escape');
+
+    await expect(wordMenu(page)).toHaveCount(0);
+    await expectBuffer(page, FULL);
+    await editor(page).press('Escape');
+    await expect(candidateList(page)).toHaveCount(0);
+    await expect(editor(page)).toHaveValue('');
+  });
+
+  test('Shift past either end closes the menu', async ({ page }) => {
+    await editor(page).pressSequentially(FULL);
+
+    await editor(page).press('Shift+ArrowRight');
+    await editor(page).press('Shift+ArrowLeft');
+    await expect(wordMenu(page)).toHaveCount(0);
+
+    // From closed, Shift+← starts at the last word.
+    await editor(page).press('Shift+ArrowLeft');
+    await expect(wordMenu(page)).toHaveAccessibleName('Alternatives for 咖啡');
+    await editor(page).press('Shift+ArrowRight');
+    await expect(wordMenu(page)).toHaveCount(0);
+    await expectBuffer(page, FULL);
+  });
+
+  test('clicking a word block opens its menu, and a click on an alternative swaps it', async ({ page }) => {
+    await editor(page).pressSequentially(FULL);
+
+    await sentenceWords(sentenceRow(page)).nth(2).click();
+
+    await expect(wordMenu(page)).toHaveAccessibleName('Alternatives for 喝');
+    await expect(editor(page)).toHaveValue('');
+    await expect(editor(page)).toBeFocused();
+
+    await wordMenuAlternatives(page).nth(0).click();
+    await expect(sentenceHanzi(sentenceRow(page))).toHaveText(['我', '想', '和', '咖啡']);
+    await expect(editor(page)).toBeFocused();
+  });
+
+  test('clicking "Commit through" commits through that word', async ({ page }) => {
+    await editor(page).pressSequentially(FULL);
+    await sentenceWords(sentenceRow(page)).nth(0).click();
+
+    await wordMenu(page).getByRole('menuitem', { name: /Commit through 我/ }).click();
+
+    await expect(editor(page)).toHaveValue('我');
+    await expectBuffer(page, 'xianghekafei');
+  });
+
+  test('clicking the candidate number commits the whole sentence', async ({ page }) => {
+    await editor(page).pressSequentially(FULL);
+
+    await sentenceRow(page).locator('.candidate-num').click();
+
+    await expect(editor(page)).toHaveValue('我想喝咖啡');
+    await expect(candidateList(page)).toHaveCount(0);
+  });
+
+  test('clicking the gap between blocks commits the whole sentence', async ({ page }) => {
+    await editor(page).pressSequentially(FULL);
+    const first = (await sentenceWords(sentenceRow(page)).nth(0).boundingBox())!;
+    const second = (await sentenceWords(sentenceRow(page)).nth(1).boundingBox())!;
+    expect(second.x).toBeGreaterThan(first.x + first.width);
+
+    await page.mouse.click((first.x + first.width + second.x) / 2, first.y + first.height / 2);
+
+    await expect(editor(page)).toHaveValue('我想喝咖啡');
+    await expect(candidateList(page)).toHaveCount(0);
+  });
+});
+
+test.describe('Fixed words', () => {
+  test('last while the learner keeps composing', async ({ page }) => {
+    await editor(page).pressSequentially(FULL);
+    await openWordMenu(page, 2);
+    await editor(page).press('1');
+
+    await editor(page).pressSequentially('qqq');
+
+    await expect(sentenceHanzi(sentenceRow(page))).toHaveText(['我', '想', '和', '咖啡']);
+    await expect(sentenceRow(page).locator('.sentence-leftover-pinyin')).toHaveText('qqq');
+  });
+
+  test('are dropped when a Backspace reaches into their span', async ({ page }) => {
+    await editor(page).pressSequentially(FULL);
+    await openWordMenu(page, 2);
+    await editor(page).press('1');
+
+    // Deleting `kafei` leaves 和 whole.
+    for (let i = 0; i < 5; i++) await editor(page).press('Backspace');
+    await expect(sentenceWords(sentenceRow(page)).nth(2)).toHaveClass(/\bfixed\b/);
+    // One more reaches into it.
+    await editor(page).press('Backspace');
+    await editor(page).pressSequentially('ekafei');
+
+    await expectSentenceRow(sentenceRow(page), COFFEE_WORDS);
+  });
+
+  test('are dropped on commit', async ({ page }) => {
+    await editor(page).pressSequentially(FULL);
+    await openWordMenu(page, 2);
+    await editor(page).press('1');
+    await editor(page).press(' ');
+    await expect(editor(page)).toHaveValue('我想和咖啡');
+
+    await editor(page).pressSequentially(FULL);
+
+    await expectSentenceRow(sentenceRow(page), COFFEE_WORDS);
+  });
+
+  test('are dropped on Esc', async ({ page }) => {
+    await editor(page).pressSequentially(FULL);
+    await openWordMenu(page, 2);
+    await editor(page).press('1');
+    await editor(page).press('Escape');
+    await expect(candidateList(page)).toHaveCount(0);
+
+    await editor(page).pressSequentially(FULL);
+
+    await expectSentenceRow(sentenceRow(page), COFFEE_WORDS);
+  });
+
+  test('a fixed completed last word follows the learner typing the rest of it', async ({ page }) => {
+    await editor(page).pressSequentially('woxianghekafe');
+    await editor(page).press('Shift+ArrowLeft');
+    await expect(wordMenu(page)).toHaveAccessibleName('Alternatives for 咖啡');
+    await expect(wordMenuAlternatives(page).nth(1).locator('.word-menu-hanzi')).toHaveText('咖啡馆');
+
+    await editor(page).press('2');
+    await expect(sentenceHanzi(sentenceRow(page)).last()).toHaveText('咖啡馆');
+
+    // Unfixed, `woxianghekafeiguan` reads 咖啡 + 罐.
+    await editor(page).pressSequentially('iguan');
+    await expect(sentenceHanzi(sentenceRow(page)).last()).toHaveText('咖啡馆');
+    await editor(page).pressSequentially('ma');
+    await expect(sentenceHanzi(sentenceRow(page))).toHaveText(['我', '想', '和', '咖啡馆', '吗']);
+  });
+});
+
+test.describe('the word menu on a partial sentence', () => {
+  test('works the same, and the leftover block has no menu', async ({ page }) => {
+    await editor(page).pressSequentially(PARTIAL);
+
+    await openWordMenu(page, 3);
+    await expect(wordMenu(page)).toHaveAccessibleName('Alternatives for 咖啡');
+    // Past 咖啡 is the leftover, which is not a word: the menu closes.
+    await editor(page).press('Shift+ArrowRight');
+    await expect(wordMenu(page)).toHaveCount(0);
+
+    await openWordMenu(page, 1);
+    await editor(page).press('Enter');
+    await expect(editor(page)).toHaveValue('我想');
+    await expectBuffer(page, 'hekafeiqqq');
+    await expect(sentenceHanzi(sentenceRow(page))).toHaveText(['喝', '咖啡']);
+  });
+
+  test('a swap keeps the leftover composing next', async ({ page }) => {
+    await editor(page).pressSequentially(PARTIAL);
+    await openWordMenu(page, 2);
+
+    await editor(page).press('1');
+
+    await expect(sentenceHanzi(sentenceRow(page))).toHaveText(['我', '想', '和', '咖啡']);
+    await expect(sentenceRow(page).locator('.sentence-leftover-pinyin')).toHaveText('qqq');
+    await editor(page).press(' ');
+    await expect(editor(page)).toHaveValue('我想和咖啡');
+    await expectNoMatches(page, 'qqq');
   });
 });

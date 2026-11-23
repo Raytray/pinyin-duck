@@ -16,7 +16,7 @@
 #   alternativesForSpan(query, { start, end }, { script }): every alternative, in order,
 #   as "<hanzi> <tone marks> <gloss>".
 #
-# The Kotlin engine does not read this yet: https://git.tail68c66a.ts.net/raytray25/pinyin-duck/issues/43
+# PinyinEngineParityTest reads it (matchesTheTypeScriptEngineOnFixedWords and …OnSpanAlternatives).
 
 >search	woxianghekafei	simplified	24
 fixed	7	9	喝	喝	he1
