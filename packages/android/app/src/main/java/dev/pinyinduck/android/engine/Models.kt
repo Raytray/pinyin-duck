@@ -30,6 +30,11 @@ data class Candidate(
      * when a simplified candidate stands for headwords sharing its form (后 hòu for 後 and 后).
      */
     val entryIds: List<Int> = emptyList(),
+    /**
+     * The words of a Sentence candidate, one per segment, each with its own Hanzi, reading,
+     * gloss and [entryIds] (the outer [entryIds] is then empty). Null on a word candidate.
+     */
+    val words: List<Candidate>? = null,
 )
 
 data class SearchResult(

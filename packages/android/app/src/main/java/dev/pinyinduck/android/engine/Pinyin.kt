@@ -650,10 +650,13 @@ data class ToneConstraint(
     val tone: Int,
 )
 
-/** Same normalization as [cleanPinyin], one character at a time. */
-private fun isTonelessLetter(char: Char): Boolean {
+/**
+ * Same normalization as [cleanPinyin], one character at a time: the toneless letter [char]
+ * stands for, or null when it is not a pinyin letter (a digit, an apostrophe, a space).
+ */
+internal fun tonelessLetter(char: Char): Char? {
     val mapped = TONE_CHAR_MAP[char] ?: char
-    return mapped in 'a'..'z' || mapped == 'ü'
+    return if (mapped in 'a'..'z' || mapped == 'ü') mapped else null
 }
 
 /**
@@ -668,7 +671,7 @@ fun parseToneFilter(input: String): List<ToneConstraint> {
     for (char in normalized) {
         if (char in '1'..'5') {
             constraints.add(ToneConstraint(offset, char - '0'))
-        } else if (isTonelessLetter(char)) {
+        } else if (tonelessLetter(char) != null) {
             offset++
         }
     }
