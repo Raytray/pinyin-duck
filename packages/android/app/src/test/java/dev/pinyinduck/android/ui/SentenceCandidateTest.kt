@@ -380,7 +380,7 @@ class SentenceCandidateTest {
             Recorder(),
             candidates = listOf(sentence(WO, XIANG, fixedHe, KAFEI)),
             expanded = true,
-            fixedWords = listOf(FixedWord(7, 9, "喝", "喝", "he1")),
+            fixedWords = listOf(FixedWord(Span(7, 9), "喝", "喝", "he1")),
         )
 
         compose.onNodeWithContentDescription(wordDescription(fixedHe), useUnmergedTree = true).assert(hasStateDescription("fixed"))

@@ -61,7 +61,7 @@ class PinyinDuckEngine(
             if (entry.onlyIn != null && entry.onlyIn != options.script) return
             val score = scoreEntry(entry.toScorable(), tonelessQuery, toneFilter)
             if (hasToneFilter && score <= 0) return
-            val hanzi = if (options.script == ScriptType.TRADITIONAL) entry.traditional else entry.simplified
+            val hanzi = hanziIn(entry, options.script)
             val candidate = ScoredEntry(entry, score, coverage(entry.key, tonelessQuery))
             // Ties go through SCORED_ORDER rather than "first seen wins", so the reading that
             // represents a hanzi does not depend on page scan order.
@@ -71,14 +71,7 @@ class PinyinDuckEngine(
 
         for (entry in dictionary.lookupExact(tonelessQuery)) consider(entry)
 
-        if (!options.exactOnly) {
-            var scanned = 0
-            dictionary.scanPrefix(tonelessQuery) {
-                consider(it)
-                scanned++
-                scanned < budget
-            }
-        }
+        if (!options.exactOnly) dictionary.scanPrefixWithin(tonelessQuery, budget, ::consider)
 
         // A multi-syllable query whose last syllable is incomplete (e.g. "nih" or "nihao")
         // also offers matches for the first full syllable.
@@ -153,7 +146,8 @@ class PinyinDuckEngine(
      * Rare words are included, since a word the learner picks becomes a [FixedWord] and skips
      * [MIN_SENTENCE_WORD_FREQUENCY]. A tone typed inside the span, or right after its last
      * syllable, keeps only the readings with that tone; a tone typed on another word says
-     * nothing here. It never changes word boundaries. The one exception is a span that ends
+     * nothing here. It never changes word boundaries, nor offers a word that runs across an
+     * apostrophe or space typed inside the span anywhere but between its own syllables. The one exception is a span that ends
      * the query, where the last word may have been a completion (`kafe` → 咖啡), so keys that
      * start with the span are offered after the exact ones, unless [exactOnly]. Each candidate
      * carries [Candidate.span], so [Candidate.toFixedWord] turns it into a fixed word as is.
@@ -168,10 +162,11 @@ class PinyinDuckEngine(
     ): List<Candidate> {
         val rawQuery = query.trim().lowercase()
         val budget = maxMatches ?: this.maxMatches
-        val toneless = cleanPinyin(rawQuery)
+        val boundaries = queryBoundaries(rawQuery)
+        val toneless = boundaries.toneless
+        if (!isSpanIn(span, toneless.length)) return emptyList()
         val start = span.start
         val end = span.end
-        if (start < 0 || end <= start || end > toneless.length) return emptyList()
         val key = toneless.substring(start, end)
         // The typed tones that fall on this span, as offsets into it.
         val toneFilter =
@@ -183,9 +178,11 @@ class PinyinDuckEngine(
 
         fun consider(entry: StoredEntry) {
             if (entry.onlyIn != null && entry.onlyIn != script) return
+            // A word never runs across an apostrophe or space typed inside the span.
+            if (!spansForced(entry.pinyinNumbers, start, end, boundaries.forced)) return
             val score = scoreEntry(entry.toScorable(), key, toneFilter)
             if (toneFilter.isNotEmpty() && score <= 0) return
-            val hanzi = if (script == ScriptType.TRADITIONAL) entry.traditional else entry.simplified
+            val hanzi = hanziIn(entry, script)
             val candidate = ScoredEntry(entry, score, 0)
             val previous = chosen[hanzi]
             if (previous == null || SCORED_ORDER.compare(candidate, previous) < 0) chosen[hanzi] = candidate
@@ -193,12 +190,7 @@ class PinyinDuckEngine(
 
         for (entry in dictionary.lookupExact(key)) consider(entry)
         if (end == toneless.length && !exactOnly) {
-            var scanned = 0
-            dictionary.scanPrefix(key) {
-                if (it.key.length > key.length) consider(it)
-                scanned++
-                scanned < budget
-            }
+            dictionary.scanPrefixWithin(key, budget) { if (it.key.length > key.length) consider(it) }
         }
         return chosen.values.sortedWith(SCORED_ORDER).map { it.entry.toCandidate(script, key).copy(span = span) }
     }
@@ -300,8 +292,7 @@ class PinyinDuckEngine(
 }
 
 /** The sentence's Hanzi in [script], the form a word candidate repeating it would show. */
-private fun SentenceResult.hanzi(script: ScriptType): String =
-    words.joinToString("") { if (script == ScriptType.TRADITIONAL) it.entry.traditional else it.entry.simplified }
+private fun SentenceResult.hanzi(script: ScriptType): String = words.joinToString("") { hanziIn(it.entry, script) }
 
 /**
  * Projects a Sentence candidate into a candidate: each word as its own candidate, and the

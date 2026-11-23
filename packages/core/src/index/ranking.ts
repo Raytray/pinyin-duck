@@ -170,13 +170,18 @@ export function compareScored(a: ScoredEntry, b: ScoredEntry): number {
   return 0;
 }
 
+/** An entry's Hanzi as `script` displays it. */
+export function hanziIn(entry: { simplified: string; traditional: string }, script: ScriptType): string {
+  return script === 'traditional' ? entry.traditional : entry.simplified;
+}
+
 /** Projects a ranked entry into the candidate shape the UI renders. */
 export function entryToCandidate(
   entry: CandidateSource,
   script: ScriptType,
   tonelessQuery: string
 ): Candidate {
-  const hanzi = script === 'traditional' ? entry.traditional : entry.simplified;
+  const hanzi = hanziIn(entry, script);
   const remainingPinyin = tonelessQuery.startsWith(entry.pinyinClean)
     ? tonelessQuery.slice(entry.pinyinClean.length)
     : '';

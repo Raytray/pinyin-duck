@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { CandidateDetail } from './CandidateDetail';
 import { SentenceDetail } from './SentenceDetail';
 import { SentenceRow } from './SentenceRow';
-import { WordMenu } from './WordMenu';
+import { WordMenu, keepFocus } from './WordMenu';
 import type { OpenCandidateDetail, WordMenuControls } from '../hooks/usePinyinDuck';
 
 interface CandidatePopupProps {
@@ -91,6 +91,7 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
 
           const detailHere = detail?.index === idx;
           const menuHere = menu?.index === idx ? menu : null;
+          const Detail = cand.words ? SentenceDetail : CandidateDetail;
 
           return (
             <React.Fragment key={cand.id + idx}>
@@ -136,8 +137,7 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
                   aria-label={`Details for ${cand.hanzi}`}
                   aria-pressed={detailHere}
                   title="Details (Tab)"
-                  // Keeps focus, and so the composition, in the editor.
-                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseDown={keepFocus}
                   onClick={(e) => {
                     e.stopPropagation();
                     onToggleDetail(idx);
@@ -149,12 +149,7 @@ export const CandidatePopup: React.FC<CandidatePopupProps> = ({
               {menuHere && (
                 <WordMenu menu={menuHere} onSwap={wordMenu.swap} onCommitThrough={wordMenu.commitThrough} />
               )}
-              {detailHere &&
-                (cand.words ? (
-                  <SentenceDetail detail={detail} onCommit={() => onSelectCandidate(idx)} />
-                ) : (
-                  <CandidateDetail detail={detail} onCommit={() => onSelectCandidate(idx)} />
-                ))}
+              {detailHere && <Detail detail={detail} onCommit={() => onSelectCandidate(idx)} />}
             </React.Fragment>
           );
         })}

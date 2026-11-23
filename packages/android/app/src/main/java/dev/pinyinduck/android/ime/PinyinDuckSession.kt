@@ -115,7 +115,7 @@ class PinyinDuckSession(
      */
     fun fixWord(alternative: Candidate) {
         val span = alternative.span ?: return
-        fixedWords = fixedWords.filter { it.end <= span.start || it.start >= span.end } + alternative.toFixedWord()
+        fixedWords = fixedWords.filter { it.span.end <= span.start || it.span.start >= span.end } + alternative.toFixedWord()
         refresh(resetSelection = true)
     }
 

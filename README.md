@@ -59,6 +59,15 @@ hit. [Bug reports](CONTRIBUTING.md#reporting-bugs) are welcome.
   Tone-number filtering remains available to direct callers of `@pinyinduck/core`.
 - Web reports at most 50 candidates per query.
 - Script can be toggled between Simplified and Traditional Chinese.
+- Sentence candidates: typing several words at once (`woxianghekafei`) offers one
+  candidate built from dictionary words in a row (我想喝咖啡), each word shown with its own
+  reading and gloss. Anything that cannot be built yet stays to compose. An apostrophe or
+  space forces a word boundary, so `xi'anhenmei` gives 西安很美.
+- Word menu: open one word of a Sentence candidate (click it or Shift+←/→ on web, tap it
+  in the Expanded candidate list on Android) to see the other words for the same pinyin.
+  Picking one makes it a Fixed word, and the rest of the sentence is rebuilt around it.
+- Commit-through: the word menu's "Commit through" (Enter on web) commits the sentence up to
+  and including that word and leaves the rest of the pinyin composing.
 
 ## Prerequisites
 
@@ -89,7 +98,8 @@ npm run ci -w @pinyinduck/<core|web|android|rime>   # one package's CI checks
 ```
 
 Each package's `ci` script runs exactly what that package's CI job runs. Build the
-dictionary assets first (`npm run build:dict && npm run build:rime`). Android needs Java 17
+assets first (`npm run build:dict && npm run build:bigrams && npm run build:rime`): core's
+CI, the Android tests and the e2e suite all need the bigram table. Android needs Java 17
 and the Android SDK; Rime runs its librime check only after `npm run setup:rime`.
 
 ## Platform packages

@@ -1,6 +1,7 @@
 package dev.pinyinduck.android.ime
 
 import dev.pinyinduck.android.engine.FixedWord
+import dev.pinyinduck.android.engine.Span
 import dev.pinyinduck.android.engine.cleanPinyin
 
 /*
@@ -43,13 +44,14 @@ internal fun carryFixedWords(
 ): List<FixedWord> {
     val toneless = cleanPinyin(raw)
     return fixed.mapNotNull { word ->
+        val (start, end) = word.span
         val key = cleanPinyin(word.pinyinNumbers)
-        val typed = if (word.end <= toneless.length) toneless.substring(word.start) else ""
+        val typed = if (end <= toneless.length) toneless.substring(start) else ""
         when {
-            word.end > toneless.length -> null
-            key.length <= word.end - word.start -> word
-            typed.startsWith(key) -> word.copy(end = word.start + key.length)
-            key.startsWith(typed) -> word.copy(end = toneless.length)
+            end > toneless.length -> null
+            key.length <= end - start -> word
+            typed.startsWith(key) -> word.copy(span = Span(start, start + key.length))
+            key.startsWith(typed) -> word.copy(span = Span(start, toneless.length))
             else -> null
         }
     }

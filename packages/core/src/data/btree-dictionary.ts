@@ -162,6 +162,20 @@ export class BTreeDictionary {
     }
   }
 
+  /**
+   * Visits the entries whose key starts with `prefix`, in key order, stopping once `budget`
+   * of them have been visited (always at least one, when there is one): the search engine's
+   * `maxMatches` scan budget.
+   */
+  scanPrefixWithin(prefix: string, budget: number, visit: (entry: StoredEntry) => void): void {
+    let scanned = 0;
+    this.scanPrefix(prefix, (entry) => {
+      visit(entry);
+      scanned++;
+      return scanned < budget;
+    });
+  }
+
   /** Drops every cached page. The dictionary stays open and readable. */
   clearCache(): void {
     this.cache.clear();

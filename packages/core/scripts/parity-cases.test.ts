@@ -96,7 +96,7 @@ describe('fixed-word-parity.tsv', () => {
 
   it('pins exactly the fixed word cases, then the alternatives cases, in order', () => {
     const fixedLines = (fixedWords: (typeof FIXED_WORD_CASES)[number]['fixedWords']) =>
-      fixedWords.map(({ start, end, word }) => `fixed\t${start}\t${end}\t${word.simplified}\t${word.traditional}\t${word.pinyinNumbers}`);
+      fixedWords.map(({ span: { start, end }, word }) => `fixed\t${start}\t${end}\t${word.simplified}\t${word.traditional}\t${word.pinyinNumbers}`);
     const expected = [
       ...FIXED_WORD_CASES.map((c) => [`search\t${c.query}\tsimplified`, ...fixedLines(c.fixedWords)]),
       ...ALTERNATIVES_CASES.map((c) => [`alternatives\t${c.query}\tsimplified\t${c.span.start}\t${c.span.end}`]),

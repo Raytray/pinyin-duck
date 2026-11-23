@@ -21,6 +21,12 @@ internal class QueryBoundaries(
     val nodes: BooleanArray,
     /** The end of the longest splittable prefix; `toneless.length` when the whole query splits. */
     val end: Int,
+    /**
+     * `forced[i]`: something other than a letter (an apostrophe, a space, a hyphen, a tone
+     * digit) was typed at offset `i`. A word may span offset `i` only when `i` falls between
+     * two of its own syllables ([spansForced]).
+     */
+    val forced: BooleanArray,
 )
 
 /** The longest syllable (`zhuang`, `chuang`, `shuang`). */
@@ -34,14 +40,15 @@ internal fun queryBoundaries(query: String): QueryBoundaries {
     val normalized = query.lowercase().replace("u:", "ü").replace('v', 'ü')
     val builder = StringBuilder(normalized.length)
     // forced[i]: something other than a letter was typed at offset i, so no syllable may run
-    // across it.
-    val forced = BooleanArray(normalized.length + 1)
+    // across it. Sized for the raw query and trimmed to n + 1 below.
+    val typed = BooleanArray(normalized.length + 1)
     for (char in normalized) {
         val letter = tonelessLetter(char)
-        if (letter != null) builder.append(letter) else forced[builder.length] = true
+        if (letter != null) builder.append(letter) else typed[builder.length] = true
     }
     val toneless = builder.toString()
     val n = toneless.length
+    val forced = typed.copyOf(n + 1)
 
     fun isSyllable(
         i: Int,
@@ -76,5 +83,25 @@ internal fun queryBoundaries(query: String): QueryBoundaries {
             }
         }
     }
-    return QueryBoundaries(toneless, nodes, end)
+    return QueryBoundaries(toneless, nodes, end, forced)
+}
+
+/**
+ * Whether a word read [pinyinNumbers], placed on `[start, end)` of the query, fits the
+ * boundaries typed inside that span: each must fall on one of the word's own syllable ends,
+ * so `xi'an` holds 西安 (xi1 an1) but not 先 (xian1). `spansForced` in `lattice.ts`.
+ */
+internal fun spansForced(
+    pinyinNumbers: String,
+    start: Int,
+    end: Int,
+    forced: BooleanArray,
+): Boolean {
+    var ends: List<ToneConstraint>? = null
+    for (k in start + 1 until end) {
+        if (!forced[k]) continue
+        val known = ends ?: syllableToneEnds(pinyinNumbers).also { ends = it }
+        if (known.none { it.offset == k - start }) return false
+    }
+    return true
 }

@@ -405,7 +405,7 @@ internal fun SentenceCard(
 /** Whether this word of a sentence sits on the span of one of [fixedWords]. */
 private fun Candidate.isFixedIn(fixedWords: List<FixedWord>): Boolean {
     val on = span ?: return false
-    return fixedWords.any { it.start == on.start && it.end == on.end }
+    return fixedWords.any { it.span == on }
 }
 
 /** The mark under a Fixed word's block: a short accent bar, so a swapped word stands out. */
