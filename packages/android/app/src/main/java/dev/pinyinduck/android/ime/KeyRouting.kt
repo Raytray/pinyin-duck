@@ -47,6 +47,9 @@ object KeyRouting {
         /** Abandon the composition. */
         data object Cancel : Outcome
 
+        /** Back or Esc while a Sentence candidate's word menu is open: close only the menu. */
+        data object CloseWordMenu : Outcome
+
         /**
          * Close the Candidate detail bubble and do nothing else.
          *
@@ -64,15 +67,18 @@ object KeyRouting {
      *
      * [unicode] is `KeyEvent.getUnicodeChar()`; [shift] is that event's shift state, since a
      * shifted letter still types a pinyin letter. [detailOpen] is whether the Candidate detail
-     * bubble is open, which only changes what Back and Esc mean.
+     * bubble is open, and [wordMenuOpen] whether a Sentence candidate's word menu is; they only
+     * change what Back and Esc mean.
      */
     fun route(
         keyCode: Int,
         unicode: Char = 0.toChar(),
         shift: Boolean = false,
         detailOpen: Boolean = false,
+        wordMenuOpen: Boolean = false,
     ): Outcome? =
         when {
+            wordMenuOpen && (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) -> Outcome.CloseWordMenu
             detailOpen && (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) -> Outcome.CloseDetail
             else -> routeComposing(keyCode, unicode, shift)
         }

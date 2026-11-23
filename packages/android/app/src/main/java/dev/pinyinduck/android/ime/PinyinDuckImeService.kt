@@ -382,6 +382,10 @@ class PinyinDuckImeService :
         // Belt and braces beside onFinishInputView: the window can go without the input view
         // finishing, and a bubble left open would make the whole window touchable on next show.
         closeDetail()
+        // Putting the keyboard away (Back, with nothing open on it) ends the editing of the
+        // sentence: the Fixed words go and the composition stays (#37).
+        uiState = uiState.copy(wordMenu = null)
+        session?.dropFixedWords()
         super.onWindowHidden()
     }
 
@@ -404,7 +408,7 @@ class PinyinDuckImeService :
         fieldPolicy = FieldPolicy.forInputType(info?.inputType ?: 0)
         session?.direct = fieldPolicy.direct
         // A new field also closes the Candidate detail bubble (#11).
-        uiState = uiState.copy(shift = false, expanded = false, layout = fieldPolicy.layout, detail = null)
+        uiState = uiState.copy(shift = false, expanded = false, layout = fieldPolicy.layout, detail = null, wordMenu = null)
     }
 
     override fun onFinishInput() {
@@ -456,6 +460,7 @@ class PinyinDuckImeService :
                 unicode = event.unicodeChar.toChar(),
                 shift = event.isShiftPressed,
                 detailOpen = uiState.detailOpen,
+                wordMenuOpen = uiState.wordMenu != null,
             ) ?: return super.onKeyDown(keyCode, event)
 
         when (outcome) {
@@ -467,6 +472,10 @@ class PinyinDuckImeService :
             KeyRouting.Outcome.Cancel -> session.cancelComposition()
             KeyRouting.Outcome.CloseDetail -> {
                 closeDetail()
+                swallowKeyUp = keyCode
+            }
+            KeyRouting.Outcome.CloseWordMenu -> {
+                uiState = uiState.copy(wordMenu = null)
                 swallowKeyUp = keyCode
             }
         }
@@ -514,7 +523,29 @@ class PinyinDuckImeService :
             onShowDetail = { openDetail(it) },
             onShowWordDetail = { index, word -> openDetail(index, word) },
             onCloseDetail = ::closeDetail,
+            onOpenWordMenu = ::toggleWordMenu,
+            onSwapWord = { session?.fixWord(it) },
+            onCommitThrough = { index, word -> session?.commitThrough(index, word) },
         )
+
+    /**
+     * Opens the word menu for word [word] of the Sentence candidate at [index], or closes it
+     * when it is already open there (#47). It and the Candidate detail share the space above
+     * the keys' attention, so opening one closes the other.
+     */
+    private fun toggleWordMenu(
+        index: Int,
+        word: Int,
+    ) {
+        val open = uiState.wordMenu
+        if (open != null && open.index == index && open.word == word) {
+            uiState = uiState.copy(wordMenu = null)
+            return
+        }
+        val alternatives = session?.wordAlternatives(index, word).orEmpty()
+        if (alternatives.isEmpty()) return
+        uiState = uiState.copy(wordMenu = OpenWordMenu(index, word, alternatives), detail = null)
+    }
 
     /**
      * Opens the Candidate detail bubble for the candidate at [index], or switches it there.
@@ -534,6 +565,7 @@ class PinyinDuckImeService :
         val words = candidate.words
         uiState =
             uiState.copy(
+                wordMenu = null,
                 detail =
                     OpenDetail(
                         index = index,
@@ -559,7 +591,7 @@ class PinyinDuckImeService :
      * screen, so an open detail closes.
      */
     private fun toggleExpanded() {
-        uiState = uiState.copy(expanded = !uiState.expanded, detail = null)
+        uiState = uiState.copy(expanded = !uiState.expanded, detail = null, wordMenu = null)
     }
 
     /** Closes the Candidate detail bubble; a no-op when it is already closed. */
@@ -612,7 +644,9 @@ class PinyinDuckImeService :
                 total = session.total,
                 selectedIndex = session.selectedIndex,
                 script = session.script,
+                fixedWords = session.fixedWords,
                 detail = if (compositionChanged) null else previous.detail,
+                wordMenu = if (compositionChanged) null else previous.wordMenu,
             )
     }
 

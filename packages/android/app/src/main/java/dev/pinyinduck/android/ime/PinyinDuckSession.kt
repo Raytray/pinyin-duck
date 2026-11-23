@@ -1,9 +1,11 @@
 package dev.pinyinduck.android.ime
 
 import dev.pinyinduck.android.engine.Candidate
+import dev.pinyinduck.android.engine.FixedWord
 import dev.pinyinduck.android.engine.PinyinDuckEngine
 import dev.pinyinduck.android.engine.ScriptType
 import dev.pinyinduck.android.engine.SearchOptions
+import dev.pinyinduck.android.engine.toFixedWord
 
 /**
  * The composition state machine: what the letters typed so far mean, which candidate is
@@ -79,12 +81,72 @@ class PinyinDuckSession(
             if (value && isComposing) reset()
         }
 
+    /**
+     * The Fixed words the learner has chosen in the Sentence candidate being composed (#37),
+     * passed with every search, since the engine keeps no state. They last while the learner
+     * types on ([carryFixedWords] drops one a Backspace reaches into), and go on every commit,
+     * on cancelling, and on [dropFixedWords].
+     */
+    var fixedWords: List<FixedWord> = emptyList()
+        private set
+
+    /**
+     * The word menu's alternatives for word [word] of the Sentence candidate at [index]: every
+     * entry on the same span of the query, in word-candidate order. Empty when that is not a
+     * word of a Sentence candidate (the leftover pinyin of a partial one is not a word).
+     */
+    fun wordAlternatives(
+        index: Int,
+        word: Int,
+    ): List<Candidate> {
+        val span =
+            candidates
+                .getOrNull(index)
+                ?.words
+                ?.getOrNull(word)
+                ?.span ?: return emptyList()
+        return engine?.alternativesForSpan(buffer, span, script).orEmpty()
+    }
+
+    /**
+     * Fixes [alternative] (one of [wordAlternatives]) on its span, in place of any fixed word it
+     * overlaps, and rebuilds the sentence around it. The edited sentence ranks first and is
+     * highlighted.
+     */
+    fun fixWord(alternative: Candidate) {
+        val span = alternative.span ?: return
+        fixedWords = fixedWords.filter { it.end <= span.start || it.start >= span.end } + alternative.toFixedWord()
+        refresh(resetSelection = true)
+    }
+
+    /** Drops every Fixed word and keeps the composition, as when the keyboard is put away. */
+    fun dropFixedWords() {
+        if (fixedWords.isEmpty()) return
+        fixedWords = emptyList()
+        refresh(resetSelection = true)
+    }
+
+    /**
+     * Commits the Sentence candidate at [index] up to and including its word [word], and leaves
+     * the rest of the composition composing, searched again like a prefix word's leftover.
+     */
+    fun commitThrough(
+        index: Int,
+        word: Int,
+    ) {
+        val words = candidates.getOrNull(index)?.words ?: return
+        val span = words.getOrNull(word)?.span ?: return
+        sink.commitText(words.take(word + 1).joinToString("") { it.hanzi })
+        composeNext(composingAfter(buffer, span.end))
+    }
+
     /** Whether anything is selected or offered. */
     val hasCandidates: Boolean get() = candidates.isNotEmpty()
 
     /** Clears the composition without touching the editor, on a new editing session. */
     fun reset() {
         buffer = ""
+        fixedWords = emptyList()
         candidates = emptyList()
         total = 0
         selectedIndex = -1
@@ -116,9 +178,7 @@ class PinyinDuckSession(
             commitTopCandidate()
             if (buffer.length >= MAX_BUFFER_LENGTH) return
         }
-        buffer += letter
-        sink.setComposingText(buffer)
-        refresh(resetSelection = true)
+        edit(buffer + letter)
     }
 
     /**
@@ -143,17 +203,14 @@ class PinyinDuckSession(
                 // untouched, which meant the editor held `shi0` against a buffer of `shi` —
                 // the exact drift the composing region exists to prevent.
                 sink.commitText(buffer + digit.toString())
-                buffer = ""
-                refresh(resetSelection = true)
+                composeNext("")
             } else {
                 sink.commitText(digit.toString())
             }
             return
         }
         if (buffer.length >= MAX_BUFFER_LENGTH) return
-        buffer += digit.toString()
-        sink.setComposingText(buffer)
-        refresh(resetSelection = true)
+        edit(buffer + digit.toString())
     }
 
     /**
@@ -183,9 +240,7 @@ class PinyinDuckSession(
             sink.deleteSurrounding(1)
             return
         }
-        buffer = buffer.dropLast(1)
-        sink.setComposingText(buffer)
-        refresh(resetSelection = true)
+        edit(buffer.dropLast(1))
     }
 
     /**
@@ -202,8 +257,7 @@ class PinyinDuckSession(
         // text instead would also remove anything the user had already committed before the
         // composition started.
         sink.commitText("")
-        buffer = ""
-        refresh(resetSelection = true)
+        composeNext("")
     }
 
     /** Toggles Simplified/Traditional, keeping the composition. */
@@ -256,10 +310,25 @@ class PinyinDuckSession(
 
         // Partial-match chaining: selecting 你 from `nihao` leaves `hao` buffered so the
         // rest of the phrase can be finished without retyping.
-        val remaining = candidate.remainingPinyin
-        buffer = remaining
-        if (remaining.isNotEmpty()) sink.setComposingText(remaining)
+        composeNext(candidate.remainingPinyin)
+    }
 
+    /**
+     * Starts composing [remaining] after a commit. The Fixed words belonged to what was just
+     * committed, so they go.
+     */
+    private fun composeNext(remaining: String) {
+        buffer = remaining
+        fixedWords = emptyList()
+        if (remaining.isNotEmpty()) sink.setComposingText(remaining)
+        refresh(resetSelection = true)
+    }
+
+    /** Changes the composition to [next] in place, keeping the Fixed words it still holds. */
+    private fun edit(next: String) {
+        buffer = next
+        fixedWords = carryFixedWords(fixedWords, next)
+        sink.setComposingText(next)
         refresh(resetSelection = true)
     }
 
@@ -268,8 +337,7 @@ class PinyinDuckSession(
         // text. This is the only way out of an input the dictionary cannot resolve, such
         // as `qqq`.
         sink.commitText(buffer)
-        buffer = ""
-        refresh(resetSelection = true)
+        composeNext("")
     }
 
     private fun refresh(resetSelection: Boolean = false) {
@@ -287,7 +355,7 @@ class PinyinDuckSession(
             return
         }
 
-        val result = engine.search(buffer, SearchOptions(script = script, limit = FETCH_LIMIT))
+        val result = engine.search(buffer, SearchOptions(script = script, limit = FETCH_LIMIT, fixedWords = fixedWords))
         candidates = result.candidates
         total = result.total
         // A composition that suddenly matches nothing should not keep a stale highlight.
