@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridLayoutInfo
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -67,6 +68,11 @@ data class KeyboardCallbacks(
      * Candidate detail bubble for it, or switch it there.
      */
     val onShowDetail: (Int) -> Unit = {},
+    /**
+     * A long press on one word's block in a Sentence candidate's card (#46): open the Candidate
+     * detail for the candidate at the first index, scrolled to the word at the second.
+     */
+    val onShowWordDetail: (Int, Int) -> Unit = { index, _ -> onShowDetail(index) },
     /** Close the Candidate detail bubble, e.g. after a tap on the app area. */
     val onCloseDetail: () -> Unit = {},
 )
@@ -216,6 +222,24 @@ private fun IconLabel(
  */
 private const val STRIP_PAGE_SIZE = KeyRouting.PAGE_SIZE
 
+/**
+ * The line height of a strip candidate's Hanzi: Material's body line height, which is what it
+ * had before the strip's height was fixed.
+ */
+private val STRIP_LINE_HEIGHT = 24.sp
+
+/** The vertical padding of a strip candidate, above and below its line. */
+private val STRIP_CANDIDATE_PADDING = 8.dp
+
+/**
+ * The height of the strip's candidates: a word candidate's own height, one line and its
+ * padding. Fixed rather than left to the content, so a Sentence candidate's three-line blocks
+ * fit inside it and never make the keyboard taller (#36). In `sp` like the text, so it grows
+ * with the system font size.
+ */
+@Composable
+private fun stripCandidateHeight() = with(LocalDensity.current) { STRIP_LINE_HEIGHT.toDp() } + STRIP_CANDIDATE_PADDING * 2
+
 @Composable
 private fun CandidateStrip(
     state: KeyboardUiState,
@@ -257,14 +281,26 @@ private fun CandidateStrip(
                 )
             } else {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(stripCandidateHeight()),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     state.candidates
                         .drop(start)
                         .take(STRIP_PAGE_SIZE)
                         .forEachIndexed { offset, candidate ->
                             val index = start + offset
+                            if (candidate.isSentence) {
+                                SentenceStripSlot(
+                                    sentence = candidate,
+                                    index = index,
+                                    selected = index == state.selectedIndex,
+                                    onClick = { callbacks.onSelectCandidate(index) },
+                                    onShowAll = callbacks.onToggleExpanded,
+                                    onShowDetail = { callbacks.onShowDetail(index) },
+                                )
+                                return@forEachIndexed
+                            }
                             StripCandidate(
                                 candidate = candidate,
                                 index = index,
@@ -310,13 +346,14 @@ private fun RowScope.StripCandidate(
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (selected) DuckColors.Accent.copy(alpha = 0.18f) else Color.Transparent)
                 .opensCandidateDetail(index, onClick = onClick, onLongClick = onLongClick)
-                .padding(horizontal = 5.dp, vertical = 8.dp),
+                .padding(horizontal = 5.dp, vertical = STRIP_CANDIDATE_PADDING),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = candidate.hanzi,
             color = if (selected) DuckColors.Accent else DuckColors.PrimaryText,
             fontSize = if (candidate.hanzi.length > 2) 15.sp else 19.sp,
+            lineHeight = STRIP_LINE_HEIGHT,
             maxLines = 1,
         )
         Spacer(modifier = Modifier.width(5.dp))
@@ -365,7 +402,7 @@ internal const val DETAIL_LONG_PRESS_MILLIS = 450L
  * keep the platform's.
  */
 @Composable
-private fun DetailLongPressTimeout(content: @Composable () -> Unit) {
+internal fun DetailLongPressTimeout(content: @Composable () -> Unit) {
     val platform = LocalViewConfiguration.current
     val configuration =
         remember(platform) {
@@ -436,7 +473,22 @@ private fun ExpandedCandidates(
             // dictionary is keyed by traditional headword, so 幹/乾/干 all produce the same id.
             // A lazy grid throws on a duplicate key, and slicing the list to a page was what
             // kept those apart. Position-based default keys cannot collide.
-            itemsIndexed(items = state.candidates) { index, candidate ->
+            itemsIndexed(
+                items = state.candidates,
+                // A Sentence candidate is a full-width card spanning both columns (#36).
+                span = { _, candidate -> GridItemSpan(if (candidate.isSentence) maxLineSpan else 1) },
+            ) { index, candidate ->
+                if (candidate.isSentence) {
+                    SentenceCard(
+                        sentence = candidate,
+                        index = index,
+                        selected = index == state.selectedIndex,
+                        onClick = { callbacks.onSelectCandidate(index) },
+                        onShowDetail = { callbacks.onShowDetail(index) },
+                        onShowWordDetail = { word -> callbacks.onShowWordDetail(index, word) },
+                    )
+                    return@itemsIndexed
+                }
                 CandidateCard(
                     candidate = candidate,
                     index = index,

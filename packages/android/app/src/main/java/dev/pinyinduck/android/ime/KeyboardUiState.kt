@@ -52,6 +52,16 @@ data class OpenDetail(
     /** Where [candidate] sits in [KeyboardUiState.candidates]; what the bubble is anchored to. */
     val index: Int,
     val candidate: Candidate,
-    /** What the detail says, or null when it could not be read. */
+    /** What the detail says, or null when it could not be read (and for a Sentence candidate). */
     val view: DetailView?,
+    /**
+     * For a Sentence candidate, what the detail says about each of its words, in order; null
+     * for a word whose detail could not be read. Empty for a word candidate.
+     */
+    val wordViews: List<DetailView?> = emptyList(),
+    /**
+     * For a Sentence candidate opened from one word's block, which word: the bubble scrolls to
+     * it and highlights its section. Null when it was opened for the whole sentence.
+     */
+    val focusWord: Int? = null,
 )
