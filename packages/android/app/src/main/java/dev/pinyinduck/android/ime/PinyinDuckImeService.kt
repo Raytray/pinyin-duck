@@ -374,7 +374,12 @@ class PinyinDuckImeService :
         // The bubble keeps no state and never comes back on its own (#11). Left open, the next
         // show would start with the whole window swallowing the app's touches.
         closeDetail()
-        lifecycleRegistry.currentState = Lifecycle.State.CREATED
+        // InputMethodService.onDestroy finishes a still-started input view itself, after our
+        // onDestroy has moved the lifecycle to DESTROYED, which it can never leave. That is what
+        // switching to another keyboard while this one is up does.
+        if (lifecycleRegistry.currentState != Lifecycle.State.DESTROYED) {
+            lifecycleRegistry.currentState = Lifecycle.State.CREATED
+        }
         super.onFinishInputView(finishingInput)
     }
 
