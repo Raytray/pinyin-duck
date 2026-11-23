@@ -7,7 +7,8 @@
  *    the entries in one span that show the same Hanzi collapsed to the best one (the
  *    `compareScored` chain on frequency, as the word list picks a reading for a Hanzi).
  *    Words rarer than `MIN_SENTENCE_WORD_FREQUENCY` are dropped, and so is any edge a typed
- *    tone rules out. The last word alone may also be a prefix completion that runs past the
+ *    tone rules out, or that runs across a typed apostrophe or space anywhere but between
+ *    its own syllables (`xi'an` holds 西安, never 先; `spansForced`). The last word alone may also be a prefix completion that runs past the
  *    end of the query (`kafe` → 咖啡), found with one `scanPrefix` from each node whose
  *    tail holds a vowel (a bare initial such as `z` is not completed; see below).
  * 2. **Score.** A path scores the first word's stored frequency, plus for each later word its
@@ -29,7 +30,7 @@ import type { StoredEntry } from '../data/btree-codec.js';
 import type { BigramTable } from '../bigram/bigram-codec.js';
 import { cleanPinyin, syllableToneEnds, type ToneConstraint } from '../parser/pinyin.js';
 import { DEFAULT_MAX_MATCHES } from '../index/ranking.js';
-import { queryBoundaries } from './lattice.js';
+import { queryBoundaries, spansForced, type QueryBoundaries } from './lattice.js';
 
 /**
  * The bias toward fewer words, added to the dictionary's base word cost (the scaled
@@ -164,17 +165,17 @@ interface HeldWord {
  * Resolves the fixed words the query can hold, sorted by start. One is held when both ends
  * of its span are lattice nodes (or, for a completed last word, the span runs to the end of
  * the query and the key is longer), its entry is stored under that key and shown in the
- * active script, and the typed tones allow it. A fixed word skips
+ * active script, and the typed tones and boundaries allow it. A fixed word skips
  * `MIN_SENTENCE_WORD_FREQUENCY`: the learner chose it. One that overlaps a word held
  * earlier in the list is ignored.
  */
 function holdFixedWords(
   dictionary: BTreeDictionary,
   fixedWords: readonly FixedWord[],
-  lattice: { toneless: string; nodes: boolean[]; end: number },
+  lattice: QueryBoundaries,
   options: { script: ScriptType; toneFilter: readonly ToneConstraint[]; exactOnly?: boolean }
 ): HeldWord[] {
-  const { toneless, nodes, end } = lattice;
+  const { toneless, nodes, end, forced } = lattice;
   const n = toneless.length;
   const held: HeldWord[] = [];
   for (const { start, end: stop, word } of fixedWords) {
@@ -195,6 +196,7 @@ function holdFixedWords(
       break;
     }
     if (!entry || !fitsTones(entry, start, options.toneFilter)) continue;
+    if (!spansForced(entry.pinyinNumbers, start, stop, forced)) continue;
     held.push({ entry, start, end: stop });
   }
   return held.sort((a, b) => a.start - b.start);
@@ -204,13 +206,15 @@ function holdFixedWords(
 function collapse(
   entries: Iterable<StoredEntry>,
   script: ScriptType,
-  start: number,
+  span: { start: number; end: number; forced: readonly boolean[] },
   toneFilter: readonly ToneConstraint[]
 ): StoredEntry[] {
+  const { start, end, forced } = span;
   const best = new Map<string, StoredEntry>();
   for (const entry of entries) {
     if (entry.onlyIn && entry.onlyIn !== script) continue;
     if (entry.frequency < MIN_SENTENCE_WORD_FREQUENCY || !fitsTones(entry, start, toneFilter)) continue;
+    if (!spansForced(entry.pinyinNumbers, start, end, forced)) continue;
     const hanzi = script === 'traditional' ? entry.traditional : entry.simplified;
     const previous = best.get(hanzi);
     if (!previous || compareEntries(entry, previous) < 0) best.set(hanzi, entry);
@@ -252,7 +256,8 @@ export function findSentence(
 ): SentenceResult | null {
   const { script, toneFilter, bigrams } = options;
   const maxMatches = options.maxMatches ?? DEFAULT_MAX_MATCHES;
-  const { toneless, nodes, end } = queryBoundaries(query);
+  const boundaries = queryBoundaries(query);
+  const { toneless, nodes, end, forced } = boundaries;
   const n = toneless.length;
   if (n === 0) return null;
   const cost = wordCost(dictionary);
@@ -261,7 +266,7 @@ export function findSentence(
   // Fixed words force their edge: no other word may start, end or lie inside their span,
   // so every path past a fixed word's start goes through it, and the best path is found
   // before and after it as usual.
-  const held = holdFixedWords(dictionary, options.fixedWords ?? [], { toneless, nodes, end }, options);
+  const held = holdFixedWords(dictionary, options.fixedWords ?? [], boundaries, options);
   const heldAt = new Map(held.map((word) => [word.start, word]));
   const insideHeld = (i: number) => held.some((word) => i > word.start && i < word.end);
   /** The first fixed word starting after `i`, where every other edge from `i` must stop. */
@@ -294,7 +299,7 @@ export function findSentence(
     const stop = fixedHere || insideHeld(i) ? -1 : Math.min(end, nextHeldStart(i));
     for (let j = i + 1; j <= stop; j++) {
       if (!nodes[j]) continue;
-      addEdges(i, collapse(dictionary.lookupExact(toneless.slice(i, j)), script, i, toneFilter), j);
+      addEdges(i, collapse(dictionary.lookupExact(toneless.slice(i, j)), script, { start: i, end: j, forced }, toneFilter), j);
     }
     const tail = toneless.slice(i);
     // Amendment to #29's completion rule: a tail that is only a consonant initial so far
@@ -311,7 +316,7 @@ export function findSentence(
         scanned++;
         return scanned < maxMatches;
       });
-      addEdges(i, collapse(found, script, i, toneFilter), n);
+      addEdges(i, collapse(found, script, { start: i, end: n, forced }, toneFilter), n);
     }
 
     const previous = incoming[i].slice().sort((a, b) => (better(a, b) ? -1 : better(b, a) ? 1 : 0));

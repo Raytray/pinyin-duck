@@ -24,6 +24,7 @@ import { cleanPinyin, parseToneFilter, pinyinNumbersToMarks, segmentPinyin } fro
 import { BTreeDictionary } from '../data/btree-dictionary.js';
 import type { StoredEntry } from '../data/btree-codec.js';
 import type { BigramTable } from '../bigram/bigram-codec.js';
+import { queryBoundaries, spansForced } from '../sentence/lattice.js';
 import { findSentence, oneWordPathScore, wordCost, type SentenceResult } from '../sentence/sentence-search.js';
 import {
   DEFAULT_MAX_MATCHES,
@@ -187,7 +188,8 @@ export class LazyPinyinSearchEngine {
    * right after its last syllable, keeps only the readings with that tone. A tone typed on
    * another word says nothing here.
    *
-   * It never changes word boundaries: a longer or shorter span is a different question. The
+   * It never changes word boundaries, nor offers a word that runs across an apostrophe or
+   * space typed inside the span anywhere but between its own syllables: a longer or shorter span is a different question. The
    * one exception is a span that ends the query, where the last word may have been a
    * completion (`kafe` → 咖啡), so keys that start with the span are offered after the exact
    * ones, unless `exactOnly`. Each candidate carries `span`, so it can be passed back as a
@@ -201,7 +203,7 @@ export class LazyPinyinSearchEngine {
     const rawQuery = query.trim().toLowerCase();
     const script: ScriptType = options.script || 'simplified';
     const maxMatches = options.maxMatches ?? DEFAULT_MAX_MATCHES;
-    const toneless = cleanPinyin(rawQuery);
+    const { toneless, forced } = queryBoundaries(rawQuery);
     const { start, end } = span;
     if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start || end > toneless.length) {
       return [];
@@ -215,6 +217,8 @@ export class LazyPinyinSearchEngine {
     const chosen = new Map<string, ScoredStoredEntry>();
     const consider = (stored: StoredEntry): void => {
       if (stored.onlyIn && stored.onlyIn !== script) return;
+      // A word never runs across an apostrophe or space typed inside the span.
+      if (!spansForced(stored.pinyinNumbers, start, end, forced)) return;
       const entry = storedEntryToScorable(stored);
       const score = scoreEntry(entry, key, toneFilter);
       if (toneFilter.length > 0 && score <= 0) return;

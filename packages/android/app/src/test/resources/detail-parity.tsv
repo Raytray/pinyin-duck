@@ -1917,6 +1917,30 @@ pos	interjection
 tag	Taiwan pronunciation wò
 sense	1	(onom.) cry of a rooster (usu. reduplicated)
 
+>喜	喜	xi3	simplified	1
+group
+pos	verb
+sense	1	to be fond of
+sense	2	to like
+sense	3	to enjoy
+sense	4	to be happy
+sense	5	to feel pleased
+sense	6	happiness
+sense	7	delight
+sense	8	glad
+
+>喜	喜	xi3	traditional	1
+group
+pos	verb
+sense	1	to be fond of
+sense	2	to like
+sense	3	to enjoy
+sense	4	to be happy
+sense	5	to feel pleased
+sense	6	happiness
+sense	7	delight
+sense	8	glad
+
 >喨	喨	liang4	simplified	1
 group
 pos	adjective
@@ -3129,6 +3153,53 @@ pos	adjective
 sense	1	artful
 sense	2	flattering
 
+>戏	戯	xi4	simplified	1
+counterpart	戯
+group
+tag	Variant of 戏 xì: trick / drama / play
+
+>戏	戯	xi4	traditional	1
+counterpart	戏
+group
+tag	Variant of 戲 xì: trick / drama / play
+
+>戏	戲	xi4	simplified	1
+counterpart	戲
+group
+pos	noun · verb
+sense	1	trick
+sense	2	drama
+sense	3	play
+sense	4	show
+mw	出 chū
+mw	场 chǎng
+mw	台 tái
+
+>戏	戲	xi4	simplified	2
+group	戲
+pos	noun · verb
+sense	1	trick
+sense	2	drama
+sense	3	play
+sense	4	show
+mw	出 chū
+mw	场 chǎng
+mw	台 tái
+group	戯
+tag	Variant of 戏 xì: trick / drama / play
+
+>戏	戲	xi4	traditional	1
+counterpart	戏
+group
+pos	noun · verb
+sense	1	trick
+sense	2	drama
+sense	3	play
+sense	4	show
+mw	齣 chū
+mw	場 chǎng
+mw	臺 tái
+
 >我	我	wo3	simplified	1
 group
 pos	pronoun
@@ -4182,6 +4253,22 @@ sense	1	landslide
 sense	2	torrent of mud and stones
 sense	3	mudslide
 
+>洗	洗	xi3	simplified	1
+group
+pos	verb · noun
+sense	1	to wash; to bathe
+sense	2	to develop (photographs)
+sense	3	to shuffle (cards etc)
+sense	4	to erase (a recording)
+
+>洗	洗	xi3	traditional	1
+group
+pos	verb · noun
+sense	1	to wash; to bathe
+sense	2	to develop (photographs)
+sense	3	to shuffle (cards etc)
+sense	4	to erase (a recording)
+
 >洗	洗	xian3	simplified	1
 group
 pos	verb
@@ -4905,6 +4992,72 @@ sense	1	grain
 sense	2	food
 sense	3	provisions
 sense	4	agricultural tax paid in grain
+
+>系	係	xi4	simplified	1
+counterpart	係
+group
+pos	noun
+sense	1	to connect
+sense	2	to relate to
+sense	3	to tie up
+sense	4	to bind
+sense	5	to be (literary)
+
+>系	係	xi4	simplified	3
+group	係
+pos	noun
+sense	1	to connect
+sense	2	to relate to
+sense	3	to tie up
+sense	4	to bind
+sense	5	to be (literary)
+group	系
+pos	verb · interjection · noun · adjective
+sense	1	system
+sense	2	department
+sense	3	faculty
+group	繫
+sense	1	to connect
+sense	2	to arrest
+sense	3	to worry
+
+>系	係	xi4	traditional	1
+counterpart	系
+group
+pos	noun
+sense	1	to connect
+sense	2	to relate to
+sense	3	to tie up
+sense	4	to bind
+sense	5	to be (literary)
+
+>系	系	xi4	simplified	1
+group
+pos	verb · interjection · noun · adjective
+sense	1	system
+sense	2	department
+sense	3	faculty
+
+>系	系	xi4	traditional	1
+group
+pos	verb · interjection · noun · adjective
+sense	1	system
+sense	2	department
+sense	3	faculty
+
+>系	繫	xi4	simplified	1
+counterpart	繫
+group
+sense	1	to connect
+sense	2	to arrest
+sense	3	to worry
+
+>系	繫	xi4	traditional	1
+counterpart	系
+group
+sense	1	to connect
+sense	2	to arrest
+sense	3	to worry
 
 >索	索	suo3	simplified	1
 group

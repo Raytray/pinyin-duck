@@ -182,9 +182,13 @@ class PinyinEngineParityTest {
         )
         // 河 and 像 are listed out of order; the engine sorts them by start.
         assertEquals(listOf(7, 2), searches[2].fixedWords.map { it.start })
-        assertEquals(listOf("woxiang he4 kafei", "woxianghekafei"), alternatives.map { it.query })
+        assertEquals(listOf("woxiang he4 kafei", "woxianghekafei", "xi'anhenmei"), alternatives.map { it.query })
         assertTrue("only hè readings", alternatives[0].alternatives.all { it[1] == "hè" })
         assertEquals(52, alternatives[1].alternatives.size)
+        // Nothing runs across the apostrophe: 西安 is offered, 先 is not.
+        val xian = alternatives[2].alternatives.map { it[0] }
+        assertTrue("西安 offered", "西安" in xian)
+        assertTrue("先 not offered", "先" !in xian)
     }
 
     @Test

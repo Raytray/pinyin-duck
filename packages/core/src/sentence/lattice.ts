@@ -13,7 +13,7 @@
  * reached only by a prefix completion of the last word, or left to compose.
  */
 
-import { VALID_PINYIN_SYLLABLES, tonelessLetter } from '../parser/pinyin.js';
+import { VALID_PINYIN_SYLLABLES, syllableToneEnds, tonelessLetter } from '../parser/pinyin.js';
 
 /** The longest syllable (`zhuang`, `chuang`, `shuang`). */
 const MAX_SYLLABLE = 6;
@@ -25,6 +25,12 @@ export interface QueryBoundaries {
   nodes: boolean[];
   /** The end of the longest splittable prefix; `toneless.length` when the whole query splits. */
   end: number;
+  /**
+   * `forced[i]`: something other than a letter (an apostrophe, a space, a hyphen, a tone
+   * digit) was typed at offset `i`. Length n + 1. A word may span offset `i` only when `i`
+   * falls between two of its own syllables (`spansForced`).
+   */
+  forced: boolean[];
 }
 
 /**
@@ -44,8 +50,9 @@ export function queryBoundaries(query: string): QueryBoundaries {
   }
 
   const n = toneless.length;
+  const forced: boolean[] = Array.from({ length: n + 1 }, (_, i) => forcedAt.has(i));
   const crossesForced = (i: number, j: number): boolean => {
-    for (let k = i + 1; k < j; k++) if (forcedAt.has(k)) return true;
+    for (let k = i + 1; k < j; k++) if (forced[k]) return true;
     return false;
   };
   const isSyllable = (i: number, j: number): boolean =>
@@ -76,5 +83,20 @@ export function queryBoundaries(query: string): QueryBoundaries {
       }
     }
   }
-  return { toneless, nodes, end };
+  return { toneless, nodes, end, forced };
+}
+
+/**
+ * Whether a word read `pinyinNumbers`, placed on `[start, end)` of the query, fits the
+ * boundaries typed inside that span: each must fall on one of the word's own syllable ends,
+ * so `xi'an` holds 西安 (xi1 an1) but not 先 (xian1).
+ */
+export function spansForced(pinyinNumbers: string, start: number, end: number, forced: readonly boolean[]): boolean {
+  let ends: ReturnType<typeof syllableToneEnds> | null = null;
+  for (let k = start + 1; k < end; k++) {
+    if (!forced[k]) continue;
+    ends ??= syllableToneEnds(pinyinNumbers);
+    if (!ends.some(({ offset }) => offset === k - start)) return false;
+  }
+  return true;
 }

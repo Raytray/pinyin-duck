@@ -153,7 +153,8 @@ class PinyinDuckEngine(
      * Rare words are included, since a word the learner picks becomes a [FixedWord] and skips
      * [MIN_SENTENCE_WORD_FREQUENCY]. A tone typed inside the span, or right after its last
      * syllable, keeps only the readings with that tone; a tone typed on another word says
-     * nothing here. It never changes word boundaries. The one exception is a span that ends
+     * nothing here. It never changes word boundaries, nor offers a word that runs across an
+     * apostrophe or space typed inside the span anywhere but between its own syllables. The one exception is a span that ends
      * the query, where the last word may have been a completion (`kafe` → 咖啡), so keys that
      * start with the span are offered after the exact ones, unless [exactOnly]. Each candidate
      * carries [Candidate.span], so [Candidate.toFixedWord] turns it into a fixed word as is.
@@ -168,7 +169,8 @@ class PinyinDuckEngine(
     ): List<Candidate> {
         val rawQuery = query.trim().lowercase()
         val budget = maxMatches ?: this.maxMatches
-        val toneless = cleanPinyin(rawQuery)
+        val boundaries = queryBoundaries(rawQuery)
+        val toneless = boundaries.toneless
         val start = span.start
         val end = span.end
         if (start < 0 || end <= start || end > toneless.length) return emptyList()
@@ -183,6 +185,8 @@ class PinyinDuckEngine(
 
         fun consider(entry: StoredEntry) {
             if (entry.onlyIn != null && entry.onlyIn != script) return
+            // A word never runs across an apostrophe or space typed inside the span.
+            if (!spansForced(entry.pinyinNumbers, start, end, boundaries.forced)) return
             val score = scoreEntry(entry.toScorable(), key, toneFilter)
             if (toneFilter.isNotEmpty() && score <= 0) return
             val hanzi = if (script == ScriptType.TRADITIONAL) entry.traditional else entry.simplified

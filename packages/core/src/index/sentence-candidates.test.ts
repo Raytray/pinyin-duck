@@ -39,6 +39,8 @@ const rows: DictionaryRow[] = [
   ['贺', '賀', 'he4', 'to congratulate', 44917, 0, [25]],
   ['涸', '涸', 'he2', 'to dry up', 0, 0, [26]],
   ['像', '像', 'xiang4', 'to resemble', 75964, 0, [27]],
+  // Rarer than 先, so only a forced boundary picks it on `xian`.
+  ['西安', '西安', 'xi1 an1', "Xi'an", 20000, 0, [28]],
 ];
 
 /** The pairs a bigram table holds, scored as `build-bigrams.ts` would. */
@@ -102,9 +104,11 @@ describe('Sentence candidates', () => {
   });
 
   it('never lets a word run across an apostrophe, space or tone digit', () => {
-    expect(wordsOf(sentenceOf(search("xi'an")))).toEqual(['西', '安']);
-    expect(wordsOf(sentenceOf(search('xi an')))).toEqual(['西', '安']);
-    expect(wordsOf(sentenceOf(search('xi1an')))).toEqual(['西', '安']);
+    // 先 (68,327) beats 西安 (20,000) on xianhao, but xian is one syllable and cannot hold the break.
+    expect(wordsOf(search('xianhao')[0])).toEqual(['先', '好']);
+    expect(wordsOf(search("xi'anhao")[0])).toEqual(['西安', '好']);
+    expect(wordsOf(search('xi an hao')[0])).toEqual(['西安', '好']);
+    expect(wordsOf(search('xi1anhao')[0])).toEqual(['西安', '好']);
   });
 
   it('filters edges on typed tones, and offers no sentence when none survives', () => {
@@ -259,6 +263,8 @@ describe('Fixed words', () => {
     }
     // A typed tone rules 河 (hé) out on "he4".
     expect(wordsOf(search('woxianghe4kafei', { fixedWords: [fix(7, 9, '河', 'he2')] })[0])).not.toContain('河');
+    // A typed apostrophe inside the span that is not one of the word's syllable ends.
+    expect(wordsOf(search("xi'anhao", { fixedWords: [fix(0, 4, '先', 'xian1')] })[0])).toEqual(['西安', '好']);
     // An overlapping one: the first in the list wins.
     const overlapping = [fix(7, 9, '河', 'he2'), fix(2, 9, '想', 'xiang3')];
     expect(wordsOf(search('woxianghekafei', { fixedWords: overlapping })[0])).toEqual(['我', '像', '河', '咖啡']);
@@ -305,6 +311,10 @@ describe('Span alternatives', () => {
   it('never changes word boundaries', () => {
     // No entry is keyed "xianghe", so there is nothing to offer: 想 + 喝 stay two words.
     expect(alternatives('woxianghekafei', 2, 9)).toEqual([]);
+    // Nor runs a word across a typed apostrophe or space inside the span.
+    expect(alternatives('xianhao', 0, 4)).toEqual(['先 xian1', '西安 xi1 an1']);
+    expect(alternatives("xi'anhao", 0, 4)).toEqual(['西安 xi1 an1']);
+    expect(alternatives('xi an hao', 0, 4)).toEqual(['西安 xi1 an1']);
   });
 
   it('offers completions for a last word that runs past the end of the query', () => {

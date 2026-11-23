@@ -70,8 +70,8 @@ private class HeldWord(
  * Resolves the fixed words the query can hold, sorted by start. `holdFixedWords` in
  * `sentence-search.ts`: one is held when both ends of its span are lattice nodes (or, for a
  * completed last word, the span runs to the end of the query and the key is longer), its
- * entry is stored under that key and shown in the active script, and the typed tones allow
- * it. A fixed word skips [MIN_SENTENCE_WORD_FREQUENCY]: the learner chose it. One that
+ * entry is stored under that key and shown in the active script, and the typed tones and
+ * boundaries allow it. A fixed word skips [MIN_SENTENCE_WORD_FREQUENCY]: the learner chose it. One that
  * overlaps a word held earlier in the list is ignored.
  */
 private fun holdFixedWords(
@@ -106,6 +106,7 @@ private fun holdFixedWords(
                     stored.pinyinNumbers == word.pinyinNumbers
             }
         if (entry == null || !fitsTones(entry, start, toneFilter)) continue
+        if (!spansForced(entry.pinyinNumbers, start, stop, boundaries.forced)) continue
         held.add(HeldWord(entry, start, stop))
     }
     held.sortBy { it.start }
@@ -194,6 +195,8 @@ private fun collapse(
     entries: List<StoredEntry>,
     script: ScriptType,
     start: Int,
+    end: Int,
+    forced: BooleanArray,
     toneFilter: List<ToneConstraint>,
 ): List<StoredEntry> {
     if (entries.isEmpty()) return entries
@@ -201,6 +204,7 @@ private fun collapse(
     for (entry in entries) {
         if (entry.onlyIn != null && entry.onlyIn != script) continue
         if (entry.frequency < MIN_SENTENCE_WORD_FREQUENCY || !fitsTones(entry, start, toneFilter)) continue
+        if (!spansForced(entry.pinyinNumbers, start, end, forced)) continue
         val hanzi = if (script == ScriptType.TRADITIONAL) entry.traditional else entry.simplified
         val previous = best[hanzi]
         if (previous == null || ENTRY_ORDER.compare(entry, previous) < 0) best[hanzi] = entry
@@ -296,7 +300,7 @@ internal fun findSentence(
             }
         for (j in i + 1..stop) {
             if (!nodes[j]) continue
-            addEdges(i, collapse(dictionary.lookupExact(toneless.substring(i, j)), script, i, toneFilter), j)
+            addEdges(i, collapse(dictionary.lookupExact(toneless.substring(i, j)), script, i, j, boundaries.forced, toneFilter), j)
         }
         // A tail that is only a consonant initial so far (`z`, `zh`, a lone `w`) is not
         // completed: it says little about the word, and scanning it walks every key under that
@@ -310,7 +314,7 @@ internal fun findSentence(
                 scanned++
                 scanned < maxMatches
             }
-            addEdges(i, collapse(found, script, i, toneFilter), n)
+            addEdges(i, collapse(found, script, i, n, boundaries.forced, toneFilter), n)
         }
 
         val previous = incoming[i].sortedWith(BEST_FIRST)

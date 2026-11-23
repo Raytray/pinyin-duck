@@ -135,6 +135,20 @@ export const SENTENCE_CASES: readonly SentenceCase[] = [
     remaining: 'qqq',
     pins: 'a partial sentence leaves the rest composing',
   },
+  {
+    query: "xi'anhenmei",
+    first: '西安很美',
+    words: ['西安', '很', '美'],
+    remaining: '',
+    pins: 'an apostrophe forces a boundary: 先 cannot run across it (#40)',
+  },
+  {
+    query: 'xi an hen mei',
+    first: '西安很美',
+    words: ['西安', '很', '美'],
+    remaining: '',
+    pins: 'so do spaces (#40)',
+  },
 ];
 
 /** A fixed word on `[start, end)` of the toneless query, by its forms and numbered reading. */
@@ -230,6 +244,13 @@ export const ALTERNATIVES_CASES: readonly AlternativesCase[] = [
     span: { start: 7, end: 9 },
     includes: ['和', '喝', '河', '涸'],
     pins: 'every entry for the span, rare words included',
+  },
+  {
+    query: "xi'anhenmei",
+    span: { start: 0, end: 4 },
+    includes: ['西安'],
+    excludes: ['先'],
+    pins: 'no alternative runs across an apostrophe typed inside the span',
   },
 ];
 
