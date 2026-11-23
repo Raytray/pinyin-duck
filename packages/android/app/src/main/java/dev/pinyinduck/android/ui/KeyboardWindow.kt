@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -79,6 +80,10 @@ fun KeyboardWindow(
         // Test tags double as accessibility resource ids, so a UI Automator test on a device
         // finds the keyboard's elements by tag (`By.res(SENTENCE_SLOT_TAG)`) the way a Compose
         // test does. Set once here and inherited by everything in the window.
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // The keyboard never takes the whole window: with the Expanded candidate list open on a
+        // landscape phone it would reach the top of the screen, and the app hides it then.
+        val keyboardMaxHeight = maxHeight - MIN_APP_AREA
         Column(modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
             var areaLeft by remember { mutableFloatStateOf(0f) }
             BoxWithConstraints(
@@ -128,14 +133,19 @@ fun KeyboardWindow(
                 callbacks = callbacks,
                 modifier =
                     Modifier
+                        .heightIn(max = keyboardMaxHeight)
                         .testTag(KEYBOARD_TAG)
                         .onGloballyPositioned {
                             if (!bubbleOpen) onKeyboardTop(it.boundsInWindow().top.roundToInt())
                         },
             )
         }
+        }
     }
 }
+
+/** The space above the keyboard that is always left to the app, about what the collapsed keyboard leaves on a landscape phone. */
+private val MIN_APP_AREA = 64.dp
 
 /** The bubble's widest, so that on a phone it visibly belongs to one candidate. */
 private val BUBBLE_MAX_WIDTH = 320.dp

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -129,7 +130,9 @@ fun PinyinDuckKeyboard(
                 .padding(bottom = bottomBuffer),
     ) {
         if (state.expanded) {
-            ExpandedCandidates(state, callbacks)
+            // Measured after the keys (it is the Column's only weighted child), so on a window
+            // too short for both it shrinks rather than pushing the keyboard past the top.
+            ExpandedCandidates(state, callbacks, Modifier.weight(1f, fill = false))
         } else {
             CompositionBar(state, callbacks)
             CandidateStrip(state, callbacks)
@@ -453,10 +456,11 @@ internal fun DetailLongPressTimeout(content: @Composable () -> Unit) {
 private fun ExpandedCandidates(
     state: KeyboardUiState,
     callbacks: KeyboardCallbacks,
+    modifier: Modifier = Modifier,
 ) {
     Column(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 .background(DuckColors.CandidateSelected)
                 .padding(6.dp),
@@ -485,7 +489,10 @@ private fun ExpandedCandidates(
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             state = gridState,
-            modifier = Modifier.height(if (state.detailOpen) EXPANDED_LIST_HEIGHT_UNDER_DETAIL else EXPANDED_LIST_HEIGHT),
+            modifier =
+                Modifier
+                    .weight(1f, fill = false)
+                    .heightIn(max = if (state.detailOpen) EXPANDED_LIST_HEIGHT_UNDER_DETAIL else EXPANDED_LIST_HEIGHT),
         ) {
             // No explicit key: `Candidate.id` is `"$simplified-$pinyinNumbers"` and the
             // dictionary is keyed by traditional headword, so 幹/乾/干 all produce the same id.
