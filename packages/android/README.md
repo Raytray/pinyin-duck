@@ -104,11 +104,12 @@ The coverage report is written to `app/build/reports/jacoco/jacocoTestReport/htm
 
 ### Device tests
 
-Three test classes in `app/src/androidTest` run the keyboard on an Android emulator and drive it with UI Automator, typing with PinyinDuck into Settings search:
+Four test classes in `app/src/androidTest` run the keyboard on an Android emulator and drive it with UI Automator, typing with PinyinDuck into Settings search:
 
 - `SentenceCommitDeviceTest`, end to end: it types `woxianghekafei`, taps the Sentence candidate, and checks that 我想喝咖啡 was committed.
 - `SentenceSlotDeviceTest` checks what Robolectric cannot, because it has no real CJK font metrics: in the Sentence candidate's strip slot, each chip sits inside the slot and nothing overlaps, for one chosen input per slot state (no chips, the leftover chip, the "+N" chip, both), and the keyboard keeps its height from before typing to a long sentence.
 - `SentenceCardDeviceTest` opens the Sentence candidate's card in the Expanded candidate list with a long press on the slot, and checks that the card wraps its word blocks onto rows inside it, that a word's menu fits under the card with its "Commit through" chip in view while its alternatives overflow, that "Commit through" commits the words up to the chosen one and leaves the rest composing, and that Back closes the menu, then hides the keyboard without reaching the app.
+- `WordCandidateDeviceTest` covers the ordinary strip with no Sentence slot, on `nihao`: tapping 你好 commits it into the field, ▴ opens the Expanded candidate list, and ✕ drops the composition with nothing committed.
 
 Each test first checks that its input still gives the sentence it expects (and, for the slot, the chips of its state), so a dictionary or ranking change fails with a hint to pick a new input rather than with a bounds diff.
 
