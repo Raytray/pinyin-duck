@@ -1,5 +1,6 @@
 package dev.pinyinduck.android.ui
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.ViewConfiguration
@@ -130,15 +131,17 @@ fun PinyinDuckKeyboard(
                 .padding(bottom = bottomBuffer),
     ) {
         if (state.expanded) {
-            // Measured after the keys (it is the Column's only weighted child), so on a window
-            // too short for both it shrinks rather than pushing the keyboard past the top.
-            ExpandedCandidates(state, callbacks, Modifier.weight(1f, fill = false))
+            ExpandedCandidates(state, callbacks)
         } else {
             CompositionBar(state, callbacks)
             CandidateStrip(state, callbacks)
         }
 
-        KeyboardGrid(state, callbacks)
+        // A landscape phone has no room for the keys and the Expanded candidate list together:
+        // the keyboard would fill the window and the app would hide it. The keys come back
+        // when the list closes.
+        val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+        if (!(state.expanded && landscape)) KeyboardGrid(state, callbacks)
     }
 }
 
@@ -456,11 +459,10 @@ internal fun DetailLongPressTimeout(content: @Composable () -> Unit) {
 private fun ExpandedCandidates(
     state: KeyboardUiState,
     callbacks: KeyboardCallbacks,
-    modifier: Modifier = Modifier,
 ) {
     Column(
         modifier =
-            modifier
+            Modifier
                 .fillMaxWidth()
                 .background(DuckColors.CandidateSelected)
                 .padding(6.dp),
@@ -489,10 +491,7 @@ private fun ExpandedCandidates(
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             state = gridState,
-            modifier =
-                Modifier
-                    .weight(1f, fill = false)
-                    .heightIn(max = if (state.detailOpen) EXPANDED_LIST_HEIGHT_UNDER_DETAIL else EXPANDED_LIST_HEIGHT),
+            modifier = Modifier.height(if (state.detailOpen) EXPANDED_LIST_HEIGHT_UNDER_DETAIL else EXPANDED_LIST_HEIGHT),
         ) {
             // No explicit key: `Candidate.id` is `"$simplified-$pinyinNumbers"` and the
             // dictionary is keyed by traditional headword, so 幹/乾/干 all produce the same id.
