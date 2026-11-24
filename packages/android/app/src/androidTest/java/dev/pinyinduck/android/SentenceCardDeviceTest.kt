@@ -10,6 +10,7 @@ import dev.pinyinduck.android.ui.WORD_MENU_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 import java.util.regex.Pattern
 
@@ -24,13 +25,31 @@ import java.util.regex.Pattern
  */
 @RunWith(AndroidJUnit4::class)
 class SentenceCardDeviceTest {
+    private val ime = PinyinDuckImeRule()
+    private val orientation = DeviceOrientationRule()
+
+    /**
+     * Rules run outside in and tear down inside out: the rotation is put back to portrait
+     * before the input method settings are restored, so the keyboard is never switched away
+     * while the activity is being re-created.
+     */
     @get:Rule
-    val ime = PinyinDuckImeRule()
+    val rules: RuleChain = RuleChain.outerRule(ime).around(orientation)
 
     private val keyboard = KeyboardDriver()
 
     @Test
-    fun theCardWrapsItsWordBlocksOntoRowsInsideIt() {
+    fun theCardWrapsItsWordBlocksOntoRowsInsideIt() = checkCardWraps(mustWrap = true)
+
+    @Test
+    fun inLandscapeTheCardKeepsItsWordBlocksInsideIt() {
+        orientation.landscape()
+        // At 2400 px wide all six word blocks legitimately fit on one row (and no input of at
+        // most 20 letters is long enough to wrap), so only the portrait check requires a wrap.
+        checkCardWraps(mustWrap = false)
+    }
+
+    private fun checkCardWraps(mustWrap: Boolean) {
         val card = openCard()
         val bounds = LabelledBounds("the card", card.visibleBounds)
         val blocks = wordBlocksByDescription(card)
@@ -39,14 +58,25 @@ class SentenceCardDeviceTest {
                 ?: failTest("The card has no leftover block described as \"then $LEFTOVER\"")
 
         val rows = blocks.map { it.rect.top }.distinct()
-        if (rows.size < 2) failTest("Expected the word blocks on at least two rows, but they all sit on one: ${blocks.joinToString()}")
+        val wrapped = rows.size >= 2
+        if (mustWrap && !wrapped) {
+            failTest("Expected the word blocks on at least two rows, but they all sit on one: ${blocks.joinToString()}")
+        }
         blocks.forEach { assertInside(it, bounds) }
         assertNoOverlap(blocks)
         assertInside(LabelledBounds("the leftover block", leftover.visibleBounds), bounds)
     }
 
     @Test
-    fun theWordMenuFitsUnderTheCardWithItsCommitChipInView() {
+    fun theWordMenuFitsUnderTheCardWithItsCommitChipInView() = checkWordMenuFits()
+
+    @Test
+    fun inLandscapeTheWordMenuFitsUnderTheCardWithItsCommitChipInView() {
+        orientation.landscape()
+        checkWordMenuFits()
+    }
+
+    private fun checkWordMenuFits() {
         val card = openCard()
         val menu = openMenu(card)
 

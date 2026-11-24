@@ -1,5 +1,6 @@
 package dev.pinyinduck.android.ui
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -39,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.ViewConfiguration
@@ -135,7 +137,11 @@ fun PinyinDuckKeyboard(
             CandidateStrip(state, callbacks)
         }
 
-        KeyboardGrid(state, callbacks)
+        // A landscape phone has no room for the keys and the Expanded candidate list together:
+        // the keyboard would fill the window and the app would hide it. The keys come back
+        // when the list closes.
+        val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+        if (!(state.expanded && landscape)) KeyboardGrid(state, callbacks)
     }
 }
 

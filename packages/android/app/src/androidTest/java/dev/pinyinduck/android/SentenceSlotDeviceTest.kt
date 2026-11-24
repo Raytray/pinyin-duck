@@ -11,6 +11,7 @@ import dev.pinyinduck.android.ui.SENTENCE_SLOT_PADDING_DP
 import dev.pinyinduck.android.ui.SENTENCE_SLOT_TAG
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 import kotlin.math.roundToInt
 
@@ -28,8 +29,16 @@ import kotlin.math.roundToInt
  */
 @RunWith(AndroidJUnit4::class)
 class SentenceSlotDeviceTest {
+    private val ime = PinyinDuckImeRule()
+    private val orientation = DeviceOrientationRule()
+
+    /**
+     * Rules run outside in and tear down inside out: the rotation is put back to portrait
+     * before the input method settings are restored, so the keyboard is never switched away
+     * while the activity is being re-created.
+     */
     @get:Rule
-    val ime = PinyinDuckImeRule()
+    val rules: RuleChain = RuleChain.outerRule(ime).around(orientation)
 
     private val keyboard = KeyboardDriver()
 
@@ -51,7 +60,33 @@ class SentenceSlotDeviceTest {
     fun aPartialSentenceThatOverflowsShowsBothChips() = checkSlot(BOTH_CHIPS)
 
     @Test
-    fun theKeyboardKeepsItsHeightFromBeforeTypingToALongSentence() {
+    fun inLandscapeASentenceThatFitsShowsNoChips() {
+        orientation.landscape()
+        checkSlot(NO_CHIPS)
+    }
+
+    @Test
+    fun inLandscapeAPartialSentenceThatFitsShowsOnlyTheLeftoverChip() {
+        orientation.landscape()
+        checkSlot(LEFTOVER_ONLY)
+    }
+
+    @Test
+    fun inLandscapeAPartialSentenceThatOverflowsShowsBothChips() {
+        orientation.landscape()
+        checkSlot(LANDSCAPE_BOTH_CHIPS)
+    }
+
+    @Test
+    fun theKeyboardKeepsItsHeightFromBeforeTypingToALongSentence() = checkKeyboardHeight(COUNT_ONLY, BOTH_CHIPS)
+
+    @Test
+    fun inLandscapeTheKeyboardKeepsItsHeightFromBeforeTypingToALongSentence() {
+        orientation.landscape()
+        checkKeyboardHeight(LANDSCAPE_BOTH_CHIPS)
+    }
+
+    private fun checkKeyboardHeight(vararg longStates: SlotState) {
         keyboard.openSettingsSearch()
         val before = keyboardBounds("before typing")
 
@@ -62,7 +97,7 @@ class SentenceSlotDeviceTest {
         assertSameTopAndHeight(before, keyboardBounds("composing \"$WORDS_ONLY\""))
         keyboard.clearComposition(WORDS_ONLY)
 
-        for (state in listOf(COUNT_ONLY, BOTH_CHIPS)) {
+        for (state in longStates) {
             keyboard.type(state.input)
             slotIn(state)
             assertSameTopAndHeight(before, keyboardBounds("composing \"${state.input}\""))
@@ -196,6 +231,18 @@ class SentenceSlotDeviceTest {
          */
         val BOTH_CHIPS =
             SlotState("woxianghekafeiv", "Sentence 我想喝咖啡, wǒ xiǎng hē kā fēi, then ü", SlotChips.BOTH)
+
+        /*
+         * In landscape the slot is about 294 dp wide, against about 124 dp of content in
+         * portrait, so the portrait inputs fit without a chip. This is the longest input
+         * (the keyboard composes 20 letters at most) that still overflows. The "+N chip only"
+         * state has no landscape check: no full sentence of 20 letters or fewer overflows
+         * a 294 dp slot (我爱吃也不想我, 18 letters, still fits).
+         */
+
+        /** Both chips in landscape: the same sentence then "v". */
+        val LANDSCAPE_BOTH_CHIPS =
+            SlotState("woaichiyebuxianghev", "Sentence 我爱吃也不想和, wǒ ài chī yě bù xiǎng hé, then ü", SlotChips.BOTH)
 
         /** A composition with word candidates and no Sentence candidate: a single word. */
         const val WORDS_ONLY = "nihao"

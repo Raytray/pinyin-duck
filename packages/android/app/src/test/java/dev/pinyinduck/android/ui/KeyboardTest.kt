@@ -374,6 +374,42 @@ class KeyboardTest {
         assertEquals(listOf(1), recorder.selected)
     }
 
+    @Test
+    @Config(qualifiers = "w891dp-h411dp")
+    fun inLandscapeTheKeysAreHiddenWhileTheExpandedListIsOpenAndComeBackWhenItCloses() {
+        var expanded by mutableStateOf(true)
+        compose.setContent {
+            PinyinDuckTheme {
+                PinyinDuckKeyboard(
+                    state =
+                        KeyboardUiState(
+                            loading = false,
+                            buffer = "ni",
+                            candidates = listOf(candidate("你", "nǐ", "you")),
+                            total = 1,
+                            expanded = expanded,
+                        ),
+                    callbacks = Recorder().callbacks(),
+                )
+            }
+        }
+
+        compose.onNodeWithText("q").assertDoesNotExist()
+        compose.onNodeWithText("you").assertIsDisplayed()
+
+        expanded = false
+        compose.waitForIdle()
+
+        compose.onNodeWithText("q").assertIsDisplayed()
+    }
+
+    @Test
+    fun inPortraitTheKeysStayWhileTheExpandedListIsOpen() {
+        show(Recorder(), expanded = true, buffer = "ni", candidates = listOf(candidate("你", "nǐ", "you")))
+
+        compose.onNodeWithText("q").assertIsDisplayed()
+    }
+
     // --- helpers ----------------------------------------------------------------
 
     private fun show(

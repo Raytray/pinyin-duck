@@ -1,11 +1,13 @@
 package dev.pinyinduck.android.ui
 
+import android.content.res.Configuration
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -24,10 +26,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import dev.pinyinduck.android.ime.KeyboardUiState
@@ -79,63 +83,78 @@ fun KeyboardWindow(
         // Test tags double as accessibility resource ids, so a UI Automator test on a device
         // finds the keyboard's elements by tag (`By.res(SENTENCE_SLOT_TAG)`) the way a Compose
         // test does. Set once here and inherited by everything in the window.
-        Column(modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
-            var areaLeft by remember { mutableFloatStateOf(0f) }
-            BoxWithConstraints(
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .onGloballyPositioned { areaLeft = it.boundsInRoot().left },
-                contentAlignment = Alignment.BottomStart,
-            ) {
-                val detail = state.detail
-                if (detail != null) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .testTag(APP_AREA_TAG)
-                                .pointerInput(Unit) { detectTapGestures { callbacks.onCloseDetail() } },
-                    )
-                    val width = minOf(maxWidth - BUBBLE_MARGIN * 2, BUBBLE_MAX_WIDTH)
-                    val density = LocalDensity.current
-                    val left =
-                        with(density) {
-                            bubbleLeft(
-                                anchor = anchors.boundsOf(detail.index),
-                                areaLeft = areaLeft,
-                                areaWidth = maxWidth.toPx(),
-                                bubbleWidth = width.toPx(),
-                                margin = BUBBLE_MARGIN.toPx(),
-                            )
-                        }
-                    CandidateDetailBubble(
-                        detail = detail,
-                        onUse = { callbacks.onSelectCandidate(detail.index) },
-                        onClose = callbacks.onCloseDetail,
-                        modifier =
-                            Modifier
-                                .offset { IntOffset(left.roundToInt(), 0) }
-                                .padding(vertical = 6.dp)
-                                .width(width),
-                    )
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            // On a landscape phone the Expanded candidate list would fill the window to the top of
+            // the screen, and the app hides a keyboard that does. So there the keyboard leaves
+            // the app at least LANDSCAPE_APP_AREA_MIN. Portrait is left as it was.
+            val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+            val keyboardMaxHeight = if (landscape) maxHeight - LANDSCAPE_APP_AREA_MIN else Dp.Infinity
+            Column(modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
+                var areaLeft by remember { mutableFloatStateOf(0f) }
+                BoxWithConstraints(
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .onGloballyPositioned { areaLeft = it.boundsInRoot().left },
+                    contentAlignment = Alignment.BottomStart,
+                ) {
+                    val detail = state.detail
+                    if (detail != null) {
+                        Box(
+                            modifier =
+                                Modifier
+                                    .fillMaxSize()
+                                    .testTag(APP_AREA_TAG)
+                                    .pointerInput(Unit) { detectTapGestures { callbacks.onCloseDetail() } },
+                        )
+                        val width = minOf(maxWidth - BUBBLE_MARGIN * 2, BUBBLE_MAX_WIDTH)
+                        val density = LocalDensity.current
+                        val left =
+                            with(density) {
+                                bubbleLeft(
+                                    anchor = anchors.boundsOf(detail.index),
+                                    areaLeft = areaLeft,
+                                    areaWidth = maxWidth.toPx(),
+                                    bubbleWidth = width.toPx(),
+                                    margin = BUBBLE_MARGIN.toPx(),
+                                )
+                            }
+                        CandidateDetailBubble(
+                            detail = detail,
+                            onUse = { callbacks.onSelectCandidate(detail.index) },
+                            onClose = callbacks.onCloseDetail,
+                            modifier =
+                                Modifier
+                                    .offset { IntOffset(left.roundToInt(), 0) }
+                                    .padding(vertical = 6.dp)
+                                    .width(width),
+                        )
+                    }
                 }
-            }
 
-            PinyinDuckKeyboard(
-                state = state,
-                callbacks = callbacks,
-                modifier =
-                    Modifier
-                        .testTag(KEYBOARD_TAG)
-                        .onGloballyPositioned {
-                            if (!bubbleOpen) onKeyboardTop(it.boundsInWindow().top.roundToInt())
-                        },
-            )
+                PinyinDuckKeyboard(
+                    state = state,
+                    callbacks = callbacks,
+                    modifier =
+                        Modifier
+                            .heightIn(max = keyboardMaxHeight)
+                            .testTag(KEYBOARD_TAG)
+                            .onGloballyPositioned {
+                                if (!bubbleOpen) onKeyboardTop(it.boundsInWindow().top.roundToInt())
+                            },
+                )
+            }
         }
     }
 }
+
+/**
+ * How much of the window a landscape phone keeps above the keyboard, in the keyboard's height
+ * cap (window height minus this). Without it the Expanded candidate list reaches the top of the
+ * screen and the app hides the keyboard.
+ */
+private val LANDSCAPE_APP_AREA_MIN = 64.dp
 
 /** The bubble's widest, so that on a phone it visibly belongs to one candidate. */
 private val BUBBLE_MAX_WIDTH = 320.dp
