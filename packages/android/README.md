@@ -74,6 +74,7 @@ The app also installs a **PinyinDuck settings** launcher icon. It has a shortcut
 - Type several words at once and a Sentence candidate builds them from dictionary words in a row: `woxianghekafei` offers 我想喝咖啡. Pinyin it can't build yet stays to compose after it.
 - In the Expanded candidate list (▴), the Sentence candidate's card shows each word with its reading and gloss. Tap a word to open its word menu: the other words for the same pinyin, and "Commit through". Tapping an alternative makes it a Fixed word, and the rest of the sentence is rebuilt around it. Back closes the menu.
 - "Commit through" commits the sentence up to and including that word, and leaves the rest of the pinyin composing.
+- In landscape, the keys are hidden while the Expanded candidate list is open, which leaves the list room; they come back when it closes.
 - `Backspace` removes the last pinyin character, or deletes before the cursor when you're not composing.
 - `↵` sends the field's action (Search, Send, Done) or a newline. It doesn't commit a candidate.
 - The 简/繁 button switches between Simplified and Traditional without losing the composition. ▴ expands the candidate strip into a full list.
@@ -113,7 +114,15 @@ Six test classes in `app/src/androidTest` run the keyboard on an Android emulato
 - `SelectionDeviceTest` types over a selection in a field that already holds text (`abc123xyz` with `123` selected), and checks that the pinyin composes in place of the selection and that committing 你好 leaves `abc你好xyz`.
 - `KeyboardSwitchDeviceTest` switches to another keyboard (`ime set`) while PinyinDuck is shown with a composition, and checks that the keyboard hides, logcat has no `FATAL EXCEPTION`, and PinyinDuck's process keeps its pid. It guards the crash where `onFinishInputView` ran after `onDestroy`.
 
-The layout checks of `SentenceSlotDeviceTest` and `SentenceCardDeviceTest` also run in landscape, as `inLandscape...` twins: the test calls `DeviceOrientationRule.landscape()` first, which rotates the same emulator with `UiDevice.setOrientationLandscape()`, and the rule puts the device back to portrait after every test, pass or fail. The slot is about 294 dp wide in landscape against about 124 dp in portrait, so the landscape slot states use their own inputs, the landscape card check does not require the word blocks to wrap (they fit one row at 2400 px) and the keyboard hides its keys while the Expanded candidate list is open in landscape, which is what leaves the card and its word menu room, and the "+N chip only" state has no landscape check because no input of 20 letters or fewer overflows the slot with a full sentence.
+The layout checks of `SentenceSlotDeviceTest` and `SentenceCardDeviceTest` also run in landscape, as `inLandscape...` twins. The test calls `DeviceOrientationRule.landscape()` first, which rotates the same emulator with `UiDevice.setOrientationLandscape()`; the rule puts the device back to portrait after every test, pass or fail.
+
+Landscape differs from portrait in three ways:
+
+- The slot is about 294 dp wide in landscape against about 124 dp in portrait, so the landscape slot states use their own inputs.
+- The landscape card check does not require the word blocks to wrap, because they fit one row at 2400 px.
+- The keyboard hides its keys while the Expanded candidate list is open, which leaves the card and its word menu room.
+
+The "+N chip only" state has no landscape check, because no input of 20 letters or fewer overflows the slot with a full sentence.
 
 Each test first checks that its input still gives the sentence it expects (and, for the slot, the chips of its state), so a dictionary or ranking change fails with a hint to pick a new input rather than with a bounds diff.
 
