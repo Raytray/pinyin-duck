@@ -10,6 +10,7 @@ import dev.pinyinduck.android.ui.WORD_MENU_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 import java.util.regex.Pattern
 
@@ -24,11 +25,16 @@ import java.util.regex.Pattern
  */
 @RunWith(AndroidJUnit4::class)
 class SentenceCardDeviceTest {
-    @get:Rule
-    val ime = PinyinDuckImeRule()
+    private val ime = PinyinDuckImeRule()
+    private val orientation = DeviceOrientationRule()
 
+    /**
+     * Rules run outside in and tear down inside out: the rotation is put back to portrait
+     * before the input method settings are restored, so the keyboard is never switched away
+     * while the activity is being re-created.
+     */
     @get:Rule
-    val orientation = DeviceOrientationRule()
+    val rules: RuleChain = RuleChain.outerRule(ime).around(orientation)
 
     private val keyboard = KeyboardDriver()
 

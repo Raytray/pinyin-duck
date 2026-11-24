@@ -11,6 +11,7 @@ import dev.pinyinduck.android.ui.SENTENCE_SLOT_PADDING_DP
 import dev.pinyinduck.android.ui.SENTENCE_SLOT_TAG
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 import kotlin.math.roundToInt
 
@@ -28,11 +29,16 @@ import kotlin.math.roundToInt
  */
 @RunWith(AndroidJUnit4::class)
 class SentenceSlotDeviceTest {
-    @get:Rule
-    val ime = PinyinDuckImeRule()
+    private val ime = PinyinDuckImeRule()
+    private val orientation = DeviceOrientationRule()
 
+    /**
+     * Rules run outside in and tear down inside out: the rotation is put back to portrait
+     * before the input method settings are restored, so the keyboard is never switched away
+     * while the activity is being re-created.
+     */
     @get:Rule
-    val orientation = DeviceOrientationRule()
+    val rules: RuleChain = RuleChain.outerRule(ime).around(orientation)
 
     private val keyboard = KeyboardDriver()
 
