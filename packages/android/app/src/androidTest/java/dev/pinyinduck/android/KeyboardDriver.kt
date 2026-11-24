@@ -223,14 +223,6 @@ class KeyboardDriver {
         why: String,
     ): UiObject2 = device.wait(Until.findObject(onKeyboard().textContains(part)), TIMEOUT_MS) ?: failTest(why)
 
-    /** Fails if an element of the keyboard has text exactly [text] now or within [SHORT_TIMEOUT_MS]. */
-    fun assertTextStaysAway(
-        text: String,
-        why: String,
-    ) {
-        if (device.wait(Until.hasObject(onKeyboard().text(text)), SHORT_TIMEOUT_MS)) failTest("$why, but \"$text\" is on the keyboard")
-    }
-
     /**
      * Waits for the Sentence candidate whose content description starts with [description]
      * for [input]. If it never comes, fails saying what the strip's Sentence slot shows

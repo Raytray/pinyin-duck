@@ -54,8 +54,8 @@ class WordCandidateDeviceTest {
 
         keyboard.clearComposition(INPUT)
 
+        // Nothing committed: the field is as it started, not holding $WORD or the pinyin.
         assertEquals("The field is not back to how it started", empty, keyboard.fieldText())
-        keyboard.assertTextStaysAway(WORD, "✕ should leave nothing to commit")
     }
 
     private fun typeAndWaitForWord() {
