@@ -2,6 +2,8 @@ package dev.pinyinduck.android
 
 import android.content.Intent
 import android.graphics.Rect
+import android.os.Bundle
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
@@ -12,6 +14,13 @@ import dev.pinyinduck.android.ui.SENTENCE_SLOT_TAG
 
 /** PinyinDuck's package, which every search on the keyboard is scoped to. */
 const val PACKAGE = "dev.pinyinduck.android"
+
+/** Runs [command] in the device's shell and returns its output without surrounding whitespace. */
+fun shell(command: String): String =
+    UiDevice
+        .getInstance(InstrumentationRegistry.getInstrumentation())
+        .executeShellCommand(command)
+        .trim()
 
 const val TIMEOUT_MS = 20_000L
 const val SHORT_TIMEOUT_MS = 5_000L
@@ -104,10 +113,64 @@ class KeyboardDriver {
         device.waitForIdle()
     }
 
-    /** Types [pinyin] on PinyinDuck's keys and waits until the field holds it as composing text. */
-    fun type(pinyin: String) {
+    /**
+     * Puts [text] in the search field with the cursor at its end, as pasted text would be,
+     * and waits until the field holds it.
+     */
+    fun setFieldText(text: String) {
+        searchField("put \"$text\" in").text = text
+        waitForFieldText(text)
+        device.waitForIdle()
+    }
+
+    /**
+     * Selects the [length] characters that end [fromEnd] characters before the end of the
+     * field's text, with the accessibility action `ACTION_SET_SELECTION` on the field, then
+     * fails unless the field reports exactly that selection.
+     *
+     * Hardware key events (Shift+Left) did not move the selection on the emulator, and a long
+     * press selects a word rather than a range, so the field is asked directly.
+     */
+    fun selectInField(
+        fromEnd: Int,
+        length: Int,
+    ) {
+        val text = searchField("select in").text.orEmpty()
+        val start = text.length - fromEnd - length
+        val end = text.length - fromEnd
+        val args =
+            Bundle().apply {
+                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, start)
+                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, end)
+            }
+        if (!searchFieldNode("select in").performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, args)) {
+            failTest("The field refused to select $start..$end in \"$text\"")
+        }
+        device.waitForIdle()
+        val selected = searchFieldNode("select in").let { it.textSelectionStart to it.textSelectionEnd }
+        if (selected != start to end) failTest("Expected the selection $start..$end in \"$text\" but the field has $selected")
+    }
+
+    /** The search field, failing with "No search field to [purpose]" when there is none on screen. */
+    private fun searchField(purpose: String): UiObject2 = device.findObject(SEARCH_FIELD) ?: failTest("No search field to $purpose")
+
+    /** The search field as an accessibility node, for the actions `UiObject2` has no call for. */
+    private fun searchFieldNode(purpose: String): AccessibilityNodeInfo =
+        instrumentation.uiAutomation.rootInActiveWindow
+            ?.findAccessibilityNodeInfosByViewId(SEARCH_FIELD_ID)
+            ?.firstOrNull()
+            ?: failTest("No search field to $purpose")
+
+    /**
+     * Types [pinyin] on PinyinDuck's keys and waits until the field holds [fieldTextWhileComposing],
+     * which is the pinyin itself unless the field had other text around it.
+     */
+    fun type(
+        pinyin: String,
+        fieldTextWhileComposing: String = pinyin,
+    ) {
         pinyin.forEach { tapKey(it.toString()) }
-        waitForFieldText(pinyin)
+        waitForFieldText(fieldTextWhileComposing)
         device.waitForIdle()
     }
 
@@ -156,6 +219,20 @@ class KeyboardDriver {
         why: String,
     ): UiObject2 = device.wait(Until.findObject(onKeyboard().text(text)), TIMEOUT_MS) ?: failTest(why)
 
+    /** Taps the element of the keyboard whose text is exactly [text], failing with [why] if there is none. */
+    fun tapText(
+        text: String,
+        why: String,
+    ) {
+        waitForText(text, why).click()
+    }
+
+    /** Waits for an element of the keyboard whose text contains [part], failing with [why] if none appears. */
+    fun waitForTextContaining(
+        part: String,
+        why: String,
+    ): UiObject2 = device.wait(Until.findObject(onKeyboard().textContains(part)), TIMEOUT_MS) ?: failTest(why)
+
     /**
      * Waits for the Sentence candidate whose content description starts with [description]
      * for [input]. If it never comes, fails saying what the strip's Sentence slot shows
@@ -202,6 +279,7 @@ class KeyboardDriver {
         const val LOADING_DICTIONARY = "Loading dictionary…"
 
         // An AutoCompleteTextView, not an EditText, so it is matched by id rather than class.
-        val SEARCH_FIELD: BySelector get() = By.res("android", "search_src_text")
+        const val SEARCH_FIELD_ID = "android:id/search_src_text"
+        val SEARCH_FIELD: BySelector get() = By.res(SEARCH_FIELD_ID)
     }
 }

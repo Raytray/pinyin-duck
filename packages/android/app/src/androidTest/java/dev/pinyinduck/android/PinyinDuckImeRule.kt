@@ -1,7 +1,6 @@
 package dev.pinyinduck.android
 
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.UiDevice
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.rules.ExternalResource
@@ -18,7 +17,6 @@ import org.junit.rules.ExternalResource
  */
 class PinyinDuckImeRule : ExternalResource() {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
-    private val device = UiDevice.getInstance(instrumentation)
 
     /** What the device had before the test changed it, or null when nothing was changed yet. */
     private var saved: SavedImeSettings? = null
@@ -68,8 +66,6 @@ class PinyinDuckImeRule : ExternalResource() {
             "bigrams.bin" in assets,
         )
     }
-
-    private fun shell(command: String): String = device.executeShellCommand(command).trim()
 
     private data class SavedImeSettings(
         val defaultIme: String,
