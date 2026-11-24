@@ -15,6 +15,13 @@ import dev.pinyinduck.android.ui.SENTENCE_SLOT_TAG
 /** PinyinDuck's package, which every search on the keyboard is scoped to. */
 const val PACKAGE = "dev.pinyinduck.android"
 
+/** Runs [command] in the device's shell and returns its output without surrounding whitespace. */
+fun shell(command: String): String =
+    UiDevice
+        .getInstance(InstrumentationRegistry.getInstrumentation())
+        .executeShellCommand(command)
+        .trim()
+
 const val TIMEOUT_MS = 20_000L
 const val SHORT_TIMEOUT_MS = 5_000L
 
@@ -111,8 +118,7 @@ class KeyboardDriver {
      * and waits until the field holds it.
      */
     fun setFieldText(text: String) {
-        val field = device.findObject(SEARCH_FIELD) ?: failTest("No search field to put \"$text\" in")
-        field.text = text
+        searchField("put \"$text\" in").text = text
         waitForFieldText(text)
         device.waitForIdle()
     }
@@ -129,7 +135,7 @@ class KeyboardDriver {
         fromEnd: Int,
         length: Int,
     ) {
-        val text = fieldText() ?: failTest("No search field to select in")
+        val text = searchField("select in").text.orEmpty()
         val start = text.length - fromEnd - length
         val end = text.length - fromEnd
         val args =
@@ -137,19 +143,23 @@ class KeyboardDriver {
                 putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, start)
                 putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, end)
             }
-        if (!searchFieldNode().performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, args)) {
+        if (!searchFieldNode("select in").performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, args)) {
             failTest("The field refused to select $start..$end in \"$text\"")
         }
         device.waitForIdle()
-        val selected = searchFieldNode().let { it.textSelectionStart to it.textSelectionEnd }
+        val selected = searchFieldNode("select in").let { it.textSelectionStart to it.textSelectionEnd }
         if (selected != start to end) failTest("Expected the selection $start..$end in \"$text\" but the field has $selected")
     }
 
-    private fun searchFieldNode(): AccessibilityNodeInfo =
+    /** The search field, failing with "No search field to [purpose]" when there is none on screen. */
+    private fun searchField(purpose: String): UiObject2 = device.findObject(SEARCH_FIELD) ?: failTest("No search field to $purpose")
+
+    /** The search field as an accessibility node, for the actions `UiObject2` has no call for. */
+    private fun searchFieldNode(purpose: String): AccessibilityNodeInfo =
         instrumentation.uiAutomation.rootInActiveWindow
-            ?.findAccessibilityNodeInfosByViewId("android:id/search_src_text")
+            ?.findAccessibilityNodeInfosByViewId(SEARCH_FIELD_ID)
             ?.firstOrNull()
-            ?: failTest("No search field to select in")
+            ?: failTest("No search field to $purpose")
 
     /**
      * Types [pinyin] on PinyinDuck's keys and waits until the field holds [fieldTextWhileComposing],
@@ -269,6 +279,7 @@ class KeyboardDriver {
         const val LOADING_DICTIONARY = "Loading dictionary…"
 
         // An AutoCompleteTextView, not an EditText, so it is matched by id rather than class.
-        val SEARCH_FIELD: BySelector get() = By.res("android", "search_src_text")
+        const val SEARCH_FIELD_ID = "android:id/search_src_text"
+        val SEARCH_FIELD: BySelector get() = By.res(SEARCH_FIELD_ID)
     }
 }

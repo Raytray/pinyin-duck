@@ -1,8 +1,6 @@
 package dev.pinyinduck.android
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.UiDevice
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
@@ -23,7 +21,6 @@ class KeyboardSwitchDeviceTest {
     val ime = PinyinDuckImeRule()
 
     private val keyboard = KeyboardDriver()
-    private val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
 
     @Test
     fun switchingToAnotherKeyboardWhileShownDoesNotCrashPinyinDuck() {
@@ -49,8 +46,6 @@ class KeyboardSwitchDeviceTest {
         )
         assertEquals("PinyinDuck's process died or restarted when switching to $other", pidBefore, shell("pidof $PACKAGE"))
     }
-
-    private fun shell(command: String): String = device.executeShellCommand(command).trim()
 
     private companion object {
         const val INPUT = "nihao"
