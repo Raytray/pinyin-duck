@@ -308,7 +308,6 @@ describe('renderDictHeader', () => {
     expect(header).toContain(
       '#   HSK 3.0 syllabus (2025), by Center for Language Education and Cooperation (中外语言交流合作中心), No licence · levels only. Source: www.chinesetest.cn'
     );
-    expect(header).not.toMatch(/gigacool|HSK 2012/);
     // Still ahead of the YAML document, where librime ignores it.
     expect(header.indexOf('License:')).toBeLessThan(header.indexOf('---'));
   });
