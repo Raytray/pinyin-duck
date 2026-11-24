@@ -33,15 +33,17 @@ class SentenceCardDeviceTest {
     private val keyboard = KeyboardDriver()
 
     @Test
-    fun theCardWrapsItsWordBlocksOntoRowsInsideIt() = checkCardWraps()
+    fun theCardWrapsItsWordBlocksOntoRowsInsideIt() = checkCardWraps(mustWrap = true)
 
     @Test
-    fun inLandscapeTheCardWrapsItsWordBlocksOntoRowsInsideIt() {
+    fun inLandscapeTheCardKeepsItsWordBlocksInsideIt() {
         orientation.landscape()
-        checkCardWraps()
+        // At 2400 px wide all six word blocks legitimately fit on one row (and no input of at
+        // most 20 letters is long enough to wrap), so only the portrait check requires a wrap.
+        checkCardWraps(mustWrap = false)
     }
 
-    private fun checkCardWraps() {
+    private fun checkCardWraps(mustWrap: Boolean) {
         val card = openCard()
         val bounds = LabelledBounds("the card", card.visibleBounds)
         val blocks = wordBlocksByDescription(card)
@@ -50,7 +52,7 @@ class SentenceCardDeviceTest {
                 ?: failTest("The card has no leftover block described as \"then $LEFTOVER\"")
 
         val rows = blocks.map { it.rect.top }.distinct()
-        if (rows.size < 2) failTest("Expected the word blocks on at least two rows, but they all sit on one: ${blocks.joinToString()}")
+        if (mustWrap && rows.size < 2) failTest("Expected the word blocks on at least two rows, but they all sit on one: ${blocks.joinToString()}")
         blocks.forEach { assertInside(it, bounds) }
         assertNoOverlap(blocks)
         assertInside(LabelledBounds("the leftover block", leftover.visibleBounds), bounds)
