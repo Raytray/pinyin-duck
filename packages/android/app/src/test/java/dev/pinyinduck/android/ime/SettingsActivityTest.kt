@@ -118,13 +118,19 @@ class SettingsActivityTest {
         for (source in listOf(
             "CC-CEDICT",
             "FrequencyWords (OpenSubtitles 2018)",
-            "HSK 2012 word list",
+            "HSK 3.0 syllabus (2025)",
             "English Wiktionary",
             "HanDeDict",
         )) {
             compose.onNodeWithText(source).performScrollTo().assertIsDisplayed()
         }
-        for (author in listOf("By MDBG", "By Hermit Dave", "gigacool", "By Wiktionary contributors", "By HanDeDict contributors")) {
+        for (author in listOf(
+            "By MDBG",
+            "By Hermit Dave",
+            "By Center for Language Education and Cooperation (中外语言交流合作中心)",
+            "By Wiktionary contributors",
+            "By HanDeDict contributors",
+        )) {
             compose.onNodeWithText(author, substring = true).assertExists()
         }
         // Part of speech: the dump date and commit they were taken from, and what was taken.
@@ -132,6 +138,9 @@ class SettingsActivityTest {
         compose.onNodeWithText("commit 0760a107", substring = true).assertExists()
         compose.onNodeWithText("CC BY-SA 2.0 DE / 3.0, adapted under 4.0", substring = true).assertExists()
         compose.onAllNodesWithText("word-class tags only, mapped", substring = true).assertCountEquals(2)
+        // HSK: an unlicensed official syllabus, of which only the levels are taken.
+        compose.onNodeWithText("No licence · levels only", substring = true).assertExists()
+        compose.onNodeWithText("Source: www.chinesetest.cn", substring = true).assertExists()
     }
 
     @Test

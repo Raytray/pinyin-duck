@@ -8,7 +8,8 @@ interface Source {
   name: string;
   author: string;
   license: string;
-  licenseUrl: string;
+  /** The license's text, or omitted for a source with no license. */
+  licenseUrl?: string;
   url: string;
   /** Which edition was used and how, for a source adapted rather than used whole. */
   note?: string;
@@ -31,11 +32,11 @@ const SOURCES: Source[] = [
     url: 'https://github.com/hermitdave/FrequencyWords',
   },
   {
-    name: 'HSK 2012 word list',
-    author: '© 2018 gigacool',
-    license: 'MIT',
-    licenseUrl: 'https://github.com/gigacool/hanyu-shuiping-kaoshi/blob/master/LICENSE',
-    url: 'https://github.com/gigacool/hanyu-shuiping-kaoshi',
+    name: 'HSK 3.0 syllabus (2025)',
+    author: 'Center for Language Education and Cooperation (中外语言交流合作中心)',
+    license: 'No licence · levels only',
+    url: 'https://www.chinesetest.cn/',
+    note: 'Source: www.chinesetest.cn',
   },
   {
     name: 'English Wiktionary',
@@ -111,9 +112,13 @@ export const Credits: React.FC = () => {
               </a>
               <span>
                 {source.author} ·{' '}
-                <a href={source.licenseUrl} target="_blank" rel="noreferrer">
-                  {source.license}
-                </a>
+                {source.licenseUrl ? (
+                  <a href={source.licenseUrl} target="_blank" rel="noreferrer">
+                    {source.license}
+                  </a>
+                ) : (
+                  source.license
+                )}
               </span>
               {source.note && <span>{source.note}</span>}
             </li>

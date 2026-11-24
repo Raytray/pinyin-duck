@@ -162,6 +162,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues privately as desc
 ## License
 
 The code is under the [MIT License](LICENSE). The dictionary is built from CC-CEDICT,
-FrequencyWords and an HSK word list, and the built dictionary files are under
+FrequencyWords and the HSK 3.0 levels, and the built dictionary files are under
 CC BY-SA 4.0. [DATA_LICENSES.md](DATA_LICENSES.md) credits each source and lists the
 files that license covers.

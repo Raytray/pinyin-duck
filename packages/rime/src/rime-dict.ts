@@ -278,8 +278,7 @@ export const DATA_CREDIT_LINES: readonly string[] = [
   '  CC-CEDICT, by MDBG, CC BY-SA 4.0: https://www.mdbg.net/chinese/dictionary?page=cc-cedict',
   '  FrequencyWords zh_cn 2018 (OpenSubtitles), by Hermit Dave, CC BY-SA 4.0:',
   '    https://github.com/hermitdave/FrequencyWords',
-  '  HSK 2012 word list, Copyright (c) 2018 gigacool, MIT:',
-  '    https://github.com/gigacool/hanyu-shuiping-kaoshi',
+  '  HSK 3.0 syllabus (2025), by Center for Language Education and Cooperation (中外语言交流合作中心), No licence · levels only. Source: www.chinesetest.cn',
 ];
 
 /** {@link DATA_CREDIT_LINES} as comment lines, behind the given comment marker. */
@@ -294,7 +293,7 @@ export function renderDictHeader(meta: RimeDictMeta): string {
     '# Edit the generator, not this file: it is overwritten on every build.',
     '#',
     '# Source: the CC-CEDICT B+ tree at packages/web/public/dictionary.btree, joined with',
-    '# the OpenSubtitles frequency list and the HSK 2012 word list.',
+    '# the OpenSubtitles frequency list and the HSK 3.0 levels.',
     `# Entries in the source asset: ${meta.entryCount}.`,
     '#',
     ...renderDataCredit('#'),
