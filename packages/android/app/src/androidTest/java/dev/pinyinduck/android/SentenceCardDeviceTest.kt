@@ -52,7 +52,10 @@ class SentenceCardDeviceTest {
                 ?: failTest("The card has no leftover block described as \"then $LEFTOVER\"")
 
         val rows = blocks.map { it.rect.top }.distinct()
-        if (mustWrap && rows.size < 2) failTest("Expected the word blocks on at least two rows, but they all sit on one: ${blocks.joinToString()}")
+        val wrapped = rows.size >= 2
+        if (mustWrap && !wrapped) {
+            failTest("Expected the word blocks on at least two rows, but they all sit on one: ${blocks.joinToString()}")
+        }
         blocks.forEach { assertInside(it, bounds) }
         assertNoOverlap(blocks)
         assertInside(LabelledBounds("the leftover block", leftover.visibleBounds), bounds)
