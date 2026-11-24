@@ -1,5 +1,6 @@
 package dev.pinyinduck.android.ui
 
+import android.content.res.Configuration
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -25,10 +26,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import dev.pinyinduck.android.ime.KeyboardUiState
@@ -81,9 +84,11 @@ fun KeyboardWindow(
         // finds the keyboard's elements by tag (`By.res(SENTENCE_SLOT_TAG)`) the way a Compose
         // test does. Set once here and inherited by everything in the window.
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            // The keyboard never takes the whole window: with the Expanded candidate list open on a
-            // landscape phone it would reach the top of the screen, and the app hides it then.
-            val keyboardMaxHeight = maxHeight - MIN_APP_AREA
+            // On a landscape phone the Expanded candidate list would fill the window to the top of
+            // the screen, and the app hides a keyboard that does. So there the keyboard leaves
+            // the app at least LANDSCAPE_APP_AREA_MIN. Portrait is left as it was.
+            val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+            val keyboardMaxHeight = if (landscape) maxHeight - LANDSCAPE_APP_AREA_MIN else Dp.Infinity
             Column(modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
                 var areaLeft by remember { mutableFloatStateOf(0f) }
                 BoxWithConstraints(
@@ -144,8 +149,12 @@ fun KeyboardWindow(
     }
 }
 
-/** The space above the keyboard that is always left to the app, about what the collapsed keyboard leaves on a landscape phone. */
-private val MIN_APP_AREA = 64.dp
+/**
+ * How much of the window a landscape phone keeps above the keyboard, in the keyboard's height
+ * cap (window height minus this). Without it the Expanded candidate list reaches the top of the
+ * screen and the app hides the keyboard.
+ */
+private val LANDSCAPE_APP_AREA_MIN = 64.dp
 
 /** The bubble's widest, so that on a phone it visibly belongs to one candidate. */
 private val BUBBLE_MAX_WIDTH = 320.dp
