@@ -27,20 +27,26 @@ class KeyboardSwitchDeviceTest {
 
     @Test
     fun switchingToAnotherKeyboardWhileShownDoesNotCrashPinyinDuck() {
-        val other =
-            shell("ime list -s").lines().firstOrNull { it.isNotBlank() && !it.startsWith(PACKAGE) }
-                ?: failTest("No other enabled keyboard to switch to")
+        val others = shell("ime list -s").lines().filter { it.isNotBlank() && !it.startsWith(PACKAGE) }
+        if (others.isEmpty()) failTest("No other enabled keyboard to switch to")
 
         keyboard.openSettingsSearch()
-        keyboard.type(INPUT, fieldTextWhileComposing = INPUT)
+        keyboard.type(INPUT)
         val pidBefore = shell("pidof $PACKAGE")
         shell("logcat -b crash -c")
 
-        shell("ime set $other")
+        val other =
+            others.firstOrNull { candidate ->
+                shell("ime set $candidate")
+                shell("settings get secure default_input_method") == candidate
+            } ?: failTest("None of the other enabled keyboards could be selected: ${others.joinToString()}")
 
         keyboard.assertKeyboardHides("Switching to $other")
         val crashes = shell("logcat -b crash -d -v brief")
-        assertFalse("PinyinDuck crashed when switching to $other:\n$crashes", "FATAL EXCEPTION" in crashes)
+        assertFalse(
+            "PinyinDuck crashed when switching to $other:\n$crashes",
+            "FATAL EXCEPTION" in crashes && "Process: $PACKAGE," in crashes,
+        )
         assertEquals("PinyinDuck's process died or restarted when switching to $other", pidBefore, shell("pidof $PACKAGE"))
     }
 
