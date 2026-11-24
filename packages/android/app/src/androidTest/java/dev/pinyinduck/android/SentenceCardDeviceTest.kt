@@ -94,6 +94,8 @@ class SentenceCardDeviceTest {
         // 我爱吃 is committed; the pinyin after 吃 stays in the field as composing text.
         keyboard.waitForFieldText(COMMITTED_THROUGH + REST_OF_INPUT)
         assertEquals(COMMITTED_THROUGH + REST_OF_INPUT, keyboard.fieldText())
+        // And it is still composing, not plain text: the strip offers a Sentence for the rest.
+        keyboard.waitForSentence(REST_OF_INPUT, REST_SENTENCE_DESCRIPTION)
         keyboard.assertTagGoes(WORD_MENU_TAG, "\"$COMMIT_THROUGH\"")
     }
 
@@ -189,6 +191,9 @@ class SentenceCardDeviceTest {
 
         /** [INPUT] after the pinyin of [COMMITTED_THROUGH] (`woaichi`), which is still composing. */
         const val REST_OF_INPUT = "yebuxianghev"
+
+        /** The Sentence candidate the strip offers for [REST_OF_INPUT]. */
+        const val REST_SENTENCE_DESCRIPTION = "Sentence 也不想和, "
 
         const val COMMIT_THROUGH = "Commit through $MENU_WORD"
     }
