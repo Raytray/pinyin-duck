@@ -26,7 +26,6 @@ describe('SOURCES', () => {
 
   it('pins the GitHub sources to full commit SHAs', () => {
     expect(SOURCES.frequency.url).toMatch(/\/FrequencyWords\/[0-9a-f]{40}\//);
-    expect(SOURCES.hsk.url).toMatch(/\/hanyu-shuiping-kaoshi\/[0-9a-f]{40}\//);
     expect(SOURCES.handedict.url).toMatch(/\/gugray\/HanDeDict\/[0-9a-f]{40}\//);
   });
 
@@ -45,8 +44,8 @@ describe('SOURCES', () => {
   // only the first build:dict.
   const vendored = sources.filter((entry): entry is [string, VendoredSource] => 'file' in entry[1]);
 
-  it('commits CC-CEDICT and the reduced Wiktionary rows', () => {
-    expect(vendored.map(([name]) => name).sort()).toEqual(['cedict', 'wiktionaryPos']);
+  it('commits CC-CEDICT, the HSK 3.0 levels and the reduced Wiktionary rows', () => {
+    expect(vendored.map(([name]) => name).sort()).toEqual(['cedict', 'hsk', 'wiktionaryPos']);
   });
 
   it.each(vendored)('commits the %s edition its pin names', (_name, source) => {
@@ -60,5 +59,13 @@ describe('SOURCES', () => {
     expect(text).toMatch(/^# source https:\/\/kaikki\.org\/\S+$/m);
     expect(text).toMatch(/^# dump \d{4}-\d{2}-\d{2} \(enwiktionary\), extracted \d{4}-\d{2}-\d{2}$/m);
     expect(text).toMatch(/^# sha256 [0-9a-f]{64}$/m);
+  });
+
+  it('names the syllabus the HSK 3.0 levels came from in their header', () => {
+    const text = fs.readFileSync(path.resolve(__dirname, '..', SOURCES.hsk.file), 'utf8');
+    expect(text).toContain('《中文水平考试 HSK 考试大纲》');
+    expect(text).toMatch(/^# source https:\/\/\S+\.pdf$/m);
+    expect(text).toMatch(/^# sha256 [0-9a-f]{64}$/m);
+    expect(text).not.toMatch(/draft/i);
   });
 });

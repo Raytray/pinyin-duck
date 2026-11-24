@@ -18,7 +18,7 @@ const { fileStore, dirStore, CEDICT, FREQUENCY, HSK, WIKTIONARY, HANDEDICT } = v
   dirStore: new Set<string>(),
   CEDICT: ['中國 中国 [Zhong1 guo2] /China/', '你好 你好 [Ni3 hao3] /hello/'].join('\n'),
   FREQUENCY: '中国 7000\n你好 5000\n',
-  HSK: ['1\t1\t你\tyou', '1\t1\t你好\tyouhao', '2\t2\t中国\tchina'].join('\n'),
+  HSK: ['# HSK 3.0 word levels', '你\tnǐ\t1', '你好\tnǐhǎo\t1', '中国\tZhōngguó\t2', ''].join('\n'),
   WIKTIONARY: ['# sha256 00', '中國\t中国\tZhōngguó\tname', '中國\t中国\tZhōngguó\tnoun', ''].join('\n'),
   HANDEDICT: '\uFEFF# HanDeDict\n中國 中国 [Zhong1 guo2] /China (Eig)/\n你好 你好 [ni3 hao3] /Hallo (Int)/\n',
 }));
@@ -30,7 +30,7 @@ vi.mock('./sources', async () => {
     SOURCES: {
       cedict: { file: 'data/cedict.txt', sha256: hash(CEDICT) },
       frequency: { url: 'https://example.test/zh_cn_50k.txt', cacheName: 'zh_cn_50k.txt', sha256: hash(FREQUENCY) },
-      hsk: { url: 'https://example.test/hsk.csv', cacheName: 'hsk.csv', sha256: hash(HSK) },
+      hsk: { file: 'data/hsk3-levels.tsv', sha256: hash(HSK) },
       wiktionaryPos: { file: 'data/wiktionary-pos.tsv', sha256: hash(WIKTIONARY) },
       handedict: { url: 'https://example.test/handedict.u8', cacheName: 'handedict.u8', sha256: hash(HANDEDICT) },
     },
@@ -64,9 +64,9 @@ const CACHE_DIR = path.resolve(__dirname, '../.cache');
 /** Where the mocked CC-CEDICT pin points: the committed copy, never downloaded. */
 const CEDICT_FILE = path.resolve(__dirname, '../data/cedict.txt');
 const WIKTIONARY_FILE = path.resolve(__dirname, '../data/wiktionary-pos.tsv');
+const HSK_FILE = path.resolve(__dirname, '../data/hsk3-levels.tsv');
 const CACHE_FILES = {
   frequency: path.join(CACHE_DIR, 'zh_cn_50k.txt'),
-  hsk: path.join(CACHE_DIR, 'hsk.csv'),
   handedict: path.join(CACHE_DIR, 'handedict.u8'),
 } as const;
 
@@ -110,14 +110,12 @@ function installFetch(handlers: Record<string, () => unknown>) {
 
 const defaultHandlers = () => ({
   [SOURCE_URLS.frequency]: () => stubResponse(FREQUENCY),
-  [SOURCE_URLS.hsk]: () => stubResponse(HSK),
   [SOURCE_URLS.handedict]: () => stubResponse(HANDEDICT),
 });
 
 /** Seeds the on-disk cache as if a previous build had downloaded the sources. */
 function seedCache() {
   fileStore.set(CACHE_FILES.frequency, FREQUENCY);
-  fileStore.set(CACHE_FILES.hsk, HSK);
   fileStore.set(CACHE_FILES.handedict, HANDEDICT);
 }
 
@@ -127,8 +125,9 @@ let consoleSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   fileStore.clear();
   dirStore.clear();
-  // The committed CC-CEDICT and Wiktionary rows are part of every checkout.
+  // The committed CC-CEDICT, HSK levels and Wiktionary rows are part of every checkout.
   fileStore.set(CEDICT_FILE, CEDICT);
+  fileStore.set(HSK_FILE, HSK);
   fileStore.set(WIKTIONARY_FILE, WIKTIONARY);
   logs = [];
   consoleSpy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
@@ -146,14 +145,15 @@ afterEach(() => {
 });
 
 describe('build', () => {
-  it('reads the committed sources, downloads the other three and writes the joined rows', async () => {
+  it('reads the committed sources, downloads the other two and writes the joined rows', async () => {
     const calls = installFetch(defaultHandlers());
     const out = '/tmp/pinyinduck-test/dictionary.btree';
 
     const stats: BuildStats = await build(out, false);
 
-    expect(calls.sort()).toEqual([SOURCE_URLS.frequency, SOURCE_URLS.hsk, SOURCE_URLS.handedict].sort());
+    expect(calls.sort()).toEqual([SOURCE_URLS.frequency, SOURCE_URLS.handedict].sort());
     expect(logs.join('\n')).toContain('local   data/cedict.txt');
+    expect(logs.join('\n')).toContain('local   data/hsk3-levels.tsv');
     expect(logs.join('\n')).toContain('local   data/wiktionary-pos.tsv');
     const dictionary = openAsset(out);
     expect(dictionary.entryCount).toBe(2);
@@ -191,7 +191,6 @@ describe('build', () => {
     await build('/tmp/pinyinduck-cache/dictionary.btree', false);
 
     expect(fileStore.get(CACHE_FILES.frequency)).toBe(FREQUENCY);
-    expect(fileStore.get(CACHE_FILES.hsk)).toBe(HSK);
     expect(fileStore.get(CACHE_FILES.handedict)).toBe(HANDEDICT);
     // The committed copy is read in place, not duplicated into the cache.
     expect(fileStore.has(path.join(CACHE_DIR, 'cedict.txt'))).toBe(false);
@@ -214,12 +213,11 @@ describe('build', () => {
 
     await build('/tmp/pinyinduck-stale/dictionary.btree', false);
 
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(2);
     expect(logs.join('\n')).not.toContain('cached  zh_cn_50k.txt');
   });
 
   it('downloads only the sources that are missing from the cache', async () => {
-    fileStore.set(CACHE_FILES.hsk, HSK);
     fileStore.set(CACHE_FILES.handedict, HANDEDICT);
     const calls = installFetch(defaultHandlers());
 
@@ -232,11 +230,11 @@ describe('build', () => {
   it('fails loudly when a source cannot be downloaded', async () => {
     installFetch({
       ...defaultHandlers(),
-      [SOURCE_URLS.hsk]: () => failedResponse(404, 'Not Found'),
+      [SOURCE_URLS.handedict]: () => failedResponse(404, 'Not Found'),
     });
 
     await expect(build('/tmp/pinyinduck-missing/dictionary.btree', false)).rejects.toThrow(
-      /Failed to download .*hsk\.csv: 404 Not Found/
+      /Failed to download .*handedict\.u8: 404 Not Found/
     );
   });
 
@@ -300,7 +298,10 @@ describe('build', () => {
 
     const output = logs.join('\n');
     expect(output).toContain('2 frequency entries');
-    expect(output).toContain('3 HSK words');
+    expect(output).toContain('3 HSK rows');
+    // The fixture has no 你 entry, so that row attaches to nothing.
+    expect(output).toContain('2 rows attached, 1 unattached');
+    expect(output).toContain('unattached 你 nǐ (level 1)');
     expect(output).toContain('0 single characters');
   });
 
@@ -563,7 +564,7 @@ describe('command line entry point', () => {
     });
     installFetch({
       ...defaultHandlers(),
-      [SOURCE_URLS.hsk]: () => failedResponse(503, 'Service Unavailable'),
+      [SOURCE_URLS.handedict]: () => failedResponse(503, 'Service Unavailable'),
     });
 
     await runAsScript(['--out', '/tmp/pinyinduck-cli-fail/dictionary.btree']);
