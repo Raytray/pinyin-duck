@@ -15,16 +15,16 @@ playwright/.cache/
 coverage/
 packages/core/coverage/
 
-# Downloaded sources (frequency, HSK, HanDeDict, and the OpenSubtitles text for the bigram
+# Downloaded sources (frequency, HanDeDict, and the OpenSubtitles text for the bigram
 # table), re-fetchable with build:dict and build:bigrams. Pinned by URL and
 # SHA-256 in packages/core/scripts/sources.ts, so a copy here is always checked. CC-CEDICT
-# is not here: it is committed under packages/core/data/.
+# and the HSK levels are not here: they are committed under packages/core/data/.
 packages/core/.cache/
 
 # The generated dictionary asset, the paged B+ tree that Rime, Android and the web app
 # (through its gzip copy below) are built from. It is produced
 # by `npm run build:dict` from the pinned CC-CEDICT, OpenSubtitles frequency list and
-# HSK 2012 word list, so it does not belong in version control: it is 9MB of derived
+# HSK 3.0 levels, so it does not belong in version control: it is 9MB of derived
 # data that the same commit always rebuilds byte for byte, and a commit that carries it
 # is a 9MB diff nobody reads.
 #
