@@ -3,12 +3,13 @@
  * into B-tree leaf entries.
  *
  * Columns:
- *   0  simplified   Simplified Chinese (also the frequency and HSK join key)
+ *   0  simplified   Simplified Chinese (also the frequency join key)
  *   1  traditional  Traditional Chinese form
  *   2  pinyin       Tone-numbered pinyin, e.g. "ni3 hao3"
  *   3  gloss        Concise English gloss shown on the candidate card
  *   4  frequency    Normalized 0-100000 usage score (0 = unseen in the corpus)
- *   5  hskLevel     HSK 1-6, or 0 when the word is not on the HSK list
+ *   5  hskLevel     The HSK 3.0 level of the word at this reading: 1-6, 7 for the 7-9 band,
+ *                   or 0 when the reading has no HSK level
  *   6  entryIds     The ids of the entries the row stands for (后 hòu stands for 後 and 后);
  *                   empty when omitted
  *   7  onlyIn       The one script the row is a candidate in, or omitted for both
