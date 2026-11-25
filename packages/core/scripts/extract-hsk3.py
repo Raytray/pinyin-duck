@@ -23,7 +23,7 @@ To move to a new edition of the syllabus:
      it cannot read).
   2. Run the script, then update the TSV's `sha256` in `sources.ts`.
   3. Rebuild the dictionary and the parity goldens (the steps in `sources.ts`), and update the
-     pinned unattached rows in `build-dictionary.test.ts`, the credits (DATA_LICENSES.md, the
+     pinned unattached rows in `hsk-attach.test.ts`, the credits (DATA_LICENSES.md, the
      web Credits dialog, the Android settings screen, the Rime dict header) and
      `packages/core/data/README.md`.
 """

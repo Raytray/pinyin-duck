@@ -2,18 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   parseCedictLine,
   parseFrequencyList,
-  parseHskLevels,
   normalizeFrequency,
   joinCorpora,
   encodeDictionary,
   orderHeadwords,
-  type HskRow,
   type RawCedictLine,
 } from './build-dictionary';
-import * as fs from 'fs';
-import * as path from 'path';
 import { normalizePinyin } from '../src/parser/pinyin.js';
-import { SOURCES } from './sources.js';
 import { buildBTree } from '../src/data/btree-builder.js';
 import { BTreeDictionary } from '../src/data/btree-dictionary.js';
 
@@ -96,182 +91,10 @@ describe('parseFrequencyList', () => {
   });
 });
 
-describe('parseHskLevels', () => {
-  it('reads word, reading and level, skipping the header comments', () => {
-    const content = ['# HSK 3.0 word levels', '#', '好\thǎo\t1', '谢谢\txièxie\t1', '卡\tqiǎ\t7', ''].join('\n');
-    expect(parseHskLevels(content)).toEqual([
-      { word: '好', reading: 'hǎo', level: 1 },
-      { word: '谢谢', reading: 'xièxie', level: 1 },
-      { word: '卡', reading: 'qiǎ', level: 7 },
-    ]);
-  });
-
-  it('refuses a row whose level is not 1-7', () => {
-    expect(() => parseHskLevels('好\thǎo\t8')).toThrow(/好/);
-  });
-});
-
-describe('HSK attachment', () => {
-  /** The HSK level a build gives the group of `simplified` at `pinyinNumbers`. */
-  function levelOf(cedict: string[], hsk: string[], simplified: string, pinyinNumbers: string): number {
-    const { rows } = joinCorpora(cedict.join('\n'), '', hsk.join('\n'));
-    const row = rows.find((r) => r[0] === simplified && r[2] === pinyinNumbers);
-    if (!row) throw new Error(`no row for ${simplified} ${pinyinNumbers}`);
-    return row[5];
-  }
-
-  it('gives each reading of a heteronym its own level', () => {
-    const cedict = [
-      '好 好 [hao3] /good/',
-      '好 好 [hao4] /to be fond of/',
-      '長 长 [chang2] /long/',
-      '長 长 [zhang3] /to grow/',
-    ];
-    const hsk = ['好\thǎo\t1', '好\thào\t5', '长\tcháng\t2', '长\tzhǎng\t3'];
-    expect(levelOf(cedict, hsk, '好', 'hao3')).toBe(1);
-    expect(levelOf(cedict, hsk, '好', 'hao4')).toBe(5);
-    expect(levelOf(cedict, hsk, '长', 'chang2')).toBe(2);
-    expect(levelOf(cedict, hsk, '长', 'zhang3')).toBe(3);
-  });
-
-  it('leaves a reading the list does not include without a level', () => {
-    const cedict = ['行 行 [xing2] /to walk/', '行 行 [hang2] /row/'];
-    expect(levelOf(cedict, ['行\txíng\t1'], '行', 'hang2')).toBe(0);
-  });
-
+describe('HSK levels on rows', () => {
   it('gives traditional-only rows their group level', () => {
     const { rows } = joinCorpora(['後 后 [hou4] /back/', '后 后 [hou4] /empress/'].join('\n'), '', '后\thòu\t1');
     expect(rows.map((row) => row[5])).toEqual([1, 1, 1]);
-  });
-
-  it('compares readings without case, spaces, hyphens or apostrophes', () => {
-    const cedict = ['天安門 天安门 [tian1 an1 men2] /Tiananmen/', '一路平安 一路平安 [yi1 lu4 ping2 an1] /bon voyage/'];
-    const hsk = ['天安门\tTiān’ān-mén\t3', '一路平安\tyí lù píng’ān\t5'];
-    expect(levelOf(cedict, hsk, '天安门', 'tian1 an1 men2')).toBe(3);
-    expect(levelOf(cedict, hsk, '一路平安', 'yi1 lu4 ping2 an1')).toBe(5);
-  });
-
-  it('matches a reading exactly before trying anything looser', () => {
-    // 东西 dōngxi "thing" is the exact match; dōngxī "east and west" would match once the
-    // neutral tone is ignored, and must not take the level too.
-    const cedict = ['東西 东西 [dong1 xi5] /thing/', '東西 东西 [dong1 xi1] /east and west/'];
-    const hsk = ['东西\tdōngxi\t1'];
-    expect(levelOf(cedict, hsk, '东西', 'dong1 xi5')).toBe(1);
-    expect(levelOf(cedict, hsk, '东西', 'dong1 xi1')).toBe(0);
-  });
-
-  it('undoes 一 and 不 tone sandhi as the second step', () => {
-    const cedict = ['一下 一下 [yi1 xia4] /a bit/', '不客氣 不客气 [bu4 ke4 qi5] /you are welcome/', '意義 意义 [yi4 yi4] /meaning/'];
-    const hsk = ['一下\tyíxià\t1', '不客气\tbú kèqi\t1', '意义\tyìyì\t4'];
-    const { rows, hsk: report } = joinCorpora(cedict.join('\n'), '', hsk.join('\n'));
-    expect(rows.map((row) => row[5])).toEqual([1, 1, 4]);
-    expect(report.steps).toEqual([1, 2, 0, 0]);
-  });
-
-  it('only undoes sandhi on the syllable of 一 or 不 itself', () => {
-    // A made-up reading with yī for 意: undoing sandhi on every yì would match it at the
-    // second step, but 意 is not 一, so only the tone-blind step does.
-    const cedict = ['一意孤行 一意孤行 [yi1 yi1 gu1 xing2] /obstinately/'];
-    const { hsk } = joinCorpora(cedict.join('\n'), '', '一意孤行\tyíyìgūxíng\t7');
-    expect(hsk.steps).toEqual([0, 0, 0, 1]);
-  });
-
-  it('ignores the neutral tone on either side as the third step', () => {
-    const cedict = ['學生 学生 [xue2 sheng5] /student/', '網上 网上 [wang3 shang4] /online/'];
-    const hsk = ['学生\txuéshēng\t1', '网上\twǎngshang\t2'];
-    const { rows, hsk: report } = joinCorpora(cedict.join('\n'), '', hsk.join('\n'));
-    expect(rows.map((row) => row[5])).toEqual([1, 2]);
-    expect(report.steps).toEqual([0, 0, 2, 0]);
-  });
-
-  it('ignores tones entirely as the last step', () => {
-    const { rows, hsk } = joinCorpora('下載 下载 [xia4 zai3] /to download/', '', '下载\txiàzài\t4');
-    expect(rows[0][5]).toBe(4);
-    expect(hsk.steps).toEqual([0, 0, 0, 1]);
-  });
-
-  it('attaches to every group matched at the same step', () => {
-    const cedict = ['那 那 [na4] /that/', '那 那 [nei4] /that (colloquial)/', '那 那 [na3] /which/'];
-    const { rows } = joinCorpora(cedict.join('\n'), '', '那\tnà\t1');
-    expect(rows.map((row) => [row[2], row[5]])).toEqual([
-      ['na4', 1],
-      ['nei4', 0],
-      ['na3', 0],
-    ]);
-    // With no exact match, both near readings match at the tone-blind step.
-    const loose = joinCorpora(['那 那 [na3] /which/', '那 那 [na1] /surname Na/'].join('\n'), '', '那\tnà\t1');
-    expect(loose.rows.map((row) => row[5])).toEqual([1, 1]);
-  });
-
-  it('prefers lowercase groups, using a capitalised one only when no lowercase group matches', () => {
-    // 华 huà matches the surname 華 [Hua4] exactly and the lowercase 華 [hua2] only
-    // without tones; the lowercase reading still wins.
-    const cedict = ['華 华 [Hua4] /surname Hua/', '華 华 [hua2] /magnificent/', '中國 中国 [Zhong1 guo2] /China/'];
-    const hsk = ['华\thuà\t5', '中国\tZhōngguó\t1'];
-    expect(levelOf(cedict, hsk, '华', 'hua2')).toBe(5);
-    expect(levelOf(cedict, hsk, '华', 'hua4')).toBe(0);
-    expect(levelOf(cedict, hsk, '中国', 'zhong1 guo2')).toBe(1);
-  });
-
-  it('attaches a missing erhua word to its base form', () => {
-    const cedict = ['口哨 口哨 [kou3 shao4] /whistle/'];
-    const { rows, hsk } = joinCorpora(cedict.join('\n'), '', '口哨儿\tkǒushàor\t5');
-    expect(rows[0][5]).toBe(5);
-    expect(hsk.unattached).toEqual([]);
-  });
-
-  it('keeps an erhua word that CC-CEDICT lists on its own entry', () => {
-    const cedict = ['一點兒 一点儿 [yi1 dian3 r5] /a little/', '一點 一点 [yi1 dian3] /a bit/'];
-    const hsk = ['一点儿\tyìdiǎnr\t1'];
-    expect(levelOf(cedict, hsk, '一点儿', 'yi1 dian3 r5')).toBe(1);
-    expect(levelOf(cedict, hsk, '一点', 'yi1 dian3')).toBe(0);
-  });
-
-  it('drops and reports a row whose reading CC-CEDICT lacks or whose word it lacks', () => {
-    const cedict = ['誰 谁 [shei2] /who/', '口哨 口哨 [kou3 shao4] /whistle/'];
-    const hsk = ['谁\tshéi\t1', '谁\tshuí\t1', '精彩纷呈\tjīngcǎi-fēnchéng\t7', '口哨儿\tkǒushàor\t5', '哨儿\tshàor\t7'];
-    const { rows, hsk: report } = joinCorpora(cedict.join('\n'), '', hsk.join('\n'));
-    expect(rows.map((row) => row[5])).toEqual([1, 5]);
-    expect(report.attached).toBe(2);
-    expect(report.unattached).toEqual([
-      { word: '谁', reading: 'shuí', level: 1 },
-      { word: '精彩纷呈', reading: 'jīngcǎi-fēnchéng', level: 7 },
-      { word: '哨儿', reading: 'shàor', level: 7 },
-    ]);
-  });
-
-  it('gives a group the lowest level when several rows land on it', () => {
-    const cedict = ['地方 地方 [di4 fang5] /place/'];
-    const { rows, hsk } = joinCorpora(cedict.join('\n'), '', ['地方\tdìfāng\t6', '地方\tdìfang\t3'].join('\n'));
-    expect(rows[0][5]).toBe(3);
-    expect(hsk.attached).toBe(2);
-  });
-});
-
-/** Readings CC-CEDICT lacks (谁 shuí, 嗯 ǹg, 熟 shóu, 血 xiě) and a word it lacks altogether. */
-const PINNED_UNATTACHED: HskRow[] = [
-  { word: '谁', reading: 'shuí', level: 1 },
-  { word: '嗯', reading: 'ǹg', level: 4 },
-  { word: '熟', reading: 'shóu', level: 4 },
-  { word: '血', reading: 'xiě', level: 4 },
-  { word: '精彩纷呈', reading: 'jīngcǎi-fēnchéng', level: 7 },
-];
-/** Rows that match only ignoring the neutral tone, and only ignoring tones (下载, 温差, 一晃). */
-const PINNED_LOOSE_STEPS = [102, 3];
-
-describe('HSK attachment of the committed sources', () => {
-  // Pinned so a new CC-CEDICT or syllabus edition that changes the matching fails here
-  // rather than silently moving levels.
-  const read = (source: { file: string }) => fs.readFileSync(path.resolve(__dirname, '..', source.file), 'utf8');
-  const { hsk } = joinCorpora(read(SOURCES.cedict), '', read(SOURCES.hsk));
-
-  it('leaves exactly these rows unattached', () => {
-    expect(hsk.unattached).toEqual(PINNED_UNATTACHED);
-    expect(hsk.attached + hsk.unattached.length).toBe(10961);
-  });
-
-  it('needs the neutral-tone and tone-blind steps for exactly this many rows', () => {
-    expect(hsk.steps.slice(2)).toEqual(PINNED_LOOSE_STEPS);
   });
 });
 

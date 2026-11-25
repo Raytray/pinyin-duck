@@ -3,7 +3,7 @@
  *
  * Reads CC-CEDICT and the HSK 3.0 levels (both committed under packages/core/data/) and
  * downloads the OpenSubtitles Chinese frequency list; joins frequency on the simplified form
- * and each HSK level on a word at a reading (`attachHskLevels`); and emits the B-tree asset
+ * and each HSK level on a word at a reading (`hsk-attach.ts`); and emits the B-tree asset
  * that `@pinyinduck/core` reads at runtime.
  *
  * The output is a paged B+ tree (`dictionary.btree`) keyed on toneless pinyin. A
@@ -49,6 +49,7 @@ import { encodeDetailFile, formatBuildId } from '../src/detail/detail-codec.js';
 import { SOURCES, type PinnedSource, type VendoredSource } from './sources.js';
 import { detailRecords, entrySenseDefinitions, isCommonLine } from './build-detail.js';
 import { partOfSpeechSources } from './part-of-speech.js';
+import { attachHskLevels, parseHskLevels, type HskAttachment } from './hsk-attach.js';
 
 const PACKAGE_DIR = path.resolve(__dirname, '..');
 export const CACHE_DIR = path.join(PACKAGE_DIR, '.cache');
@@ -141,206 +142,6 @@ export function parseFrequencyList(content: string): Map<string, number> {
     }
   }
   return frequencies;
-}
-
-/** One row of the HSK 3.0 levels file: a word at a reading, as the syllabus prints it. */
-export interface HskRow {
-  word: string;
-  /** Tone-marked pinyin exactly as printed, tone sandhi included: `yíxià`, `bú kèqi`. */
-  reading: string;
-  /** 1-6, or 7 for the 7-9 band. */
-  level: number;
-}
-
-/** Parses `data/hsk3-levels.tsv` (word, reading, level), skipping its `#` header. */
-export function parseHskLevels(content: string): HskRow[] {
-  const rows: HskRow[] = [];
-  for (const raw of content.split('\n')) {
-    const line = raw.replace(/\r$/, '');
-    if (!line.trim() || line.startsWith('#')) continue;
-    const [word, reading, levelText] = line.split('\t');
-    const level = Number(levelText);
-    if (!word || !reading || !Number.isInteger(level) || level < 1 || level > 7) {
-      throw new Error(`Unreadable HSK row: ${line}`);
-    }
-    rows.push({ word, reading, level });
-  }
-  return rows;
-}
-
-/** What attaching the HSK rows to CC-CEDICT groups did, for the build to report. */
-export interface HskAttachment {
-  /** Rows whose level went to at least one group. */
-  attached: number;
-  /** Rows that matched no group, in file order. */
-  unattached: HskRow[];
-  /** Rows attached at each step of the matching ladder: exact, sandhi, neutral tone, toneless. */
-  steps: [number, number, number, number];
-}
-
-/** One syllable of a reading: its letters without tone, and its tone, 5 for neutral. */
-interface Syllable {
-  letters: string;
-  tone: number;
-}
-
-/** A CC-CEDICT group (`simplified|pinyinNumbers`) as the HSK matching sees it. */
-interface HskTarget {
-  key: string;
-  syllables: Syllable[];
-  /** Every line is capitalised: a proper noun or surname reading only. */
-  capitalised: boolean;
-}
-
-/** Each tone-marked letter, as its plain letter and tone. ń ň ǹ are the n of 嗯 ńg, ňg, ǹg. */
-const TONE_MARKS: ReadonlyMap<string, [string, number]> = new Map(
-  (
-    [
-      ['a', 'āáǎà', 1],
-      ['e', 'ēéěè', 1],
-      ['i', 'īíǐì', 1],
-      ['o', 'ōóǒò', 1],
-      ['u', 'ūúǔù', 1],
-      ['ü', 'ǖǘǚǜ', 1],
-      ['n', 'ńňǹ', 2],
-    ] as const
-  ).flatMap(([letter, marks, firstTone]) =>
-    [...marks].map((mark, i): [string, [string, number]] => [mark, [letter, firstTone + i]])
-  )
-);
-
-/** Splits a numbered CC-CEDICT reading into syllables, dropping punctuation tokens. */
-function cedictSyllables(pinyinNumbers: string): Syllable[] {
-  const syllables: Syllable[] = [];
-  for (const token of pinyinNumbers.split(' ')) {
-    const letters = token.replace(/[^a-zü]/g, '');
-    if (!letters) continue;
-    const tone = token.match(/([1-5])$/);
-    syllables.push({ letters, tone: tone ? Number(tone[1]) : 5 });
-  }
-  return syllables;
-}
-
-/**
- * A printed reading reduced to its toneless letters and the tone mark at each letter:
- * lowercased, with spaces, hyphens and apostrophes removed.
- */
-function printedLetters(reading: string): { letters: string; tones: number[] } {
-  let letters = '';
-  const tones: number[] = [];
-  for (const char of reading.normalize('NFC').toLowerCase().replace(/[\s\-'’]/g, '')) {
-    const marked = TONE_MARKS.get(char);
-    letters += marked ? marked[0] : char;
-    tones.push(marked ? marked[1] : 0);
-  }
-  return { letters, tones };
-}
-
-/**
- * The printed reading cut into the target's syllables, each with the tone marked on it
- * (5 when none is), or null when the letters differ.
- */
-function printedTones(printed: { letters: string; tones: number[] }, target: Syllable[]): number[] | null {
-  if (target.map((syllable) => syllable.letters).join('') !== printed.letters) return null;
-  const tones: number[] = [];
-  let start = 0;
-  for (const { letters } of target) {
-    const marks = printed.tones.slice(start, start + letters.length).filter((tone) => tone > 0);
-    tones.push(marks[0] ?? 5);
-    start += letters.length;
-  }
-  return tones;
-}
-
-/**
- * Whether a printed reading matches a target at a step of the ladder:
- *   1. the exact reading;
- *   2. with 一 yí/yì and 不 bú read back as yī and bù;
- *   3. as 2, ignoring a neutral tone on either side;
- *   4. ignoring tones.
- * Sandhi is undone only on the syllable of 一 or 不 itself, so only when the word has one
- * syllable per character.
- */
-function matchesAtStep(step: number, word: string[], tones: number[], target: Syllable[]): boolean {
-  if (step === 4) return true;
-  const aligned = word.length === target.length;
-  return target.every(({ tone }, i) => {
-    let printed = tones[i];
-    if (step >= 2 && aligned) {
-      if (word[i] === '一' && (printed === 2 || printed === 4)) printed = 1;
-      if (word[i] === '不' && printed === 2) printed = 4;
-    }
-    return printed === tone || (step === 3 && (printed === 5 || tone === 5));
-  });
-}
-
-/**
- * Attaches each HSK row's level to the CC-CEDICT groups for its word at its reading.
- *
- * A row tries the ladder in `matchesAtStep` and stops at the first step that matches any
- * group, attaching to every group matched there. Lowercase groups go through the whole
- * ladder first; capitalised ones (proper nouns, surnames) only when no lowercase group
- * matches, so 中国 Zhōngguó still finds `Zhong1 guo2`. A word CC-CEDICT lacks that ends in
- * 儿 tries its base form at the reading without the final r. A row that matches nothing is
- * dropped and reported, never given to "any reading". When several rows land on one group,
- * the lowest level wins.
- */
-export function attachHskLevels(
-  groups: Map<string, DictionaryEntry[]>,
-  rows: HskRow[]
-): { levels: Map<string, number>; report: HskAttachment } {
-  const bySimplified = new Map<string, HskTarget[]>();
-  for (const [key, group] of groups) {
-    const target: HskTarget = {
-      key,
-      syllables: cedictSyllables(group[0].pinyinNumbers),
-      capitalised: group.every((entry) => entry.lines.every((line) => /^[A-Z]/.test(line.pinyin))),
-    };
-    const targets = bySimplified.get(group[0].simplified);
-    if (targets) targets.push(target);
-    else bySimplified.set(group[0].simplified, [target]);
-  }
-
-  const levels = new Map<string, number>();
-  const report: HskAttachment = { attached: 0, unattached: [], steps: [0, 0, 0, 0] };
-  for (const row of rows) {
-    let word = row.word;
-    let printed = printedLetters(row.reading);
-    if (!bySimplified.has(word) && word.endsWith('儿') && printed.letters.endsWith('r')) {
-      word = word.slice(0, -1);
-      printed = { letters: printed.letters.slice(0, -1), tones: printed.tones.slice(0, -1) };
-    }
-    const match = matchRow([...word], printed, bySimplified.get(word) ?? []);
-    if (!match) {
-      report.unattached.push(row);
-      continue;
-    }
-    report.attached++;
-    report.steps[match.step - 1]++;
-    for (const key of match.keys) levels.set(key, Math.min(row.level, levels.get(key) ?? row.level));
-  }
-  return { levels, report };
-}
-
-/** The first step at which a printed reading matches any target, and the targets it matches there. */
-function matchRow(
-  word: string[],
-  printed: { letters: string; tones: number[] },
-  targets: HskTarget[]
-): { step: number; keys: string[] } | null {
-  for (const capitalised of [false, true]) {
-    const candidates = targets
-      .filter((target) => target.capitalised === capitalised)
-      .map((target) => ({ key: target.key, syllables: target.syllables, tones: printedTones(printed, target.syllables) }))
-      .filter((candidate) => candidate.tones !== null);
-    for (let step = 1; step <= 4; step++) {
-      const keys = candidates
-        .filter((candidate) => matchesAtStep(step, word, candidate.tones!, candidate.syllables))
-        .map((candidate) => candidate.key);
-      if (keys.length > 0) return { step, keys };
-    }
-  }
-  return null;
 }
 
 /** SHA-256 of a source's text, as lowercase hex. */
@@ -558,6 +359,21 @@ export function joinedGloss(ordered: DictionaryEntry[]): string {
 }
 
 /**
+ * The headwords one simplified candidate stands for, keyed `simplified|pinyinNumbers`, in
+ * the file order of their first entry.
+ */
+export function groupHeadwords(entries: DictionaryEntry[]): Map<string, DictionaryEntry[]> {
+  const groups = new Map<string, DictionaryEntry[]>();
+  for (const entry of entries) {
+    const key = `${entry.simplified}|${entry.pinyinNumbers}`;
+    const group = groups.get(key);
+    if (group) group.push(entry);
+    else groups.set(key, [entry]);
+  }
+  return groups;
+}
+
+/**
  * Joins the three corpora into wire rows.
  *
  * Every entry with a simplified form of its own gets one row for both scripts. When
@@ -592,14 +408,7 @@ export function joinCorpora(
     corpusTotal += count;
   }
 
-  // Headwords that one simplified candidate stands for, in the file order of their first entry.
-  const groups = new Map<string, DictionaryEntry[]>();
-  for (const entry of entries) {
-    const key = `${entry.simplified}|${entry.pinyinNumbers}`;
-    const group = groups.get(key);
-    if (group) group.push(entry);
-    else groups.set(key, [entry]);
-  }
+  const groups = groupHeadwords(entries);
   const { levels: hskLevels, report: hsk } = attachHskLevels(groups, parseHskLevels(hskContent));
 
   const rows: DictionaryRow[] = [];
