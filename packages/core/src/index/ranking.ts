@@ -212,7 +212,6 @@ export function entryToCandidate(
     frequency: entry.frequency,
     matchedPinyin: entry.pinyinClean,
     remainingPinyin,
-    hskLevel: entry.hskLevel,
     entryIds: entry.entryIds ?? [],
   };
 }

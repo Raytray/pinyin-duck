@@ -158,7 +158,6 @@ fun entryToCandidate(
         frequency = entry.frequency,
         matchedPinyin = entry.pinyinClean,
         remainingPinyin = remainingPinyin,
-        hskLevel = entry.hskLevel?.takeIf { it != 0 },
         entryIds = entryIds,
     )
 }
