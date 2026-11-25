@@ -14,7 +14,7 @@ jobs:
           mkdir -p out/.hidden
           echo "server=${{ github.server_url }} run=${{ github.run_id }}" > out/hello.txt
           echo hidden > out/.hidden/h.txt
-      - uses: christopherhx/gitea-upload-artifact@8818363695ca2d5782c64f6453273341374767b7 # v7
+      - uses: christopherhx/gitea-upload-artifact@9493ce5e9eb6241749e2914efc413aa831a3dc44 # v6
         with:
           name: smoke
           path: out/
