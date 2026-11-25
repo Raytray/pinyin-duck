@@ -1,0 +1,23 @@
+name: artifact-smoke (temporary)
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          mkdir -p out/.hidden
+          echo "server=${{ github.server_url }} run=${{ github.run_id }}" > out/hello.txt
+          echo hidden > out/.hidden/h.txt
+      - uses: christopherhx/gitea-upload-artifact@8818363695ca2d5782c64f6453273341374767b7 # v7
+        with:
+          name: smoke
+          path: out/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: ${{ github.server_url == 'https://github.com' && 1 || 0 }}
