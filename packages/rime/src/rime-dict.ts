@@ -142,14 +142,15 @@ export function rimeText(entry: StoredEntry, script: RimeScript): string {
 const HSK_BONUS = [0, 30000, 22000, 16000, 11000, 7000, 4000, 2000];
 
 /**
- * The HSK difficulty bonus, mirroring the front-loaded curve in `scoreEntry`.
+ * The HSK bonus, mirroring the front-loaded curve in `scoreEntry`.
  *
- * Held separately so the relationship to the ranker is one edit, not two. A level outside
- * 1-7 gets nothing, as it does in `scoreEntry`: the asset stores the level as a byte, so
- * it can hold values no HSK level has.
+ * Rime ranks by a weight written into the file rather than by calling the ranker, so the
+ * curve is copied here: a change to it in `scoreEntry` needs the same change in `HSK_BONUS`.
+ * No level (0) and a level outside 1-7 get nothing, as they do in `scoreEntry`: the asset
+ * stores the level as a byte, so it can hold values no HSK level has.
  */
 export function hskBonus(hskLevel: number): number {
-  return hskLevel > 0 ? (HSK_BONUS[hskLevel] ?? 0) : 0;
+  return HSK_BONUS[hskLevel] ?? 0;
 }
 
 /**
