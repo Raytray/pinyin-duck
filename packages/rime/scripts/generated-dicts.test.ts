@@ -86,7 +86,7 @@ const SPOT_CHECKS: SpotCheck[] = [
     text: '安',
     code: 'an',
     comment: 'ān · (bound form) calm; peaceful / to calm; to set at ease / safe; se…',
-    weight: 20978,
+    weight: 17978,
     why: 'must outrank the 205 astral-plane CC-CEDICT characters sharing an; surname weight reduced 10x to deprioritize vs regular vocab',
   },
   {
