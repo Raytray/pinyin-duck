@@ -154,8 +154,8 @@ test('credits the dictionary sources and their licenses', async ({ page }) => {
   await expect(credits).toContainText('Hermit Dave');
   // The HSK levels come from an unlicensed official syllabus: only the levels are taken.
   await expect(credits).toContainText('Center for Language Education and Cooperation (中外语言交流合作中心)');
-  await expect(credits).toContainText('No licence · levels only');
-  await expect(credits).toContainText('Source: www.chinesetest.cn');
+  await expect(credits).toContainText('No license');
+  await expect(credits).toContainText('2025-11 syllabus · word levels only');
   // Part of speech: the dump date and commit they were taken from, and what was taken.
   await expect(credits).toContainText('Wiktionary contributors');
   await expect(credits).toContainText('dump 2026-10-01');

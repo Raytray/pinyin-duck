@@ -34,9 +34,9 @@ const SOURCES: Source[] = [
   {
     name: 'HSK 3.0 syllabus (2025)',
     author: 'Center for Language Education and Cooperation (中外语言交流合作中心)',
-    license: 'No licence · levels only',
+    license: 'No license',
     url: 'https://www.chinesetest.cn/',
-    note: 'Source: www.chinesetest.cn',
+    note: '2025-11 syllabus · word levels only',
   },
   {
     name: 'English Wiktionary',
