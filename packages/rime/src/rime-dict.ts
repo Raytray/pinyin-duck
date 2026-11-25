@@ -138,13 +138,18 @@ export function rimeText(entry: StoredEntry, script: RimeScript): string {
   return sanitizeField(script === 'traditional' ? entry.traditional : entry.simplified);
 }
 
+/** The bonus for each stored HSK level, 1-6 and 7 for the 7-9 band; see `scoreEntry`. */
+const HSK_BONUS = [0, 30000, 22000, 16000, 11000, 7000, 4000, 2000];
+
 /**
- * The HSK difficulty bonus, mirroring the term in `scoreEntry`.
+ * The HSK difficulty bonus, mirroring the front-loaded curve in `scoreEntry`.
  *
- * Held separately so the relationship to the ranker is one edit, not two.
+ * Held separately so the relationship to the ranker is one edit, not two. A level outside
+ * 1-7 gets nothing, as it does in `scoreEntry`: the asset stores the level as a byte, so
+ * it can hold values no HSK level has.
  */
 export function hskBonus(hskLevel: number): number {
-  return hskLevel > 0 ? (7 - hskLevel) * 5000 : 0;
+  return hskLevel > 0 ? (HSK_BONUS[hskLevel] ?? 0) : 0;
 }
 
 /**
@@ -158,13 +163,13 @@ export function hskBonus(hskLevel: number): number {
  * `log(weight)`, so only the ordering matters, not the scale.
  */
 export function rimeWeight(entry: StoredEntry): number {
-  // Non-negative by construction. `hskLevel` is a `u8` in the asset, so it can carry 255,
-  // and `(7 - 255) * 5000` is a large negative bonus that outweighs any frequency. librime
-  // would not reject it: `dict_compiler.cc` computes `log(weight > 0 ? weight :
-  // DBL_EPSILON)`, so a non-positive weight becomes log(2.2e-16) ≈ -36 and the row sorts
-  // below every other candidate in its own menu, silently and permanently. Clamping here
-  // keeps the file valid; the corpus sweep asserts the clamp never engages, so a bad asset
-  // value is still reported rather than quietly absorbed.
+  // Non-negative by construction: frequency is non-negative and `hskBonus` never goes
+  // below zero, even for a level byte no HSK level has. librime would not reject a negative
+  // weight: `dict_compiler.cc` computes `log(weight > 0 ? weight : DBL_EPSILON)`, so a
+  // non-positive weight becomes log(2.2e-16) ≈ -36 and the row sorts below every other
+  // candidate in its own menu, silently and permanently. Clamping here keeps the file valid
+  // whatever changes upstream; the corpus sweep asserts the clamp never engages, so a bad
+  // asset value is still reported rather than quietly absorbed.
   return Math.max(0, Math.round(entry.frequency / 5) + hskBonus(entry.hskLevel));
 }
 
