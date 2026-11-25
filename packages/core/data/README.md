@@ -43,5 +43,5 @@ committed because the build should not depend on a PDF download, and the PDF its
 nothing else from it is kept. Regenerate it with that script, run by hand, rather than editing
 it; `../scripts/sources.ts` pins its SHA-256 too.
 
-The syllabus has no licence. The levels are included as facts;
+The syllabus has no license. The levels are included as facts;
 [DATA_LICENSES.md](../../../DATA_LICENSES.md) says why, and gives the full citation.

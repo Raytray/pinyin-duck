@@ -139,7 +139,7 @@ class SettingsActivityTest {
         compose.onNodeWithText("CC BY-SA 2.0 DE / 3.0, adapted under 4.0", substring = true).assertExists()
         compose.onAllNodesWithText("word-class tags only, mapped", substring = true).assertCountEquals(2)
         // HSK: an unlicensed official syllabus, of which only the levels are taken.
-        compose.onNodeWithText("No licence · levels only", substring = true).assertExists()
+        compose.onNodeWithText("No license · levels only", substring = true).assertExists()
         compose.onNodeWithText("Source: www.chinesetest.cn", substring = true).assertExists()
     }
 
