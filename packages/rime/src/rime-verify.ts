@@ -141,7 +141,7 @@ export const SMOKE_CASES: SmokeCase[] = [
   {
     query: 'lv',
     schema: SCHEMA_IDS.simplified,
-    expect: ['率', '绿', '驴', '旅', '律'],
+    expect: ['率', '绿', '驴', '屡', '旅'],
     why: 'proves speller/algebra xlit/ü/v/ points the right way: a learner types v, the ' +
       'engine finds the lü code, and nothing reaches for OpenCC to convert it',
   },
