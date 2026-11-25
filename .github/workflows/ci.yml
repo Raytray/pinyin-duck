@@ -346,14 +346,16 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
 
+      # christopherhx/gitea-upload-artifact is actions/upload-artifact with its GHES check
+      # (which refuses to run off github.com) turned off, so it works on GitHub and Forgejo.
+      # GitHub keeps the artifact 14 days. 0 leaves Forgejo to its server-wide retention.
       - name: Upload Playwright report
-        # Artifact actions v4+ refuse to run off github.com (GHES check), e.g. on Forgejo.
-        if: always() && github.server_url == 'https://github.com'
-        uses: actions/upload-artifact@v7
+        if: failure()
+        uses: christopherhx/gitea-upload-artifact@8818363695ca2d5782c64f6453273341374767b7 # v7
         with:
           name: playwright-report
           path: playwright-report/
-          retention-days: 14
+          retention-days: ${{ github.server_url == 'https://github.com' && 14 || 0 }}
 
   # ─── Android end-to-end test on an emulator ──────────────────────────────
   # Types a Sentence candidate into Settings search with PinyinDuck, on a Gradle Managed
@@ -473,16 +475,47 @@ jobs:
       - name: "[android] device test"
         run: npm run test:device -w @pinyinduck/android
 
-      - name: Upload the device test report and logcat
-        # Artifact actions v4+ refuse to run off github.com (GHES check), e.g. on Forgejo.
-        if: failure() && github.server_url == 'https://github.com'
-        uses: actions/upload-artifact@v7
+      # For an emulator that boots locally or on GitHub but not here: the host's KVM access,
+      # CPU and memory limits, the managed device's AVD config, and any emulator logs or crash
+      # reports. Only small text files, so the disk images and snapshots stay out.
+      - name: Collect emulator diagnostics
+        if: failure()
+        run: |
+          out=packages/android/app/build/device-diagnostics
+          mkdir -p "$out"
+          {
+            echo "## uname"; uname -a
+            echo "## id"; id
+            echo "## nproc"; nproc
+            echo "## cgroup cpu.max"; cat /sys/fs/cgroup/cpu.max
+            echo "## free -m"; free -m
+            echo "## df -h"; df -h . /tmp
+            echo "## /dev/kvm"; ls -l /dev/kvm
+            echo "## CPU virtualization flags"; grep -o -w -E 'vmx|svm' /proc/cpuinfo | sort | uniq -c
+            echo "## emulator -version"; "$ANDROID_HOME/emulator/emulator" -version
+            echo "## emulator -accel-check"; "$ANDROID_HOME/emulator/emulator" -accel-check
+            echo "## adb devices"; adb devices -l
+          } > "$out/host.txt" 2>&1 || true
+          for dir in ~/.android "/tmp/android-$(id -un)"; do
+            if [ -d "$dir" ]; then
+              find "$dir" -maxdepth 6 -type f -size -5M \
+                \( -name '*.ini' -o -name '*.log' -o -name '*.txt' -o -path '*emu-crash*' \) \
+                -exec cp --parents {} "$out/" \;
+            fi
+          done
+
+      - name: Upload the device test report, logcat and diagnostics
+        if: failure()
+        uses: christopherhx/gitea-upload-artifact@8818363695ca2d5782c64f6453273341374767b7 # v7
         with:
           name: android-device-report
           path: |
             packages/android/app/build/outputs/androidTest-results/
             packages/android/app/build/reports/androidTests/
-          retention-days: 14
+            packages/android/app/build/device-diagnostics/
+          # The diagnostics copy ~/.android, which hidden-file filtering would drop.
+          include-hidden-files: true
+          retention-days: ${{ github.server_url == 'https://github.com' && 14 || 0 }}
 
   # ─── Single required check ────────────────────────────────────────────────
   # Branch protection can't require the per-package jobs: they only exist when a PR touches
