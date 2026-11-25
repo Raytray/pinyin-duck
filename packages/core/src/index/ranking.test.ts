@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { LazyPinyinSearchEngine } from './lazy-search';
-import { compareScored, countCharacters } from './ranking';
+import { compareScored, countCharacters, scoreEntry } from './ranking';
 import { parseToneFilter, syllableToneEnds } from '../parser/pinyin';
 import { buildBTree } from '../data/btree-builder';
 import { BTreeDictionary } from '../data/btree-dictionary';
@@ -108,6 +108,18 @@ describe('popularity tiebreakers', () => {
 
     const { candidates } = engine.search('yi', { limit: 10 });
     expect(candidates[0].hanzi).toBe('一');
+  });
+
+  it('gives the 7-9 band a bonus over a word with no HSK level', () => {
+    // 共识 is in the 7-9 band; the obscure 公室 has no level. At equal frequency the band
+    // settles the tie, where the old linear bonus gave it nothing.
+    const engine = engineOf([
+      entry({ simplified: '公室', pinyinNumbers: 'gong1 shi4', shortGloss: 'unlevelled' }),
+      entry({ simplified: '共识', pinyinNumbers: 'gong4 shi2', shortGloss: 'consensus', hskLevel: 7 }),
+    ]);
+
+    const { candidates } = engine.search('gongshi', { limit: 10 });
+    expect(candidates.map((c) => c.hanzi)).toEqual(['共识', '公室']);
   });
 
   it('prefers a multi-character word over a single character of equal frequency', () => {
@@ -227,6 +239,27 @@ describe('tone filters across word lengths', () => {
     ]);
 
     expect(engine.search('an1').candidates).toEqual([]);
+  });
+});
+
+describe('HSK bonus', () => {
+  /** What an HSK level adds to `scoreEntry` over the same word with no level. */
+  function bonusFor(hskLevel: number): number {
+    const word = { simplified: '字', pinyinClean: 'zi', pinyinNumbers: 'zi4', frequency: 0 };
+    return scoreEntry({ ...word, hskLevel }, 'zi', []) - scoreEntry(word, 'zi', []);
+  }
+
+  it('front-loads the bonus over the seven stored levels', () => {
+    // 7 is the 7-9 band. The values are the decided HSK 3.0 curve, and Rime's `hskBonus`
+    // and the Android `scoreEntry` pin the same table.
+    expect([0, 1, 2, 3, 4, 5, 6, 7].map(bonusFor)).toEqual([
+      0, 30000, 22000, 16000, 11000, 7000, 4000, 2000,
+    ]);
+  });
+
+  it('gives a level outside the seven nothing', () => {
+    // The level is a byte in the asset, so it can carry values no HSK level has.
+    expect([8, 9, 255].map(bonusFor)).toEqual([0, 0, 0]);
   });
 });
 

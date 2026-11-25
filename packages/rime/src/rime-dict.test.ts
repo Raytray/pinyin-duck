@@ -175,11 +175,26 @@ describe('rimeWeight', () => {
     expect(rimeWeight(entry({ frequency: 7 }))).toBe(1);
   });
 
-  it('rewards easier HSK words, matching scoreEntry', () => {
-    expect(hskBonus(1)).toBe(30000);
-    expect(hskBonus(6)).toBe(5000);
-    // CC-CEDICT words outside the HSK list carry level 0, which must not outrank HSK 6.
-    expect(hskBonus(0)).toBe(0);
+  it('rewards easier HSK words on the front-loaded curve, matching scoreEntry', () => {
+    // Level 7 is the 7-9 band. CC-CEDICT words outside the HSK list carry level 0.
+    expect([0, 1, 2, 3, 4, 5, 6, 7].map(hskBonus)).toEqual([
+      0, 30000, 22000, 16000, 11000, 7000, 4000, 2000,
+    ]);
+  });
+
+  it('gives the same bonus as scoreEntry for every stored level', () => {
+    const word = { simplified: '字', pinyinClean: 'zi', pinyinNumbers: 'zi4', frequency: 0 };
+    for (let level = 0; level <= 255; level++) {
+      const added = scoreEntry({ ...word, hskLevel: level }, 'zi', []) - scoreEntry(word, 'zi', []);
+      expect(hskBonus(level)).toBe(added);
+    }
+  });
+
+  it('weights the 7-9 band above a word with no level at equal frequency', () => {
+    const band = entry({ simplified: '共识', key: 'gongshi', pinyinNumbers: 'gong4 shi2', frequency: 0, hskLevel: 7 });
+    const unlevelled = entry({ simplified: '公室', key: 'gongshi', pinyinNumbers: 'gong1 shi4', frequency: 0, hskLevel: 0 });
+    expect(rimeWeight(band)).toBeGreaterThan(rimeWeight(unlevelled));
+    expect(compareEntriesForMenu(band, unlevelled)).toBeLessThan(0);
   });
 
   it('orders a code the same way scoreEntry orders it', () => {
@@ -231,11 +246,11 @@ describe('rimeWeight', () => {
   });
 
   it('falls back to frequency when two entries land on the same weight', () => {
-    // The HSK bonus steps in 5000s and popularity in finer increments, so weights
-    // collide: here a HSK 3 word with no corpus frequency outweighs a HSK 6 word only
-    // after its 75000 occurrences are compressed. The more frequent one still wins, as
-    // it does in the web engine.
-    const frequent = entry({ simplified: '他', frequency: 75000, hskLevel: 6, pinyinNumbers: 'ta1' });
+    // The HSK bonus steps in thousands and popularity in finer increments, so weights
+    // collide: here a HSK 3 word with no corpus frequency weighs the same as a HSK 6 word
+    // once its 60000 occurrences are compressed. The more frequent one still wins, as it
+    // does in the web engine.
+    const frequent = entry({ simplified: '他', frequency: 60000, hskLevel: 6, pinyinNumbers: 'ta1' });
     const learner = entry({ simplified: '佗', frequency: 0, hskLevel: 3, pinyinNumbers: 'ta1' });
     expect(rimeWeight(frequent)).toBe(rimeWeight(learner));
     expect(compareEntriesForMenu(frequent, learner)).toBeLessThan(0);
@@ -336,13 +351,17 @@ describe('formatRow', () => {
     expect(line.endsWith('\t0')).toBe(true);
   });
 
-  it('never emits a weight librime would demote, whatever the asset holds', () => {
-    // `hskLevel` is a `u8` in the asset and the field is documented as HSK 1-6, but nothing
-    // enforces that at the byte level. A level of 9 makes the bonus negative, and librime
-    // turns a non-positive weight into log(DBL_EPSILON) — a permanent last place, reported
-    // nowhere. The file must not contain one even if the data does.
-    expect(rimeWeight(entry({ key: 'wu', frequency: 100, hskLevel: 9 }))).toBe(0);
-    expect(rimeWeight(entry({ key: 'wu', frequency: 100, hskLevel: 255 }))).toBe(0);
+  it('gives a level the asset should not hold no bonus, rather than a negative one', () => {
+    // `hskLevel` is a `u8` in the asset and the field is documented as levels 1-7, but
+    // nothing enforces that at the byte level. A bonus that went negative for such a level
+    // would drag the weight to zero, and librime turns a non-positive weight into
+    // log(DBL_EPSILON): a permanent last place, reported nowhere. An unknown level is
+    // weighted by its frequency alone.
+    expect(hskBonus(8)).toBe(0);
+    expect(hskBonus(9)).toBe(0);
+    expect(hskBonus(255)).toBe(0);
+    expect(rimeWeight(entry({ key: 'wu', frequency: 100, hskLevel: 9 }))).toBe(20);
+    expect(rimeWeight(entry({ key: 'wu', frequency: 100, hskLevel: 255 }))).toBe(20);
   });
 
   it('still rewards a real HSK level, so the clamp costs nothing in practice', () => {
@@ -351,7 +370,7 @@ describe('formatRow', () => {
     const easy = rimeWeight(entry({ key: 'a', frequency: 0, hskLevel: 1 }));
     const hard = rimeWeight(entry({ key: 'a', frequency: 0, hskLevel: 6 }));
     expect(easy).toBeGreaterThan(hard);
-    expect(hard).toBe(5000);
+    expect(hard).toBe(4000);
   });
 });
 

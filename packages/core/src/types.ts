@@ -17,7 +17,6 @@ export interface Candidate {
   frequency: number;
   matchedPinyin: string;
   remainingPinyin: string;
-  hskLevel?: number;
   /**
    * The dictionary entries this candidate stands for, which key its Candidate detail. One
    * for most candidates; several when a simplified candidate stands for headwords sharing

@@ -24,7 +24,6 @@ data class Candidate(
     val matchedPinyin: String,
     /** Pinyin left over after this candidate, to keep buffered for the next one. */
     val remainingPinyin: String,
-    val hskLevel: Int? = null,
     /**
      * The dictionary entries this candidate stands for, which key its Candidate detail; several
      * when a simplified candidate stands for headwords sharing its form (后 hòu for 後 and 后).

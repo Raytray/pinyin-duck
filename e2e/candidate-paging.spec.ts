@@ -17,7 +17,7 @@ import {
 // the popup always reports 10 pages at the app's page size of 5, and page two holds
 // the sixth-ranked reading rather than the only remaining one.
 const TA_PAGE_ONE = ['他', '她', '它', 'TA', '塔'];
-const TA_PAGE_TWO = ['祂', '嗒', '踏', '塌', '拓'];
+const TA_PAGE_TWO = ['踏', '塌', '祂', '嗒', '拓'];
 
 test.beforeEach(async ({ page }) => {
   await gotoApp(page);
@@ -78,7 +78,7 @@ test('commits a candidate from the second page', async ({ page }) => {
   await editor(page).press(']');
   await editor(page).press(' ');
 
-  await expect(editor(page)).toHaveValue('祂');
+  await expect(editor(page)).toHaveValue('踏');
 });
 
 test('moves the selection with the arrow keys and commits the highlighted candidate', async ({
@@ -109,7 +109,7 @@ test('rolls the arrow selection onto the next page at the end of the list', asyn
   await expect(candidateItems(page).nth(0)).toHaveAttribute('aria-selected', 'true');
 
   await editor(page).press(' ');
-  await expect(editor(page)).toHaveValue('祂');
+  await expect(editor(page)).toHaveValue('踏');
 });
 
 test('moves the selection back to the last entry of the previous page', async ({ page }) => {
@@ -151,7 +151,7 @@ test('commits a partial match and keeps the leftover pinyin buffered', async ({ 
   // The leftover syllable is re-queried; "hao" has readings of its own in the
   // full dictionary, so the popup stays open on them.
   await expectBuffer(page, 'hao');
-  await expectCandidates(page, ['好', '号', '浩', '豪', '嚎']);
+  await expectCandidates(page, ['好', '号', '耗', '浩', '豪']);
   await expect(textLength(page)).toContainText('Length: 1 characters');
 });
 
