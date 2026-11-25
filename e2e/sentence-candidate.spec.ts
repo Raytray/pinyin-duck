@@ -188,7 +188,7 @@ test.describe('a long input', () => {
   });
 });
 
-const HE_ALTERNATIVES = ['和', '喝', '河', '吓', '呵', '贺', '合', '何', '盒'];
+const HE_ALTERNATIVES = ['和', '喝', '河', '合', '吓', '呵', '贺', '何', '盒'];
 
 /** Opens the menu of word `n` (from 0) of the highlighted sentence with Shift+→. */
 async function openWordMenu(page: Page, n: number) {

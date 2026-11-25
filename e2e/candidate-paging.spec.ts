@@ -16,8 +16,8 @@ import {
 // "ta" has 1476 readings in CC-CEDICT. The hook caps a search at 50 candidates, so
 // the popup always reports 10 pages at the app's page size of 5, and page two holds
 // the sixth-ranked reading rather than the only remaining one.
-const TA_PAGE_ONE = ['他', '她', '它', '塔', 'TA'];
-const TA_PAGE_TWO = ['塌', '祂', '嗒', '踏', '拓'];
+const TA_PAGE_ONE = ['他', '她', '它', 'TA', '塔'];
+const TA_PAGE_TWO = ['祂', '嗒', '踏', '塌', '拓'];
 
 test.beforeEach(async ({ page }) => {
   await gotoApp(page);
@@ -78,7 +78,7 @@ test('commits a candidate from the second page', async ({ page }) => {
   await editor(page).press(']');
   await editor(page).press(' ');
 
-  await expect(editor(page)).toHaveValue('塌');
+  await expect(editor(page)).toHaveValue('祂');
 });
 
 test('moves the selection with the arrow keys and commits the highlighted candidate', async ({
@@ -109,7 +109,7 @@ test('rolls the arrow selection onto the next page at the end of the list', asyn
   await expect(candidateItems(page).nth(0)).toHaveAttribute('aria-selected', 'true');
 
   await editor(page).press(' ');
-  await expect(editor(page)).toHaveValue('塌');
+  await expect(editor(page)).toHaveValue('祂');
 });
 
 test('moves the selection back to the last entry of the previous page', async ({ page }) => {
@@ -141,8 +141,8 @@ test('commits a partial match and keeps the leftover pinyin buffered', async ({ 
     // of each (ADR 0001).
     'you (informal, as opposed to courteous 您) / you (Note: In Taiwan…',
     'dense wool fabric (used for coats and jackets)',
+    'mud / clay / paste',
     'Buddhist nun / (often used in phonetic spellings)',
-    'girl / phonetic "ni" (in female names) / Taiwan pr.',
   ]);
 
   await editor(page).press('2');
@@ -163,5 +163,5 @@ test('resets paging when the buffer changes', async ({ page }) => {
 
   await expect(pinyinBufferTag(page)).toHaveText('t');
   await expect(pageCounter(page)).toHaveText('1 / 10');
-  await expectCandidates(page, ['T', '他', '她', '听', '太']);
+  await expectCandidates(page, ['T', '他', '她', '他们', '它']);
 });

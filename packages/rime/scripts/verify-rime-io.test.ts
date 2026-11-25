@@ -427,7 +427,7 @@ describe('verifyRime end to end, against a stub harness', () => {
     // A green run that only says "9 of 9 passed" is a green run nobody trusts, so the
     // candidates themselves are printed.
     expect(result.output).toMatch(/9 of 9 queries behaved as pinned/);
-    expect(result.output).toMatch(/是 十 使 试 诗/);
+    expect(result.output).toMatch(/是 事 十 时 室/);
     expect(result.output).toMatch(/pinyinduck_trad\s+zhongguo\s+中國/);
   });
 

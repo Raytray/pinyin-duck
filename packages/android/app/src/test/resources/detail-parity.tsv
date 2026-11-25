@@ -81,27 +81,25 @@ group
 pos	noun
 sense	1	a kind of vegetable
 
->三	三	san1	simplified	1
+>上	上	shang4	simplified	1
 group
-pos	numeral
-tag	Surname San
-sense	1	three
-sense	2	3
+pos	adverb · adjective · verb
+sense	1	(bound form) up; upper; above; previous
+sense	2	first (of multiple parts)
+sense	3	to climb; to get onto; to go up
+sense	4	to attend (class or university)
+sense	5	(directional complement) up
+sense	6	(noun suffix) on; above
 
->三	三	san1	traditional	1
+>上	上	shang4	traditional	1
 group
-pos	numeral
-tag	Surname San
-sense	1	three
-sense	2	3
-
->上	上	shang3	simplified	1
-group
-sense	1	used in 上声 shǎngshēng
-
->上	上	shang3	traditional	1
-group
-sense	1	used in 上聲 shǎngshēng
+pos	adverb · adjective · verb
+sense	1	(bound form) up; upper; above; previous
+sense	2	first (of multiple parts)
+sense	3	to climb; to get onto; to go up
+sense	4	to attend (class or university)
+sense	5	(directional complement) up
+sense	6	(noun suffix) on; above
 
 >世	世	shi4	simplified	1
 group
@@ -605,23 +603,15 @@ pos	noun
 sense	1	today
 sense	2	the present time; now
 
->介绍	介紹	jie4 shao4	simplified	1
-counterpart	介紹
+>今年	今年	jin1 nian2	simplified	1
 group
-pos	verb
-sense	1	to introduce (sb to sb)
-sense	2	to give a presentation
-sense	3	to present (sb for a job etc)
-sense	4	introduction
+pos	noun
+sense	1	this year
 
->介绍	介紹	jie4 shao4	traditional	1
-counterpart	介绍
+>今年	今年	jin1 nian2	traditional	1
 group
-pos	verb
-sense	1	to introduce (sb to sb)
-sense	2	to give a presentation
-sense	3	to present (sb for a job etc)
-sense	4	introduction
+pos	noun
+sense	1	this year
 
 >他	他	ta1	simplified	1
 group
@@ -1360,32 +1350,43 @@ counterpart	凉
 group
 sense	1	to let sth cool down
 
->几	几	ji1	simplified	1
+>减	減	jian3	simplified	1
+counterpart	減
 group
-pos	adverb
-sense	1	small table
+pos	noun · verb · conjunction
+sense	1	to lower
+sense	2	to decrease
+sense	3	to reduce
+sense	4	to subtract
+sense	5	to diminish
 
->几	几	ji1	simplified	2
-group	几
-pos	adverb
-sense	1	small table
-group	幾
-sense	1	(literary) almost
-
->几	几	ji1	traditional	1
+>减	減	jian3	traditional	1
+counterpart	减
 group
-pos	adverb
-sense	1	small table
+pos	noun · verb · conjunction
+sense	1	to lower
+sense	2	to decrease
+sense	3	to reduce
+sense	4	to subtract
+sense	5	to diminish
 
->几	幾	ji1	simplified	1
-counterpart	幾
+>剪	剪	jian3	simplified	1
 group
-sense	1	(literary) almost
+pos	verb · noun
+tag	Surname Jian
+sense	1	(bound form) scissors or similar tool
+sense	2	to cut as with scissors
+sense	3	(bound form) to wipe out; to exterminate
+sense	4	to edit (video, audio etc)
 
->几	幾	ji1	traditional	1
-counterpart	几
+>剪	剪	jian3	traditional	1
 group
-sense	1	(literary) almost
+pos	verb · noun
+tag	Surname Jian
+sense	1	(bound form) scissors or similar tool
+sense	2	to cut as with scissors
+sense	3	(bound form) to wipe out; to exterminate
+sense	4	to edit (video, audio etc)
 
 >匴	匴	suan3	simplified	1
 group
@@ -1638,22 +1639,6 @@ tag	Variant of 叫 jiào: to shout / to call / to order
 counterpart	叫
 group
 tag	Variant of 叫 jiào: to shout / to call / to order
-
->史	史	shi3	simplified	1
-group
-pos	noun
-tag	Surname Shi
-sense	1	history
-sense	2	annals
-sense	3	title of an official historian in ancient China
-
->史	史	shi3	traditional	1
-group
-pos	noun
-tag	Surname Shi
-sense	1	history
-sense	2	annals
-sense	3	title of an official historian in ancient China
 
 >叶	叶	xie2	simplified	1
 group
@@ -1960,6 +1945,42 @@ sense	1	used in 嗒然 tàrán and 嗒丧 tàsàng
 group
 pos	verb
 sense	1	used in 嗒然 tàrán and 嗒喪 tàsàng
+
+>嘻	嘻	xi1	simplified	1
+group
+pos	noun
+sense	1	laugh
+sense	2	giggle
+sense	3	(interjection expressing admiration, surprise etc)
+
+>嘻	嘻	xi1	simplified	2
+group	嘻
+pos	noun
+sense	1	laugh
+sense	2	giggle
+sense	3	(interjection expressing admiration, surprise etc)
+group	譆
+tag	Variant of 嘻 xī
+sense	1	(interjection expressing surprise, grief etc)
+
+>嘻	嘻	xi1	traditional	1
+group
+pos	noun
+sense	1	laugh
+sense	2	giggle
+sense	3	(interjection expressing admiration, surprise etc)
+
+>嘻	譆	xi1	simplified	1
+counterpart	譆
+group
+tag	Variant of 嘻 xī
+sense	1	(interjection expressing surprise, grief etc)
+
+>嘻	譆	xi1	traditional	1
+counterpart	嘻
+group
+tag	Variant of 嘻 xī
+sense	1	(interjection expressing surprise, grief etc)
 
 >嚃	嚃	ta4	simplified	1
 group
@@ -2552,25 +2573,17 @@ sense	5	refers to the philosophical schools of pre-Han China
 sense	6	noun suffix for a specialist in some activity, such as a musician or revolutionary, corresponding to English -ist, -er, -ary or -ian
 mw	個 gè
 
->少	少	shao3	simplified	1
+>家人	家人	jia1 ren2	simplified	1
 group
-pos	adjective · verb · noun
-sense	1	few
-sense	2	less
-sense	3	to lack
-sense	4	to be missing
-sense	5	to stop (doing sth)
-sense	6	seldom
+pos	noun
+sense	1	family member
+sense	2	(old) servant
 
->少	少	shao3	traditional	1
+>家人	家人	jia1 ren2	traditional	1
 group
-pos	adjective · verb · noun
-sense	1	few
-sense	2	less
-sense	3	to lack
-sense	4	to be missing
-sense	5	to stop (doing sth)
-sense	6	seldom
+pos	noun
+sense	1	family member
+sense	2	(old) servant
 
 >尗	尗	shu1	simplified	1
 group
@@ -2627,40 +2640,6 @@ group
 pos	noun
 sense	1	Buddhist nun
 sense	2	(often used in phonetic spellings)
-
->屎	屎	shi3	simplified	1
-group
-pos	verb · noun
-sense	1	feces; excrement; a stool
-sense	2	(bound form) secretion (of the ear, eye etc)
-
->屎	屎	shi3	traditional	1
-group
-pos	verb · noun
-sense	1	feces; excrement; a stool
-sense	2	(bound form) secretion (of the ear, eye etc)
-
->屑	屑	xie4	simplified	1
-group
-pos	noun · adjective
-sense	1	bits
-sense	2	fragments
-sense	3	crumbs
-sense	4	filings
-sense	5	trifling
-sense	6	trivial
-sense	7	to condescend to
-
->屑	屑	xie4	traditional	1
-group
-pos	noun · adjective
-sense	1	bits
-sense	2	fragments
-sense	3	crumbs
-sense	4	filings
-sense	5	trifling
-sense	6	trivial
-sense	7	to condescend to
 
 >屠	屠	tu2	simplified	1
 group
@@ -2974,6 +2953,24 @@ counterpart	席
 group
 pos	noun
 sense	1	woven mat (variant of 席 xí)
+
+>建	建	jian4	simplified	1
+group
+pos	verb
+sense	1	to establish
+sense	2	to found
+sense	3	to set up
+sense	4	to build
+sense	5	to construct
+
+>建	建	jian4	traditional	1
+group
+pos	verb
+sense	1	to establish
+sense	2	to found
+sense	3	to set up
+sense	4	to build
+sense	5	to construct
 
 >建国	建國	jian4 guo2	simplified	1
 counterpart	建國
@@ -3420,38 +3417,6 @@ sense	4	to assess
 sense	5	to compare
 sense	6	pseudo-
 
->拣	揀	jian3	simplified	1
-counterpart	揀
-group
-pos	verb
-sense	1	to choose
-sense	2	to pick
-sense	3	to sort out
-sense	4	to pick up
-
->拣	揀	jian3	traditional	1
-counterpart	拣
-group
-pos	verb
-sense	1	to choose
-sense	2	to pick
-sense	3	to sort out
-sense	4	to pick up
-
->拾	拾	shi2	simplified	1
-group
-pos	numeral · verb
-sense	1	to pick up
-sense	2	to collate or arrange
-sense	3	ten (banker's anti-fraud numeral)
-
->拾	拾	shi2	traditional	1
-group
-pos	numeral · verb
-sense	1	to pick up
-sense	2	to collate or arrange
-sense	3	ten (banker's anti-fraud numeral)
-
 >挞	撻	ta4	simplified	1
 counterpart	撻
 group
@@ -3713,6 +3678,22 @@ sense	1	time
 sense	2	length of time
 sense	3	moment
 sense	4	period
+
+>时间	時間	shi2 jian1	simplified	1
+counterpart	時間
+group
+pos	noun
+sense	1	(concept of) time
+sense	2	(duration of) time
+sense	3	(point in) time
+
+>时间	時間	shi2 jian1	traditional	1
+counterpart	时间
+group
+pos	noun
+sense	1	(concept of) time
+sense	2	(duration of) time
+sense	3	(point in) time
 
 >明	明	ming2	simplified	1
 group
@@ -4269,26 +4250,6 @@ sense	2	to develop (photographs)
 sense	3	to shuffle (cards etc)
 sense	4	to erase (a recording)
 
->洗	洗	xian3	simplified	1
-group
-pos	verb
-sense	1	used in 洗马 xiǎnmǎ
-
->洗	洗	xian3	traditional	1
-group
-pos	verb
-sense	1	used in 洗馬 xiǎnmǎ
-
->浅	淺	jian1	simplified	1
-counterpart	淺
-group
-sense	1	sound of moving water
-
->浅	淺	jian1	traditional	1
-counterpart	浅
-group
-sense	1	sound of moving water
-
 >涂	塗	tu2	simplified	1
 counterpart	塗
 group
@@ -4376,50 +4337,34 @@ pos	verb
 sense	1	to enrich
 sense	2	to moisten
 
->溅	濺	jian4	simplified	1
-counterpart	濺
+>湿	溼	shi1	simplified	1
+counterpart	溼
 group
-pos	verb
-sense	1	to splash
+tag	Variant of 湿 shī: moist / wet
 
->溅	濺	jian4	traditional	1
-counterpart	溅
+>湿	溼	shi1	traditional	1
+counterpart	湿
 group
-pos	verb
-sense	1	to splash
+tag	Variant of 濕 shī: moist / wet
 
->溪	溪	xi1	simplified	1
+>湿	濕	shi1	simplified	1
+counterpart	濕
 group
-pos	noun
-sense	1	creek
-sense	2	rivulet
+sense	1	moist
+sense	2	wet
 
->溪	溪	xi1	simplified	2
-group	溪
-pos	noun
-sense	1	creek
-sense	2	rivulet
-group	谿
-pos	noun
-tag	Variant of 溪 xī: creek / rivulet
+>湿	濕	shi1	simplified	2
+group	濕
+sense	1	moist
+sense	2	wet
+group	溼
+tag	Variant of 湿 shī: moist / wet
 
->溪	溪	xi1	traditional	1
+>湿	濕	shi1	traditional	1
+counterpart	湿
 group
-pos	noun
-sense	1	creek
-sense	2	rivulet
-
->溪	谿	xi1	simplified	1
-counterpart	谿
-group
-pos	noun
-tag	Variant of 溪 xī: creek / rivulet
-
->溪	谿	xi1	traditional	1
-counterpart	溪
-group
-pos	noun
-tag	Variant of 溪 xī: creek / rivulet
+sense	1	moist
+sense	2	wet
 
 >滤	濾	lü4	simplified	1
 counterpart	濾
@@ -4453,17 +4398,25 @@ sense	1	name of a river
 group
 sense	1	name of a river
 
->煎	煎	jian1	simplified	1
+>烦	煩	fan2	simplified	1
+counterpart	煩
 group
-pos	verb
-sense	1	to pan fry
-sense	2	to sauté
+pos	verb · noun
+sense	1	to feel vexed
+sense	2	to bother
+sense	3	to trouble
+sense	4	superfluous and confusing
+sense	5	edgy
 
->煎	煎	jian1	traditional	1
+>烦	煩	fan2	traditional	1
+counterpart	烦
 group
-pos	verb
-sense	1	to pan fry
-sense	2	to sauté
+pos	verb · noun
+sense	1	to feel vexed
+sense	2	to bother
+sense	3	to trouble
+sense	4	superfluous and confusing
+sense	5	edgy
 
 >煎锅	煎鍋	jian1 guo1	simplified	1
 counterpart	煎鍋
@@ -4595,15 +4548,17 @@ counterpart	略
 group
 tag	Variant of 略 lüè: brief; sketchy / outline; summary / to omit
 
->略微	略微	lüe4 wei1	simplified	1
+>略带	略帶	lüe4 dai4	simplified	1
+counterpart	略帶
 group
-pos	adverb
-sense	1	a little bit; slightly
+pos	verb
+sense	1	to have (an attribute) to a small degree; to have a touch of
 
->略微	略微	lüe4 wei1	traditional	1
+>略带	略帶	lüe4 dai4	traditional	1
+counterpart	略带
 group
-pos	adverb
-sense	1	a little bit; slightly
+pos	verb
+sense	1	to have (an attribute) to a small degree; to have a touch of
 
 >略知一二	略知一二	lüe4 zhi1 yi1 er4	simplified	1
 group
@@ -4626,22 +4581,6 @@ counterpart	略称
 group
 pos	noun · verb
 sense	1	abbreviation
-
->番	番	fan1	simplified	1
-group
-pos	adjective
-sense	1	(bound form) foreign (non-Chinese); barbarian
-sense	2	classifier for processes or actions that take time and effort
-sense	3	(classifier) a kind; a sort
-sense	4	(classifier) (used after the verb 翻 fān to indicate how many times a quantity doubles, as in 翻一番 fānyīfān "to double")
-
->番	番	fan1	traditional	1
-group
-pos	adjective
-sense	1	(bound form) foreign (non-Chinese); barbarian
-sense	2	classifier for processes or actions that take time and effort
-sense	3	(classifier) a kind; a sort
-sense	4	(classifier) (used after the verb 翻 fān to indicate how many times a quantity doubles, as in 翻一番 fānyīfān "to double")
 
 >痜	痜	tu1	simplified	1
 group
@@ -4691,19 +4630,17 @@ group
 pos	noun · verb
 sense	1	space between the eyebrows and the eyelashes
 
->睡觉	睡覺	shui4 jiao4	simplified	1
-counterpart	睡覺
+>睡	睡	shui4	simplified	1
 group
-pos	verb
-sense	1	to go to bed
-sense	2	to sleep
+pos	noun · verb
+sense	1	to sleep
+sense	2	to lie down
 
->睡觉	睡覺	shui4 jiao4	traditional	1
-counterpart	睡觉
+>睡	睡	shui4	traditional	1
 group
-pos	verb
-sense	1	to go to bed
-sense	2	to sleep
+pos	noun · verb
+sense	1	to sleep
+sense	2	to lie down
 
 >睨	睨	ni4	simplified	1
 group
@@ -4902,16 +4839,6 @@ sense	6	to harbor or shelter
 sense	7	to hold in check
 sense	8	to bend
 sense	9	classifier for litters and broods
-
->笵	笵	fan4	simplified	1
-group
-pos	noun
-sense	1	bamboo mold
-
->笵	笵	fan4	traditional	1
-group
-pos	noun
-sense	1	bamboo mold
 
 >筕	筕	hang2	simplified	1
 group
@@ -5161,6 +5088,32 @@ group
 pos	noun
 sense	1	cotton rope; cord
 
+>细	細	xi4	simplified	1
+counterpart	細
+group
+pos	adjective
+sense	1	thin or slender
+sense	2	finely particulate
+sense	3	thin and soft
+sense	4	fine
+sense	5	delicate
+sense	6	trifling
+sense	7	(of a sound) quiet
+sense	8	frugal
+
+>细	細	xi4	traditional	1
+counterpart	细
+group
+pos	adjective
+sense	1	thin or slender
+sense	2	finely particulate
+sense	3	thin and soft
+sense	4	fine
+sense	5	delicate
+sense	6	trifling
+sense	7	(of a sound) quiet
+sense	8	frugal
+
 >终	終	zhong1	simplified	1
 counterpart	終
 group
@@ -5186,18 +5139,6 @@ counterpart	绗
 group
 pos	verb
 sense	1	to quilt
-
->给	給	ji3	simplified	1
-counterpart	給
-group
-sense	1	(bound form) to supply; to provide
-sense	2	(literary) sufficient; abundant
-
->给	給	ji3	traditional	1
-counterpart	给
-group
-sense	1	(bound form) to supply; to provide
-sense	2	(literary) sufficient; abundant
 
 >绿	綠	lü4	simplified	1
 counterpart	綠
@@ -5596,6 +5537,33 @@ group
 pos	noun
 sense	1	boring insect
 sense	2	snout moth's larva (Aphomia gullaris or Plodia interpuncuella or Heliothus armigera etc), major agricultural pest
+
+>蟹	蟹	xie4	simplified	1
+group
+pos	noun
+sense	1	crab
+
+>蟹	蟹	xie4	simplified	2
+group	蟹
+pos	noun
+sense	1	crab
+group	蠏
+tag	Variant of 蟹 xiè: crab
+
+>蟹	蟹	xie4	traditional	1
+group
+pos	noun
+sense	1	crab
+
+>蟹	蠏	xie4	simplified	1
+counterpart	蠏
+group
+tag	Variant of 蟹 xiè: crab
+
+>蟹	蠏	xie4	traditional	1
+counterpart	蟹
+group
+tag	Variant of 蟹 xiè: crab
 
 >血型	血型	xue4 xing2	simplified	1
 group
@@ -6037,6 +6005,44 @@ sense	2	poetry
 sense	3	verse
 mw	首 shǒu
 
+>说	說	shuo1	simplified	1
+counterpart	說
+group
+pos	verb · noun
+sense	1	to speak; to talk; to say
+sense	2	to explain; to comment
+sense	3	to scold; to tell off
+sense	4	(bound form) theory; doctrine
+
+>说	說	shuo1	simplified	2
+group	說
+pos	verb · noun
+sense	1	to speak; to talk; to say
+sense	2	to explain; to comment
+sense	3	to scold; to tell off
+sense	4	(bound form) theory; doctrine
+group	説
+tag	Variant of 说 shuō: to speak; to talk; to say / to explain; to comment / to scold; t…
+
+>说	說	shuo1	traditional	1
+counterpart	说
+group
+pos	verb · noun
+sense	1	to speak; to talk; to say
+sense	2	to explain; to comment
+sense	3	to scold; to tell off
+sense	4	(bound form) theory; doctrine
+
+>说	説	shuo1	simplified	1
+counterpart	説
+group
+tag	Variant of 说 shuō: to speak; to talk; to say / to explain; to comment / to scold; t…
+
+>说	説	shuo1	traditional	1
+counterpart	说
+group
+tag	Variant of 說 shuō: to speak; to talk; to say / to explain; to comment / to scold; t…
+
 >说话	說話	shuo1 hua4	simplified	1
 counterpart	說話
 group
@@ -6195,20 +6201,6 @@ sense	4	to disparage
 sense	5	to censure
 sense	6	to depreciate
 
->贬义	貶義	bian3 yi4	simplified	1
-counterpart	貶義
-group
-pos	noun
-sense	1	derogatory sense
-sense	2	negative connotation
-
->贬义	貶義	bian3 yi4	traditional	1
-counterpart	贬义
-group
-pos	noun
-sense	1	derogatory sense
-sense	2	negative connotation
-
 >贬低	貶低	bian3 di1	simplified	1
 counterpart	貶低
 group
@@ -6230,6 +6222,20 @@ sense	3	to play down
 sense	4	to demean
 sense	5	to degrade
 sense	6	to devalue
+
+>贬斥	貶斥	bian3 chi4	simplified	1
+counterpart	貶斥
+group
+pos	verb
+sense	1	to demote
+sense	2	to denounce
+
+>贬斥	貶斥	bian3 chi4	traditional	1
+counterpart	贬斥
+group
+pos	verb
+sense	1	to demote
+sense	2	to denounce
 
 >贬称	貶稱	bian3 cheng1	simplified	1
 counterpart	貶稱
@@ -6348,36 +6354,6 @@ counterpart	返国
 group
 pos	verb
 sense	1	to return to one's country
-
->进	進	jin4	simplified	1
-counterpart	進
-group
-pos	verb · adverb
-sense	1	to go forward
-sense	2	to advance
-sense	3	to go in
-sense	4	to enter
-sense	5	to put in
-sense	6	to submit
-sense	7	to take in
-sense	8	to admit
-sense	9	(math.) base of a number system
-sense	10	classifier for sections in a building or residential compound
-
->进	進	jin4	traditional	1
-counterpart	进
-group
-pos	verb · adverb
-sense	1	to go forward
-sense	2	to advance
-sense	3	to go in
-sense	4	to enter
-sense	5	to put in
-sense	6	to submit
-sense	7	to take in
-sense	8	to admit
-sense	9	(math.) base of a number system
-sense	10	classifier for sections in a building or residential compound
 
 >逅	逅	hou4	simplified	1
 group
@@ -6774,6 +6750,24 @@ counterpart	锡安山
 group
 proper	1	Mount Zion
 
+>键	鍵	jian4	simplified	1
+counterpart	鍵
+group
+pos	noun
+sense	1	key (on a piano or computer keyboard)
+sense	2	button (on a mouse or other device)
+sense	3	chemical bond
+sense	4	linchpin
+
+>键	鍵	jian4	traditional	1
+counterpart	键
+group
+pos	noun
+sense	1	key (on a piano or computer keyboard)
+sense	2	button (on a mouse or other device)
+sense	3	chemical bond
+sense	4	linchpin
+
 >闲	閑	xian2	simplified	1
 counterpart	閑
 group
@@ -6839,6 +6833,22 @@ sense	3	within a definite time or space
 sense	4	room
 sense	5	section of a room or lateral space between two pairs of pillars
 sense	6	classifier for rooms
+
+>限	限	xian4	simplified	1
+group
+pos	verb
+sense	1	to limit
+sense	2	to restrict
+sense	3	(bound form) limit
+sense	4	bound
+
+>限	限	xian4	traditional	1
+group
+pos	verb
+sense	1	to limit
+sense	2	to restrict
+sense	3	(bound form) limit
+sense	4	bound
 
 >险	險	xian3	simplified	1
 counterpart	險
@@ -6980,6 +6990,28 @@ counterpart	颃
 group
 pos	verb
 sense	1	fly down
+
+>饭	飯	fan4	simplified	1
+counterpart	飯
+group
+pos	noun
+sense	1	cooked rice
+sense	2	meal
+sense	3	(loanword) fan
+sense	4	devotee
+mw	碗 wǎn
+mw	顿 dùn
+
+>饭	飯	fan4	traditional	1
+counterpart	饭
+group
+pos	noun
+sense	1	cooked rice
+sense	2	meal
+sense	3	(loanword) fan
+sense	4	devotee
+mw	碗 wǎn
+mw	頓 dùn
 
 >饰	飾	shi4	simplified	1
 counterpart	飾
@@ -7131,6 +7163,24 @@ sense	1	Scops semitorques
 group
 pos	noun
 sense	1	Scops semitorques
+
+>鸡蛋	雞蛋	ji1 dan4	simplified	1
+counterpart	雞蛋
+group
+pos	noun
+sense	1	(chicken) egg
+sense	2	hen's egg
+mw	个 gè
+mw	打 dá
+
+>鸡蛋	雞蛋	ji1 dan4	traditional	1
+counterpart	鸡蛋
+group
+pos	noun
+sense	1	(chicken) egg
+sense	2	hen's egg
+mw	個 gè
+mw	打 dá
 
 >鸣	鳴	ming2	simplified	1
 counterpart	鳴

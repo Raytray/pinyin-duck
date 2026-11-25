@@ -62,7 +62,7 @@ const SPOT_CHECKS: SpotCheck[] = [
     text: '你好',
     code: 'ni hao',
     comment: 'nǐ hǎo · hello; hi',
-    weight: 14262,
+    weight: 44262,
     why: 'the flagship entry, and a two-syllable code with a space in it',
   },
   {
@@ -86,7 +86,7 @@ const SPOT_CHECKS: SpotCheck[] = [
     text: '安',
     code: 'an',
     comment: 'ān · (bound form) calm; peaceful / to calm; to set at ease / safe; se…',
-    weight: 10978,
+    weight: 20978,
     why: 'must outrank the 205 astral-plane CC-CEDICT characters sharing an; surname weight reduced 10x to deprioritize vs regular vocab',
   },
   {
@@ -102,7 +102,7 @@ const SPOT_CHECKS: SpotCheck[] = [
     text: '绿',
     code: 'lü',
     comment: "lǜ · green / (slang) (derived from 綠帽子|绿帽子) to cheat on (one's spouse…",
-    weight: 28772,
+    weight: 8772,
     why: 'the ü the schema xlit rule exists to let a user type as v',
   },
   {
@@ -110,7 +110,7 @@ const SPOT_CHECKS: SpotCheck[] = [
     text: '绿',
     code: 'lu',
     comment: 'lù · used in names',
-    weight: 28772,
+    weight: 8772,
     why: 'the same word read lu, which is why lü needs no OpenCC conversion at runtime',
   },
   {
@@ -126,7 +126,7 @@ const SPOT_CHECKS: SpotCheck[] = [
     text: '後',
     code: 'hou',
     comment: 'hòu · back / behind / rear',
-    weight: 13992,
+    weight: 43992,
     why: 'keyed by simplified form, the build used to drop 後 hòu for 后 hòu "empress" (ADR 0001)',
   },
   {
@@ -134,7 +134,7 @@ const SPOT_CHECKS: SpotCheck[] = [
     text: '后',
     code: 'hou',
     comment: 'hòu · empress / queen / (archaic) monarch',
-    weight: 13992,
+    weight: 43992,
     why: 'its own headword, so it keeps its own gloss beside 後',
   },
   {
@@ -142,7 +142,7 @@ const SPOT_CHECKS: SpotCheck[] = [
     text: '后',
     code: 'hou',
     comment: 'hòu · back / empress',
-    weight: 13992,
+    weight: 43992,
     why: 'one candidate standing for 後 and 后, glossed with the first sense of each',
   },
   {

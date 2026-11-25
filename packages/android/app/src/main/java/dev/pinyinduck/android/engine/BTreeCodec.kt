@@ -19,9 +19,9 @@ import java.nio.ByteBuffer
  * The header holds the build id (u32 at offset 24) that the Candidate detail file
  * built alongside must match, then the base word cost (u32 at offset 28) that Sentence
  * candidates score with. A leaf record is key, simplified, traditional, pinyinNumbers
- * and shortGloss (varint-length UTF-8 strings), a varint frequency, a u8 HSK level, a
- * varint count of entry ids followed by each id as a varint, and a u8 script marker
- * (0 both, 1 simplified only, 2 traditional only). Each id is stored as the zigzag-encoded
+ * and shortGloss (varint-length UTF-8 strings), a varint frequency, a u8 HSK level (0 for
+ * none, 1-6, or 7 for the HSK 3.0 7-9 band), a varint count of entry ids followed by each
+ * id as a varint, and a u8 script marker (0 both, 1 simplified only, 2 traditional only). Each id is stored as the zigzag-encoded
  * difference from the id before it in the same leaf (0 before the first), because ids
  * follow storage order and the deltas are almost all one byte.
  */
@@ -67,6 +67,7 @@ data class StoredEntry(
     val pinyinNumbers: String,
     val shortGloss: String,
     val frequency: Int,
+    /** The HSK 3.0 level of the word at this reading: 1-6, 7 for the 7-9 band, 0 for none. */
     val hskLevel: Int,
     /**
      * The entries this row stands for, in headword order. One for most rows; a simplified

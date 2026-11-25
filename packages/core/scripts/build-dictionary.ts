@@ -1,9 +1,10 @@
 /**
  * CC-CEDICT + Frequency + HSK Dictionary Builder
  *
- * Reads CC-CEDICT (committed under packages/core/data/) and downloads the OpenSubtitles
- * Chinese frequency list and the HSK 2012 word list; joins them on the simplified form; and emits the B-tree asset that
- * `@pinyinduck/core` reads at runtime.
+ * Reads CC-CEDICT and the HSK 3.0 levels (both committed under packages/core/data/) and
+ * downloads the OpenSubtitles Chinese frequency list; joins frequency on the simplified form
+ * and each HSK level on a word at a reading (`hsk-attach.ts`); and emits the B-tree asset
+ * that `@pinyinduck/core` reads at runtime.
  *
  * The output is a paged B+ tree (`dictionary.btree`) keyed on toneless pinyin. A
  * client opens it by reading only its header and page directory and decodes just the
@@ -29,7 +30,7 @@
  * Sources (each pinned by SHA-256 in ./sources.ts):
  *   CC-CEDICT   https://www.mdbg.net/chinese/export/cedict/ (a dated copy in packages/core/data/)
  *   Frequency   https://github.com/hermitdave/FrequencyWords (2018, zh_cn, 50k)
- *   HSK 2012    https://github.com/gigacool/hanyu-shuiping-kaoshi
+ *   HSK 3.0     https://www.chinesetest.cn/ (the syllabus PDF, reduced in packages/core/data/)
  *   Wiktionary  https://kaikki.org/dictionary/rawdata.html (reduced in packages/core/data/)
  *   HanDeDict   https://github.com/gugray/HanDeDict
  */
@@ -48,6 +49,7 @@ import { encodeDetailFile, formatBuildId } from '../src/detail/detail-codec.js';
 import { SOURCES, type PinnedSource, type VendoredSource } from './sources.js';
 import { detailRecords, entrySenseDefinitions, isCommonLine } from './build-detail.js';
 import { partOfSpeechSources } from './part-of-speech.js';
+import { attachHskLevels, parseHskLevels, type HskAttachment } from './hsk-attach.js';
 
 const PACKAGE_DIR = path.resolve(__dirname, '..');
 export const CACHE_DIR = path.join(PACKAGE_DIR, '.cache');
@@ -66,10 +68,9 @@ const DEFAULT_COMPRESSED_OUT = path.resolve(__dirname, '../../web/src/generated/
  */
 export const DETAIL_FILE_NAME = 'detail.bin';
 
-/** The sources a build downloads. CC-CEDICT and the Wiktionary rows are committed instead. */
+/** The sources a build downloads. CC-CEDICT, the HSK levels and the Wiktionary rows are committed instead. */
 export const SOURCE_URLS = {
   frequency: SOURCES.frequency.url,
-  hsk: SOURCES.hsk.url,
   handedict: SOURCES.handedict.url,
 } as const;
 
@@ -141,24 +142,6 @@ export function parseFrequencyList(content: string): Map<string, number> {
     }
   }
   return frequencies;
-}
-
-/** Parses the tab-separated HSK list (level, id, hanzi, pinyin, translations). */
-export function parseHskList(content: string): Map<string, number> {
-  const levels = new Map<string, number>();
-  for (const line of content.split('\n')) {
-    const columns = line.split('\t');
-    if (columns.length < 3) continue;
-    const level = Number(columns[0]);
-    const hanzi = columns[2].trim();
-    if (!hanzi || !Number.isInteger(level) || level < 1 || level > 6) continue;
-    // Keep the lowest (easiest) level when a word appears more than once.
-    const existing = levels.get(hanzi);
-    if (existing === undefined || level < existing) {
-      levels.set(hanzi, level);
-    }
-  }
-  return levels;
 }
 
 /** SHA-256 of a source's text, as lowercase hex. */
@@ -376,6 +359,21 @@ export function joinedGloss(ordered: DictionaryEntry[]): string {
 }
 
 /**
+ * The headwords one simplified candidate stands for, keyed `simplified|pinyinNumbers`, in
+ * the file order of their first entry.
+ */
+export function groupHeadwords(entries: DictionaryEntry[]): Map<string, DictionaryEntry[]> {
+  const groups = new Map<string, DictionaryEntry[]>();
+  for (const entry of entries) {
+    const key = `${entry.simplified}|${entry.pinyinNumbers}`;
+    const group = groups.get(key);
+    if (group) group.push(entry);
+    else groups.set(key, [entry]);
+  }
+  return groups;
+}
+
+/**
  * Joins the three corpora into wire rows.
  *
  * Every entry with a simplified form of its own gets one row for both scripts. When
@@ -391,9 +389,14 @@ export function joinCorpora(
   cedictContent: string,
   frequencyContent: string,
   hskContent: string
-): { rows: DictionaryRow[]; entries: DictionaryEntry[]; stats: BuildStats; baseWordCost: number } {
+): {
+  rows: DictionaryRow[];
+  entries: DictionaryEntry[];
+  stats: BuildStats;
+  baseWordCost: number;
+  hsk: HskAttachment;
+} {
   const frequencies = parseFrequencyList(frequencyContent);
-  const hskLevels = parseHskList(hskContent);
   const entries = collectEntries(cedictContent);
 
   // Normalize against the busiest word in the corpus, not a hardcoded constant, so
@@ -405,25 +408,19 @@ export function joinCorpora(
     corpusTotal += count;
   }
 
-  // Headwords that one simplified candidate stands for, in the file order of their first entry.
-  const groups = new Map<string, DictionaryEntry[]>();
-  for (const entry of entries) {
-    const key = `${entry.simplified}|${entry.pinyinNumbers}`;
-    const group = groups.get(key);
-    if (group) group.push(entry);
-    else groups.set(key, [entry]);
-  }
+  const groups = groupHeadwords(entries);
+  const { levels: hskLevels, report: hsk } = attachHskLevels(groups, parseHskLevels(hskContent));
 
   const rows: DictionaryRow[] = [];
   let withFrequency = 0;
   let withHsk = 0;
   let singleChar = 0;
 
-  for (const group of groups.values()) {
+  for (const [key, group] of groups) {
     const { simplified, pinyinNumbers } = group[0];
-    // Frequency and HSK level are keyed by simplified form, so a group shares them.
+    // Frequency is keyed by simplified form and HSK level by the group, so a group shares both.
     const frequency = normalizeFrequency(frequencies.get(simplified) ?? 0, corpusMax);
-    const hskLevel = hskLevels.get(simplified) ?? 0;
+    const hskLevel = hskLevels.get(key) ?? 0;
     const ranked = (members: DictionaryEntry[]) =>
       members.every(isSurnameEntry) ? Math.round(frequency * 0.1) : frequency;
 
@@ -477,6 +474,7 @@ export function joinCorpora(
     rows,
     entries,
     baseWordCost: baseWordCost(corpusTotal, corpusMax),
+    hsk,
     stats: {
       cedictLines,
       entries: entries.length,
@@ -570,12 +568,16 @@ async function build(
     readPinned(SOURCES.handedict, useCache),
   ]);
 
-  const { rows, entries, stats, baseWordCost: wordCost } = joinCorpora(cedictContent, frequencyContent, hskContent);
+  const { rows, entries, stats, hsk, baseWordCost: wordCost } = joinCorpora(cedictContent, frequencyContent, hskContent);
 
   console.log(
     `\n  corpus  ${parseFrequencyList(frequencyContent).size} frequency entries, ` +
-      `${parseHskList(hskContent).size} HSK words`
+      `${hsk.attached + hsk.unattached.length} HSK rows`
   );
+  console.log(`  HSK     ${hsk.attached} rows attached, ${hsk.unattached.length} unattached`);
+  for (const row of hsk.unattached) {
+    console.log(`          unattached ${row.word} ${row.reading} (level ${row.level})`);
+  }
 
   const { bytes, buildId } = encodeDictionary(rows, wordCost);
   const partOfSpeechOf = partOfSpeechSources(wiktionaryContent, handeDictContent);
@@ -597,7 +599,7 @@ async function build(
   console.log(`\n  parsed  ${stats.cedictLines} CC-CEDICT lines`);
   console.log(`  merged  ${stats.cedictLines} lines into ${stats.entries} entries`);
   console.log(`  emitted ${stats.emitted} rows`);
-  console.log(`  coverage ${stats.withFrequency} with frequency, ${stats.withHsk} on the HSK list`);
+  console.log(`  coverage ${stats.withFrequency} with frequency, ${stats.withHsk} with an HSK level`);
   console.log(`  coverage ${stats.singleChar} single characters`);
   console.log(
     `  part of speech ${partOfSpeechCounts.Wiktionary + partOfSpeechCounts.HanDeDict} of ${entries.length} entries ` +

@@ -17,11 +17,11 @@ test.beforeEach(async ({ page }) => {
 
 test('picks a candidate with a digit while composing', async ({ page }) => {
   await editor(page).pressSequentially('shi');
-  await expectCandidates(page, ['是', '十', '使', '试', '诗']);
+  await expectCandidates(page, ['是', '事', '十', '时', '室']);
 
   await editor(page).press('4');
 
-  await expect(editor(page)).toHaveValue('试');
+  await expect(editor(page)).toHaveValue('时');
   await expect(candidateList(page)).toHaveCount(0);
 });
 
@@ -29,20 +29,20 @@ test('treats a digit as a pick even when it reads like a tone number', async ({ 
   await editor(page).pressSequentially('shi');
   await editor(page).pressSequentially('4');
 
-  await expect(editor(page)).toHaveValue('试');
+  await expect(editor(page)).toHaveValue('时');
   await expect(candidateList(page)).toHaveCount(0);
 });
 
 test('swallows a digit that is out of range for the visible page', async ({ page }) => {
   await editor(page).pressSequentially('shi');
-  await expectCandidates(page, ['是', '十', '使', '试', '诗']);
+  await expectCandidates(page, ['是', '事', '十', '时', '室']);
 
   await editor(page).press('7');
 
   // The composition survives, the buffer is untouched, nothing is committed.
   await expect(page.locator('.candidate-buffer-text')).toHaveText('shi');
   await expect(editor(page)).toHaveValue('');
-  await expectCandidates(page, ['是', '十', '使', '试', '诗']);
+  await expectCandidates(page, ['是', '事', '十', '时', '室']);
   await expect(candidateItems(page).first()).toHaveAttribute('aria-selected', 'true');
 });
 

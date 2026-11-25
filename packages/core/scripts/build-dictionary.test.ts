@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   parseCedictLine,
   parseFrequencyList,
-  parseHskList,
   normalizeFrequency,
   joinCorpora,
   encodeDictionary,
@@ -92,29 +91,10 @@ describe('parseFrequencyList', () => {
   });
 });
 
-describe('parseHskList', () => {
-  it('reads tab-separated rows keyed on the hanzi column', () => {
-    const content = ['1\t1\t你好\tni3 hao3\thello', '4\t40\t中国\tzhong1 guo2\tChina'].join('\n');
-    expect(parseHskList(content)).toEqual(
-      new Map([
-        ['你好', 1],
-        ['中国', 4],
-      ])
-    );
-  });
-
-  it('ignores rows whose level is not 1-6', () => {
-    const content = ['0\t1\t甲\tjia3\ta', '7\t2\t乙\tyi3\tb', '3\t3\t丙\tbing3\tc'].join('\n');
-    expect(parseHskList(content)).toEqual(new Map([['丙', 3]]));
-  });
-
-  it('ignores rows with too few columns', () => {
-    expect(parseHskList('1\t1').size).toBe(0);
-  });
-
-  it('keeps the easiest level when a word is listed more than once', () => {
-    const content = ['5\t1\t猫\tmao1\tcat', '2\t2\t猫\tmao1\tcat'].join('\n');
-    expect(parseHskList(content).get('猫')).toBe(2);
+describe('HSK levels on rows', () => {
+  it('gives traditional-only rows their group level', () => {
+    const { rows } = joinCorpora(['後 后 [hou4] /back/', '后 后 [hou4] /empress/'].join('\n'), '', '后\thòu\t1');
+    expect(rows.map((row) => row[5])).toEqual([1, 1, 1]);
   });
 });
 
@@ -172,7 +152,7 @@ describe('joinCorpora', () => {
   ].join('\n');
 
   const frequency = '中国 7000\n你好 5000\n五 100\n';
-  const hsk = ['1\t1\t你\tyou', '2\t2\t中国\tchina'].join('\n');
+  const hsk = ['你\tnǐ\t1', '中国\tZhōngguó\t2'].join('\n');
 
   it('emits one row per valid CC-CEDICT line and reports the count', () => {
     const { stats } = joinCorpora(cedict, frequency, hsk);

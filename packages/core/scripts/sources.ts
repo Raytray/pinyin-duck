@@ -14,7 +14,10 @@
  *   only serves its latest wiktextract dump, and the dump is about 3 GB.
  *   `scripts/reduce-wiktionary.ts` writes `data/wiktionary-pos.tsv` and says how to move
  *   to a newer dump; the file's header names the dump's date and SHA-256.
- * - The three GitHub sources are downloaded from a commit rather than `master`, and cached
+ * - The HSK 3.0 levels are committed too: they are reduced by hand from the official syllabus
+ *   PDF by `scripts/extract-hsk3.py`, which says how to move to a new edition; the file's
+ *   header names the PDF's URL and SHA-256.
+ * - The two GitHub sources are downloaded from a commit rather than `master`, and cached
  *   in `packages/core/.cache/`.
  * - The OpenSubtitles text the bigram table is counted from (`build-bigrams.ts`) is a 173 MB
  *   gzip file from OPUS, which serves it under a versioned path. It is cached compressed, and
@@ -24,14 +27,16 @@
  *   1. CC-CEDICT: `curl -sL https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz
  *      | gunzip > packages/core/data/cedict_1_0_ts_utf-8_mdbg.txt`, leaving the file
  *      otherwise untouched. Wiktionary: `npm run reduce:wiktionary` on a new dump (see
- *      `reduce-wiktionary.ts`). For a GitHub source, pick the new commit and update `url`.
+ *      `reduce-wiktionary.ts`). HSK: `extract-hsk3.py` on a new syllabus (see its
+ *      docstring). For a GitHub source, pick the new commit and update `url`.
  *   2. Update `sha256` below (`sha256sum <file>`) and the edition comment.
  *   3. `npm run build:dict -w @pinyinduck/core -- --no-cache`, then `npm run build:parity`
  *      and commit the regenerated `engine-parity.tsv` and `detail-parity.tsv` with this file.
  *      CI tests against the committed goldens and no longer regenerates them, so they
  *      travel together.
- *   4. Wiktionary and HanDeDict are credited with their dump date and commit: update
- *      DATA_LICENSES.md, the web Credits dialog and the Android settings screen.
+ *   4. Wiktionary, HanDeDict and the HSK syllabus are credited with their dump date, commit and
+ *      edition: update DATA_LICENSES.md, the web Credits dialog, the Android settings screen
+ *      and, for HSK, the Rime dict header.
  */
 
 /** A source read from a file committed to this repository. */
@@ -79,10 +84,10 @@ export const SOURCES = {
     sha256: '25599e00347b893e55c3058a748819b3fe19403291cd12f7c03af128e7f3fe45',
   },
   hsk: {
-    // gigacool/hanyu-shuiping-kaoshi, the HSK 2012 word list.
-    url: 'https://raw.githubusercontent.com/gigacool/hanyu-shuiping-kaoshi/5875a36415856c456cbc8364fba5306a415a9ebc/hsk.csv',
-    cacheName: 'hsk.csv',
-    sha256: 'f45235585b14878e93be2eb66cdb1fe635136c3df7fdc311fdcc7e591b0c4f11',
+    // HSK 3.0 levels from 《中文水平考试 HSK 考试大纲》 (中外语言交流合作中心, 2025-11),
+    // 10,961 (word, reading, level) rows.
+    file: 'data/hsk3-levels.tsv',
+    sha256: '717aaa2f7eb3c3b37f6f7cce9c2f71953eac80d282d55f054036b7fc291ad571',
   },
   wiktionaryPos: {
     // English Wiktionary, enwiktionary dump 2026-10-01 extracted by wiktextract 2026-10-30

@@ -28,8 +28,7 @@ vi.mock('./sources', async () => {
     SOURCES: {
       cedict: { file: 'data/cedict.txt', sha256: hash(CEDICT) },
       frequency: { url: 'https://example.test/zh_cn_50k.txt', cacheName: 'zh_cn_50k.txt', sha256: hash(FREQUENCY) },
-      // Not read by the bigram build; build-dictionary names their URLs when it loads.
-      hsk: { url: 'https://example.test/hsk.csv', cacheName: 'hsk.csv', sha256: '0'.repeat(64) },
+      // Not read by the bigram build; build-dictionary names its URL when it loads.
       handedict: { url: 'https://example.test/handedict.u8', cacheName: 'handedict.u8', sha256: '0'.repeat(64) },
       opensubtitles: {
         url: 'https://example.test/zh_cn.txt.gz',

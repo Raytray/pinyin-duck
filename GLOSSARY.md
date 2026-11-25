@@ -43,6 +43,12 @@ The grammatical category of an entry, such as noun or verb, from a fixed set of 
 An entry may have several, or none.
 _Avoid_: Word class, POS tag
 
+**HSK level**:
+The band of the official HSK 3.0 vocabulary that a word at a given reading belongs to: one of
+levels 1 to 6, or the single band covering levels 7 to 9. Readings of one written word can sit at
+different levels (好 hǎo at 1, hào at 5), and a reading not in that vocabulary has no HSK level.
+_Avoid_: Difficulty, grade, HSK 2.0 level
+
 ### Input
 
 **Candidate**:

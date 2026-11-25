@@ -32,3 +32,16 @@ script rather than editing it; `../scripts/sources.ts` pins its SHA-256 too.
 
 It is English Wiktionary contributors' work under
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), reduced to these four columns.
+
+## HSK 3.0 levels
+
+`hsk3-levels.tsv` holds the HSK 3.0 vocabulary as word, reading and level: the reading exactly
+as the syllabus prints it, tone sandhi included, and the level 1-6, or 7 for the 7-9 band.
+`../scripts/extract-hsk3.py` wrote it from the official syllabus, 《中文水平考试 HSK 考试大纲》
+(中外语言交流合作中心, 2025-11), and its header names that PDF's URL and SHA-256. It is
+committed because the build should not depend on a PDF download, and the PDF itself is not:
+nothing else from it is kept. Regenerate it with that script, run by hand, rather than editing
+it; `../scripts/sources.ts` pins its SHA-256 too.
+
+The syllabus has no license. The levels are included as facts;
+[DATA_LICENSES.md](../../../DATA_LICENSES.md) says why, and gives the full citation.

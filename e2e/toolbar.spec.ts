@@ -66,10 +66,10 @@ test('toggles script for a character that differs between the two scripts', asyn
 
   await editor(page).pressSequentially('beijing');
   await editor(page).press(' ');
-  await expect(editor(page)).toHaveValue('中国北京');
+  await expect(editor(page)).toHaveValue('中国背景');
 
   // Committed text is not rewritten; only new candidates change script.
-  await expect(editor(page)).toHaveValue('中国北京');
+  await expect(editor(page)).toHaveValue('中国背景');
 });
 
 test('disables Copy and Clear until there is text to act on', async ({ page }) => {
@@ -144,7 +144,7 @@ test('credits the dictionary sources and their licenses', async ({ page }) => {
   for (const [name, href] of [
     ['CC-CEDICT', 'https://www.mdbg.net/chinese/dictionary?page=cc-cedict'],
     ['FrequencyWords (OpenSubtitles 2018)', 'https://github.com/hermitdave/FrequencyWords'],
-    ['HSK 2012 word list', 'https://github.com/gigacool/hanyu-shuiping-kaoshi'],
+    ['HSK 3.0 syllabus (2025)', 'https://www.chinesetest.cn/'],
     ['English Wiktionary', 'https://en.wiktionary.org/'],
     ['HanDeDict', 'https://github.com/gugray/HanDeDict'],
   ]) {
@@ -152,7 +152,10 @@ test('credits the dictionary sources and their licenses', async ({ page }) => {
   }
   await expect(credits).toContainText('MDBG');
   await expect(credits).toContainText('Hermit Dave');
-  await expect(credits).toContainText('gigacool');
+  // The HSK levels come from an unlicensed official syllabus: only the levels are taken.
+  await expect(credits).toContainText('Center for Language Education and Cooperation (中外语言交流合作中心)');
+  await expect(credits).toContainText('No license');
+  await expect(credits).toContainText('2025-11 syllabus · word levels only');
   // Part of speech: the dump date and commit they were taken from, and what was taken.
   await expect(credits).toContainText('Wiktionary contributors');
   await expect(credits).toContainText('dump 2026-10-01');
