@@ -44,6 +44,24 @@ export function countCharacters(text: string): number {
   return [...text].length;
 }
 
+/**
+ * The ranking bonus for each stored HSK level, indexed by level: 1-6, and 7 for the 7-9
+ * band.
+ *
+ * Front-loaded: HSK 1 words are the ones a learner meets first, so the bonus falls fastest
+ * over levels 1-3 and flattens over the advanced levels, which hold most of the list. The
+ * 7-9 band still gets a little, so it settles a close call against a word with no level.
+ * The largest value stays at 30000, below the 50000 gap between match tiers.
+ *
+ * Rime's `hskBonus` and the Android `scoreEntry` hold the same table.
+ */
+const HSK_BONUS = [0, 30000, 22000, 16000, 11000, 7000, 4000, 2000];
+
+/** What a stored HSK level adds to a score. No level (0) or any other value adds nothing. */
+function hskBonus(hskLevel: number | undefined): number {
+  return HSK_BONUS[hskLevel ?? 0] ?? 0;
+}
+
 /** The fields needed to build a displayed candidate. */
 export interface CandidateSource extends ScorableEntry {
   traditional: string;
@@ -98,10 +116,7 @@ export function scoreEntry(
   // weaker match above a stronger one.
   score += Math.round(entry.frequency / 5);
 
-  // HSK bonus (HSK 1 words are most frequent for learners)
-  if (entry.hskLevel) {
-    score += (7 - entry.hskLevel) * 5000;
-  }
+  score += hskBonus(entry.hskLevel);
 
   if (toneFilter.length > 0) {
     // Each typed tone constrains the syllable that ends where it was typed: in
