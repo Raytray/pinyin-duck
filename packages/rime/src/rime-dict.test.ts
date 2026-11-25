@@ -306,7 +306,7 @@ describe('renderDictHeader', () => {
     expect(header).toMatch(/CC-CEDICT, by MDBG/);
     expect(header).toMatch(/Hermit Dave/);
     expect(header).toContain(
-      '#   HSK 3.0 syllabus (2025), by Center for Language Education and Cooperation (中外语言交流合作中心), No licence · levels only. Source: www.chinesetest.cn'
+      '#   HSK 3.0 syllabus (2025), by Center for Language Education and Cooperation (中外语言交流合作中心), no license, levels only:\n#     https://www.chinesetest.cn/\n'
     );
     // Still ahead of the YAML document, where librime ignores it.
     expect(header.indexOf('License:')).toBeLessThan(header.indexOf('---'));

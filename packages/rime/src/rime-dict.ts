@@ -278,7 +278,8 @@ export const DATA_CREDIT_LINES: readonly string[] = [
   '  CC-CEDICT, by MDBG, CC BY-SA 4.0: https://www.mdbg.net/chinese/dictionary?page=cc-cedict',
   '  FrequencyWords zh_cn 2018 (OpenSubtitles), by Hermit Dave, CC BY-SA 4.0:',
   '    https://github.com/hermitdave/FrequencyWords',
-  '  HSK 3.0 syllabus (2025), by Center for Language Education and Cooperation (中外语言交流合作中心), No licence · levels only. Source: www.chinesetest.cn',
+  '  HSK 3.0 syllabus (2025), by Center for Language Education and Cooperation (中外语言交流合作中心), no license, levels only:',
+  '    https://www.chinesetest.cn/',
 ];
 
 /** {@link DATA_CREDIT_LINES} as comment lines, behind the given comment marker. */
