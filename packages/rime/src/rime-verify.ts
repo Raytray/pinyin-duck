@@ -119,7 +119,7 @@ export const SMOKE_CASES: SmokeCase[] = [
   {
     query: 'shi',
     schema: SCHEMA_IDS.simplified,
-    expect: ['是', '十', '使', '试', '诗'],
+    expect: ['是', '事', '十', '时', '室'],
     expectComment: ['to be'],
     why: 'every tone of shi merges into one menu, weight-ordered, and the first candidate ' +
       'carries its English definition — the gloss the Lua filter puts there',
@@ -127,21 +127,21 @@ export const SMOKE_CASES: SmokeCase[] = [
   {
     query: 'shi2',
     schema: SCHEMA_IDS.simplified,
-    expectCommit: '十',
+    expectCommit: '事',
     why: 'a digit typed while composing selects the candidate under it, which is what ' +
       'taking the digits out of the alphabet bought back',
   },
   {
     query: 'an',
     schema: SCHEMA_IDS.simplified,
-    expect: ['暗', '岸', '按', '安', '案'],
-    why: 'the toneless code merges every tone of an into one menu, weight-ordered — 安 sits ' +
-      'below the more frequent 暗 岸 按 案 (deprioritized as a surname)',
+    expect: ['按', '安', '暗', '岸', '案'],
+    why: 'the toneless code merges every tone of an into one menu, weight-ordered — its HSK 5 ' +
+      'bonus lifts 安 above the more frequent 暗 岸, though its surname reading is deprioritized',
   },
   {
     query: 'lv',
     schema: SCHEMA_IDS.simplified,
-    expect: ['绿', '驴', '旅', '律', '率'],
+    expect: ['率', '绿', '驴', '旅', '律'],
     why: 'proves speller/algebra xlit/ü/v/ points the right way: a learner types v, the ' +
       'engine finds the lü code, and nothing reaches for OpenCC to convert it',
   },
@@ -154,7 +154,7 @@ export const SMOKE_CASES: SmokeCase[] = [
   {
     query: 'nihao',
     schema: SCHEMA_IDS.simplified,
-    expect: ['你好', '你', '呢', '尼', '妮'],
+    expect: ['你好', '你', '呢', '泥', '尼'],
     why: 'a two-syllable code with the delimiter omitted, which is how a learner types it; ' +
       'the full word 你好 outranks the single-syllable candidates that share its first syllable; ' +
       'it is also the control for the sentence filter, showing an exact word is not dropped',
@@ -179,7 +179,7 @@ export const SMOKE_CASES: SmokeCase[] = [
   {
     query: 'zhongguo',
     schema: SCHEMA_IDS.traditional,
-    expect: ['中國', '中古', '種', '重', '鍾'],
+    expect: ['中國', '中古', '中', '種', '重'],
     why: 'proves the traditional dictionary and the __include of the simplified schema; ' +
       'before the include was fixed to filename:/, this scheme failed to build entirely',
   },
