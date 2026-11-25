@@ -563,20 +563,6 @@ sense	2	to shine; to flash
 sense	3	loud and clear
 sense	4	to show (one's passport etc); to make public (one's views etc)
 
->什	什	shi2	simplified	1
-group
-pos	numeral
-sense	1	ten (used in fractions, writing checks etc)
-sense	2	assorted
-sense	3	miscellaneous
-
->什	什	shi2	traditional	1
-group
-pos	numeral
-sense	1	ten (used in fractions, writing checks etc)
-sense	2	assorted
-sense	3	miscellaneous
-
 >什么	什麼	shen2 me5	simplified	1
 counterpart	什麼
 group
@@ -1484,6 +1470,16 @@ pos	adjective
 sense	1	(of an object or device) horizontal in design; intended to lie flat or operate in a lying position
 sense	2	(of an action) performed lying down
 
+>卸	卸	xie4	simplified	1
+group
+pos	verb
+sense	1	to unload; to remove; to detach; to get rid of
+
+>卸	卸	xie4	traditional	1
+group
+pos	verb
+sense	1	to unload; to remove; to detach; to get rid of
+
 >厚	厚	hou4	simplified	1
 group
 pos	adjective
@@ -1945,42 +1941,6 @@ sense	1	used in 嗒然 tàrán and 嗒丧 tàsàng
 group
 pos	verb
 sense	1	used in 嗒然 tàrán and 嗒喪 tàsàng
-
->嘻	嘻	xi1	simplified	1
-group
-pos	noun
-sense	1	laugh
-sense	2	giggle
-sense	3	(interjection expressing admiration, surprise etc)
-
->嘻	嘻	xi1	simplified	2
-group	嘻
-pos	noun
-sense	1	laugh
-sense	2	giggle
-sense	3	(interjection expressing admiration, surprise etc)
-group	譆
-tag	Variant of 嘻 xī
-sense	1	(interjection expressing surprise, grief etc)
-
->嘻	嘻	xi1	traditional	1
-group
-pos	noun
-sense	1	laugh
-sense	2	giggle
-sense	3	(interjection expressing admiration, surprise etc)
-
->嘻	譆	xi1	simplified	1
-counterpart	譆
-group
-tag	Variant of 嘻 xī
-sense	1	(interjection expressing surprise, grief etc)
-
->嘻	譆	xi1	traditional	1
-counterpart	嘻
-group
-tag	Variant of 嘻 xī
-sense	1	(interjection expressing surprise, grief etc)
 
 >嚃	嚃	ta4	simplified	1
 group
@@ -2640,6 +2600,18 @@ group
 pos	noun
 sense	1	Buddhist nun
 sense	2	(often used in phonetic spellings)
+
+>屎	屎	shi3	simplified	1
+group
+pos	verb · noun
+sense	1	feces; excrement; a stool
+sense	2	(bound form) secretion (of the ear, eye etc)
+
+>屎	屎	shi3	traditional	1
+group
+pos	verb · noun
+sense	1	feces; excrement; a stool
+sense	2	(bound form) secretion (of the ear, eye etc)
 
 >屠	屠	tu2	simplified	1
 group
@@ -4366,6 +4338,39 @@ group
 sense	1	moist
 sense	2	wet
 
+>溪	溪	xi1	simplified	1
+group
+pos	noun
+sense	1	creek
+sense	2	rivulet
+
+>溪	溪	xi1	simplified	2
+group	溪
+pos	noun
+sense	1	creek
+sense	2	rivulet
+group	谿
+pos	noun
+tag	Variant of 溪 xī: creek / rivulet
+
+>溪	溪	xi1	traditional	1
+group
+pos	noun
+sense	1	creek
+sense	2	rivulet
+
+>溪	谿	xi1	simplified	1
+counterpart	谿
+group
+pos	noun
+tag	Variant of 溪 xī: creek / rivulet
+
+>溪	谿	xi1	traditional	1
+counterpart	溪
+group
+pos	noun
+tag	Variant of 溪 xī: creek / rivulet
+
 >滤	濾	lü4	simplified	1
 counterpart	濾
 group
@@ -4548,17 +4553,15 @@ counterpart	略
 group
 tag	Variant of 略 lüè: brief; sketchy / outline; summary / to omit
 
->略带	略帶	lüe4 dai4	simplified	1
-counterpart	略帶
+>略微	略微	lüe4 wei1	simplified	1
 group
-pos	verb
-sense	1	to have (an attribute) to a small degree; to have a touch of
+pos	adverb
+sense	1	a little bit; slightly
 
->略带	略帶	lüe4 dai4	traditional	1
-counterpart	略带
+>略微	略微	lüe4 wei1	traditional	1
 group
-pos	verb
-sense	1	to have (an attribute) to a small degree; to have a touch of
+pos	adverb
+sense	1	a little bit; slightly
 
 >略知一二	略知一二	lüe4 zhi1 yi1 er4	simplified	1
 group
@@ -4901,24 +4904,6 @@ group
 tag	Variant of 匴 suǎn
 sense	1	ancient bamboo basket for food
 sense	2	bamboo container for hats
-
->粮	糧	liang2	simplified	1
-counterpart	糧
-group
-pos	noun
-sense	1	grain
-sense	2	food
-sense	3	provisions
-sense	4	agricultural tax paid in grain
-
->粮	糧	liang2	traditional	1
-counterpart	粮
-group
-pos	noun
-sense	1	grain
-sense	2	food
-sense	3	provisions
-sense	4	agricultural tax paid in grain
 
 >系	係	xi4	simplified	1
 counterpart	係
@@ -5410,6 +5395,20 @@ group
 pos	noun
 sense	1	(scheduled) flight; (scheduled) sailing
 
+>良	良	liang2	simplified	1
+group
+pos	adjective
+sense	1	good
+sense	2	very
+sense	3	very much
+
+>良	良	liang2	traditional	1
+group
+pos	adjective
+sense	1	good
+sense	2	very
+sense	3	very much
+
 >茜	茜	xi1	simplified	1
 group
 sense	1	used in the transliteration of people's names
@@ -5537,33 +5536,6 @@ group
 pos	noun
 sense	1	boring insect
 sense	2	snout moth's larva (Aphomia gullaris or Plodia interpuncuella or Heliothus armigera etc), major agricultural pest
-
->蟹	蟹	xie4	simplified	1
-group
-pos	noun
-sense	1	crab
-
->蟹	蟹	xie4	simplified	2
-group	蟹
-pos	noun
-sense	1	crab
-group	蠏
-tag	Variant of 蟹 xiè: crab
-
->蟹	蟹	xie4	traditional	1
-group
-pos	noun
-sense	1	crab
-
->蟹	蠏	xie4	simplified	1
-counterpart	蠏
-group
-tag	Variant of 蟹 xiè: crab
-
->蟹	蠏	xie4	traditional	1
-counterpart	蟹
-group
-tag	Variant of 蟹 xiè: crab
 
 >血型	血型	xue4 xing2	simplified	1
 group
@@ -6223,19 +6195,21 @@ sense	4	to demean
 sense	5	to degrade
 sense	6	to devalue
 
->贬斥	貶斥	bian3 chi4	simplified	1
-counterpart	貶斥
+>贬值	貶值	bian3 zhi2	simplified	1
+counterpart	貶值
 group
 pos	verb
-sense	1	to demote
-sense	2	to denounce
+sense	1	to become devaluated
+sense	2	to devaluate
+sense	3	to depreciate
 
->贬斥	貶斥	bian3 chi4	traditional	1
-counterpart	贬斥
+>贬值	貶值	bian3 zhi2	traditional	1
+counterpart	贬值
 group
 pos	verb
-sense	1	to demote
-sense	2	to denounce
+sense	1	to become devaluated
+sense	2	to devaluate
+sense	3	to depreciate
 
 >贬称	貶稱	bian3 cheng1	simplified	1
 counterpart	貶稱
@@ -6260,14 +6234,6 @@ sense	1	used in 踉跄 liàngqiàng
 group
 pos	noun · verb
 sense	1	used in 踉蹌 liàngqiàng
-
->踏	踏	ta1	simplified	1
-group
-sense	1	see 踏实 tāshi
-
->踏	踏	ta1	traditional	1
-group
-sense	1	see 踏實 tāshi
 
 >踏	踏	ta4	simplified	1
 group
