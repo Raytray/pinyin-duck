@@ -27,7 +27,8 @@
  *   1. CC-CEDICT: `curl -sL https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz
  *      | gunzip > packages/core/data/cedict_1_0_ts_utf-8_mdbg.txt`, leaving the file
  *      otherwise untouched. Wiktionary: `npm run reduce:wiktionary` on a new dump (see
- *      `reduce-wiktionary.ts`). HSK: `extract-hsk3.py` on a new syllabus (see its docstring). For a GitHub source, pick the new commit and update `url`.
+ *      `reduce-wiktionary.ts`). HSK: `extract-hsk3.py` on a new syllabus (see its
+ *      docstring). For a GitHub source, pick the new commit and update `url`.
  *   2. Update `sha256` below (`sha256sum <file>`) and the edition comment.
  *   3. `npm run build:dict -w @pinyinduck/core -- --no-cache`, then `npm run build:parity`
  *      and commit the regenerated `engine-parity.tsv` and `detail-parity.tsv` with this file.
