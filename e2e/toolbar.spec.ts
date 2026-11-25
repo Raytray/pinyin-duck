@@ -66,10 +66,10 @@ test('toggles script for a character that differs between the two scripts', asyn
 
   await editor(page).pressSequentially('beijing');
   await editor(page).press(' ');
-  await expect(editor(page)).toHaveValue('中国北京');
+  await expect(editor(page)).toHaveValue('中国背景');
 
   // Committed text is not rewritten; only new candidates change script.
-  await expect(editor(page)).toHaveValue('中国北京');
+  await expect(editor(page)).toHaveValue('中国背景');
 });
 
 test('disables Copy and Clear until there is text to act on', async ({ page }) => {

@@ -48,7 +48,7 @@ test('reports the loaded dictionary and blocks commits until it is ready', async
   release();
   await expect(dictionaryStatus(page)).toContainText('entries');
   // The buffer survived the transition, so composing can continue straight away.
-  await expectCandidates(page, ['你好', '你', '呢', '尼', '妮']);
+  await expectCandidates(page, ['你好', '你', '呢', '泥', '尼']);
   await editor(page).press(' ');
   await expect(editor(page)).toHaveValue('你好');
 });

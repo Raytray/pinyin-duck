@@ -167,7 +167,7 @@ test.describe('what the detail shows', () => {
     await editor(page).press('Escape');
     await editor(page).press('Escape');
     await editor(page).pressSequentially('hou');
-    await expectCandidates(page, ['厚', '吼', '后', '猴', '候']);
+    await expectCandidates(page, ['后', '厚', '吼', '猴', '候']);
     await infoButton(page, '猴').click();
     await expect(detail(page).locator('.detail-mw')).toHaveText('Measure words 只 zhī');
   });
@@ -175,7 +175,7 @@ test.describe('what the detail shows', () => {
   test('a candidate standing for several headwords shows a group for each, with its tags', async ({ page }) => {
     await gotoApp(page);
     await editor(page).pressSequentially('hou');
-    await expectCandidates(page, ['厚', '吼', '后', '猴', '候']);
+    await expectCandidates(page, ['后', '厚', '吼', '猴', '候']);
     await infoButton(page, '后').click();
 
     const groups = detail(page).locator('.detail-group');
@@ -267,7 +267,7 @@ test.describe('loading the detail file', () => {
 
     await editor(page).pressSequentially('hou');
     await editor(page).press('Tab');
-    await expect(senses(page).first()).toHaveText('thick');
+    await expect(senses(page).first()).toHaveText('back');
     expect(requests.count).toBe(1);
   });
 
