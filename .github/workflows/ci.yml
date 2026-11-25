@@ -348,11 +348,15 @@ jobs:
 
       # christopherhx/gitea-upload-artifact is actions/upload-artifact with its GHES check
       # (which refuses to run off github.com) turned off, so it works on GitHub and Forgejo.
-      # v6, not v7: v7 sends a mime_type field that Forgejo 17 rejects (CreateArtifact 500).
+      # Its v4 branch (upstream 4.2.0), because Forgejo 17 rejects the newer ones: v7 sends a
+      # mime_type field CreateArtifact can't decode, and v6's blob client strips the padding off
+      # Forgejo's signed upload URL, so the upload is refused as unauthorized. 4.2.0 is Node 20,
+      # which GitHub runs on Node 24 with a deprecation warning, and it predates hidden-file
+      # filtering, so dotfiles are uploaded without include-hidden-files.
       # GitHub keeps the artifact 14 days. 0 leaves Forgejo to its server-wide retention.
       - name: Upload Playwright report
         if: failure()
-        uses: christopherhx/gitea-upload-artifact@9493ce5e9eb6241749e2914efc413aa831a3dc44 # v6
+        uses: christopherhx/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7 # v4
         with:
           name: playwright-report
           path: playwright-report/
@@ -507,15 +511,13 @@ jobs:
 
       - name: Upload the device test report, logcat and diagnostics
         if: failure()
-        uses: christopherhx/gitea-upload-artifact@9493ce5e9eb6241749e2914efc413aa831a3dc44 # v6
+        uses: christopherhx/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7 # v4
         with:
           name: android-device-report
           path: |
             packages/android/app/build/outputs/androidTest-results/
             packages/android/app/build/reports/androidTests/
             packages/android/app/build/device-diagnostics/
-          # The diagnostics copy ~/.android, which hidden-file filtering would drop.
-          include-hidden-files: true
           retention-days: ${{ github.server_url == 'https://github.com' && 14 || 0 }}
 
   # ─── Single required check ────────────────────────────────────────────────
