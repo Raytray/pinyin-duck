@@ -577,14 +577,6 @@ private fun CandidateCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            candidate.hskLevel?.let { level ->
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "HSK$level",
-                    color = DuckColors.Accent.copy(alpha = 0.75f),
-                    fontSize = 9.sp,
-                )
-            }
         }
         Text(
             text = candidate.shortGloss,

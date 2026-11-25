@@ -343,18 +343,6 @@ class KeyboardTest {
     }
 
     @Test
-    fun theExpandedPanelShowsTheHskLevel() {
-        show(
-            Recorder(),
-            expanded = true,
-            buffer = "ni",
-            candidates = listOf(candidate("你", "nǐ", "you", hskLevel = 1)),
-        )
-
-        compose.onNodeWithText("HSK1").assertIsDisplayed()
-    }
-
-    @Test
     fun theWholeCardSelectsTheCandidate() {
         val recorder = Recorder()
         show(
@@ -453,7 +441,6 @@ class KeyboardTest {
         hanzi: String,
         marks: String,
         gloss: String = "",
-        hskLevel: Int? = null,
     ) = Candidate(
         id = "$hanzi-$marks",
         hanzi = hanzi,
@@ -465,6 +452,5 @@ class KeyboardTest {
         frequency = 0,
         matchedPinyin = "",
         remainingPinyin = "",
-        hskLevel = hskLevel,
     )
 }
