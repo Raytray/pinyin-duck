@@ -41,6 +41,19 @@ data class ScorableEntry(
 }
 
 /**
+ * The ranking bonus for each stored HSK level, indexed by level: 1-6, and 7 for the 7-9
+ * band. `HSK_BONUS` in `packages/core/src/index/ranking.ts`, and the values must match.
+ *
+ * Front-loaded: HSK 1 words are the ones a learner meets first, so the bonus falls fastest
+ * over levels 1-3 and flattens over the advanced levels. The 7-9 band still gets a little,
+ * so it settles a close call against a word with no level.
+ */
+private val HSK_BONUS = intArrayOf(0, 30000, 22000, 16000, 11000, 7000, 4000, 2000)
+
+/** What a stored HSK level adds to a score. No level (0 or null) or any other value adds nothing. */
+private fun hskBonus(hskLevel: Int?): Int = hskLevel?.let { HSK_BONUS.getOrNull(it) } ?: 0
+
+/**
  * Scores an entry against a toneless query.
  *
  * Match quality dominates. The tiers are spaced 50000 apart and the largest popularity
@@ -85,9 +98,7 @@ fun scoreEntry(
     // This is `(frequency / 5)` rounded half up, in integer arithmetic.
     score += (2 * entry.frequency + 5) / 10
 
-    // HSK 1 words are the ones a learner meets first, so they win inside a tier.
-    val hsk = entry.hskLevel?.takeIf { it != 0 }
-    if (hsk != null) score += (7 - hsk) * 5000
+    score += hskBonus(entry.hskLevel)
 
     if (toneFilter.isNotEmpty()) {
         // Each typed tone constrains the syllable that ends where it was typed: in

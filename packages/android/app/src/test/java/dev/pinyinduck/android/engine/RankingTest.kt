@@ -65,6 +65,33 @@ class RankingTest {
     }
 
     @Test
+    fun theHskBonusFollowsTheFrontLoadedCurve() {
+        // Level 7 is the 7-9 band, and 0 is a word with no level. The same table is pinned by
+        // `ranking.test.ts` and by Rime's `hskBonus`, so the three rankers agree exactly.
+        assertEquals(
+            listOf(0, 30000, 22000, 16000, 11000, 7000, 4000, 2000),
+            (0..7).map(::bonusFor),
+        )
+    }
+
+    @Test
+    fun aLevelOutsideTheSevenGetsNoBonus() {
+        // The level is a byte in the asset, so it can carry values no HSK level has.
+        assertEquals(listOf(0, 0, 0), listOf(8, 9, 255).map(::bonusFor))
+    }
+
+    @Test
+    fun theSevenToNineBandOutranksAnUnlevelledWordAtEqualFrequency() {
+        val hanzi =
+            search(
+                "gongshi",
+                row("gongshi", "公室", 0),
+                row("gongshi", "共识", 0, hsk = 7),
+            )
+        assertEquals(listOf("共识", "公室"), hanzi)
+    }
+
+    @Test
     fun aToneConstrainsTheSyllableItWasTypedAfter() {
         val niHao4 = entry("你号", pinyinClean = "nihao", pinyinNumbers = "ni3 hao4")
         val niHao3 = entry("你好", pinyinClean = "nihao", pinyinNumbers = "ni3 hao3")
@@ -150,6 +177,11 @@ class RankingTest {
         assertTrue(result.candidates.all { it.words == null })
         assertEquals(1, result.total)
     }
+
+    /** What an HSK level adds to [scoreEntry] over the same word with no level. */
+    private fun bonusFor(hskLevel: Int): Int =
+        scoreEntry(entry("字", hskLevel = hskLevel), "shi", emptyList()) -
+            scoreEntry(entry("字"), "shi", emptyList())
 
     private fun row(
         key: String,
