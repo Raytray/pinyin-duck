@@ -37,7 +37,7 @@ import pymupdf
 
 URL = "https://hsk.cn-bj.ufileos.com/3.0/%E6%96%B0%E7%89%88HSK%E8%80%83%E8%AF%95%E5%A4%A7%E7%BA%B21219.pdf"
 SHA256 = "d8b6646599bc9a0c9616a4cb06d4b37461f8792f70a3171016d00fcd8eda09ad"
-EDITION = "《中文水平考试 HSK 考试大纲》 (中外语言交流合作中心,\n# 2025-11)"
+EDITION = "《中文水平考试 HSK 考试大纲》 (中外语言交流合作中心, 2025-11)"
 FIRST_PAGE, LAST_PAGE = 80, 354
 # The table's 11,000 numbered rows, after the reduction described in `reduce`.
 SEQUENCE_NUMBERS = 11000
@@ -127,7 +127,9 @@ def main(pdf_path, out_path):
         )
 
     with open(out_path, "w", encoding="utf-8", newline="\n") as out:
-        out.write(f"# HSK 3.0 word levels, reduced from {EDITION} by packages/core/scripts/extract-hsk3.py.\n")
+        # The edition is too long for one header line: break it after its comma.
+        title, date = EDITION.rsplit(", ", 1)
+        out.write(f"# HSK 3.0 word levels, reduced from {title},\n# {date} by packages/core/scripts/extract-hsk3.py.\n")
         out.write("# Do not edit by hand.\n#\n")
         out.write(f"# source {URL}\n# sha256 {digest}\n#\n")
         out.write("# Columns: word, reading (as printed, with tone sandhi), level (1-6; 7 means the 7-9 band).\n")
