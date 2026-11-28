@@ -21,7 +21,7 @@
     "reduce:wiktionary": "tsx scripts/reduce-wiktionary.ts"
   },
   "devDependencies": {
-    "@types/node": "^26.6.6",
+    "@types/node": "^26.6.7",
     "@vitest/coverage-v8": "^5.1.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
